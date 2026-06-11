@@ -1,20 +1,33 @@
-# Cisco DNAC Device Query & Unpatching Tool
+# CHEAT UNPLUGGED
 
-A Python CLI tool for querying Cisco DNA Center (DNAC) devices, executing diagnostic commands, and generating interface inventory reports in Excel format.
+**Part of the CHEAT Product Family**
+
+A Python CLI tool for discovering and managing unused network ports in Cisco DNA Center (DNAC). Executes diagnostic commands, parses interface inventory, and generates Excel reports to support enterprise cable unplugging and fleet upgrade workflows.
+
+## About CHEAT
+
+**CHEAT** (Cisco Homogeneous Environmental Awareness Tool) is a family of network management utilities for large-scale infrastructure changes. Current tools:
+
+- **CHEAT UNPLUGGED** (this tool) - Discovers unused ports in DNAC, prepares for safe decommissioning
+- **CHEAT LINK** (planned) - Discovers devices via CDP not yet in DNAC (shadow inventory detection)
 
 ## Features
 
-- **Interactive Authentication**: Prompts for DNAC server, username, and password (credentials are not saved)
-- **Token-Based Access**: Uses DNAC REST API with session tokens
-- **Device Enumeration**: Fetches and displays all reachable devices with model, IP, serial, and UUID
-- **Persistent Storage**: Saves device inventory to `all_devices.json` for offline reference
-- **Interactive Filtering**: Query devices by hostname with substring matching
-- **Batch Command Execution**: Run diagnostic commands on single or multiple devices via Command Runner
-- **Automatic Parsing**: Parses device outputs and generates formatted Excel reports
-- **Smart Reporting**: Creates an "unpatching list" Excel file with:
-  - Interface inventory (state, VLAN, traffic indicators)
-  - Stack member information and uptime
-  - Color-coded highlights for problem interfaces and short uptimes
+- **Device Discovery**: Query DNAC for network devices by hostname, display full inventory (model, IP, serial, UUID)
+- **Batch Operations**: Select single or multiple devices for command execution
+- **Standardized Diagnostics**: Automatically runs four diagnostic commands:
+  - `show hardware` (stack/module info, uptime)
+  - `show interfaces` (port state, protocols, descriptions)
+  - `show interfaces status` (VLAN assignments)
+  - `show interface counters` (traffic activity)
+- **Command Runner Integration**: Executes commands via DNAC Command Runner with 30-second polling
+- **Automatic Parsing**: Parses raw outputs into structured data
+- **Excel Reporting**: Generates "unpatching list" with:
+  - One sheet per device
+  - Interface state, description, VLAN, traffic indicators
+  - Stack member uptime tracking
+  - Color-coded highlights: green (connected), yellow (not connected), red (error-disabled), gold (active traffic), orange (short uptime)
+- **Persistent Inventory**: Saves device list and raw command outputs for audit/reference
 
 ## Requirements
 
@@ -35,7 +48,9 @@ A Python CLI tool for querying Cisco DNA Center (DNAC) devices, executing diagno
 
 ## Usage
 
-Run the tool:
+### Quick Start
+
+Run CHEAT UNPLUGGED:
 ```powershell
 python main.py
 ```
