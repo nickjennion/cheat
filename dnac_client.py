@@ -75,3 +75,51 @@ class DNACClient:
         except requests.exceptions.RequestException as e:
             print(f"Failed to query devices: {e}")
             return []
+
+    def execute_commands(self, device_id: str, commands: List[str]) -> Optional[str]:
+        """Execute commands on a device via Command Runner. Returns task ID."""
+        if not self.token:
+            print("Not authenticated.")
+            return None
+
+        try:
+            url = f"{self.base_url}/dna/intent/api/v1/commandrunner/commands"
+            headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
+            payload = {
+                "deviceIds": [device_id],
+                "commands": commands
+            }
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                verify=self.verify_ssl,
+                timeout=10
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get("response", {}).get("taskId")
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to execute commands: {e}")
+            return None
+
+    def get_task_result(self, task_id: str) -> Optional[Dict]:
+        """Get results from a completed Command Runner task."""
+        if not self.token:
+            print("Not authenticated.")
+            return None
+
+        try:
+            url = f"{self.base_url}/dna/intent/api/v1/tasks/{task_id}"
+            headers = {"X-Auth-Token": self.token}
+            response = requests.get(
+                url,
+                headers=headers,
+                verify=self.verify_ssl,
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json().get("response", {})
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to get task result: {e}")
+            return None
