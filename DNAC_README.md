@@ -1,20 +1,26 @@
-# Cisco DNAC Device Query Tool
+# Cisco DNAC Device Query & Unpatching Tool
 
-A lightweight Python CLI tool for querying Cisco DNA Center (DNAC) devices with interactive authentication and hostname-based filtering.
+A Python CLI tool for querying Cisco DNA Center (DNAC) devices, executing diagnostic commands, and generating interface inventory reports in Excel format.
 
 ## Features
 
 - **Interactive Authentication**: Prompts for DNAC server, username, and password (credentials are not saved)
 - **Token-Based Access**: Uses DNAC REST API with session tokens
-- **Device Enumeration**: Fetches and displays all reachable devices
+- **Device Enumeration**: Fetches and displays all reachable devices with model, IP, serial, and UUID
 - **Persistent Storage**: Saves device inventory to `all_devices.json` for offline reference
 - **Interactive Filtering**: Query devices by hostname with substring matching
-- **Formatted Output**: Clean tabular display of device information
+- **Batch Command Execution**: Run diagnostic commands on single or multiple devices via Command Runner
+- **Automatic Parsing**: Parses device outputs and generates formatted Excel reports
+- **Smart Reporting**: Creates an "unpatching list" Excel file with:
+  - Interface inventory (state, VLAN, traffic indicators)
+  - Stack member information and uptime
+  - Color-coded highlights for problem interfaces and short uptimes
 
 ## Requirements
 
 - Python 3.8+
-- `requests` library
+- `requests` library (HTTP client)
+- `openpyxl` library (Excel generation)
 
 ## Installation (Windows Store Python)
 
@@ -39,15 +45,13 @@ Or with explicit Python:
 python.exe main.py
 ```
 
-### Interactive Prompts
+### Full Workflow Example
 
-1. **DNAC Server**: Enter the hostname or IP address of your DNAC instance
-2. **Username**: Enter your DNAC username
-3. **Password**: Enter your password (input is hidden)
-4. **Hostname Filter**: Search for devices by hostname substring (case-insensitive)
-
-Example:
 ```
+============================================================
+Cisco DNAC Device Query Tool
+============================================================
+
 Enter DNAC server hostname/IP: dnac.example.com
 Enter username: admin
 Enter password: ••••••••
@@ -59,20 +63,84 @@ Fetching devices...
 ✓ Saved 42 devices to all_devices.json
 
 ============================================================
-Enter hostname filter (or 'quit' to exit): switch
-Found 8 device(s) matching 'switch':
+Enter hostname filter (or 'quit'): switch
+Found 8 device(s):
 
-Hostname                   IP Address      Type                Status
----------------------------------------------------------------------------
-switch-core-01             10.0.1.1        Switches and Hubs   Reachable
-switch-core-02             10.0.1.2        Switches and Hubs   Reachable
-switch-access-01           10.0.2.1        Switches and Hubs   Reachable
+#  Hostname                 Model               IP Address      Serial
+1  switch-core-01           WS-C3850-12X48U     10.0.1.1        ABC123456
+2  switch-core-02           WS-C3850-12X48U     10.0.1.2        ABC123457
+3  switch-access-01         WS-C3650-24TS       10.0.2.1        XYZ789001
 ...
+
+Options:
+  's' - Select single device
+  'b' - Select batch of devices
+  'f' - Filter and try again
+  'q' - Quit
+
+Choice: s
+Enter device number: 1
+
+============================================================
+Executing commands on: switch-core-01
+============================================================
+Task ID: abc-def-123-456
+Polling for results (30s timeout)...
+  [1/30] Waiting...
+  [2/30] Waiting...
+  ...
+✓ Output saved to command_output_switch-core-01_20260611_143022.txt
+
+============================================================
+Parsing command outputs and generating Excel...
+============================================================
+
+Parsing switch-core-01... ✓ 48 interfaces found
+
+✓ Saved: unpatching_list_20260611_143022.xlsx
 ```
+
+### Commands Executed
+
+The tool automatically runs these four commands on selected devices:
+
+1. `show hardware` - Stack member info, models, uptime, software versions
+2. `show interfaces` - Interface states, protocols, descriptions, last input time
+3. `show interfaces status` - Port status, VLAN assignments
+4. `show interface counters` - Ingress octets (traffic activity)
 
 ## Output Files
 
+### Automatic Outputs
+
 - **all_devices.json**: Complete device inventory from DNAC (created after first successful authentication)
+- **command_output_<hostname>_<timestamp>.txt**: Raw command output from Command Runner for each device
+- **unpatching_list_<timestamp>.xlsx**: Parsed Excel report with one sheet per device
+
+### Excel Report Contents
+
+**Interfaces Sheet (per device):**
+- Switch hostname
+- Stack member number
+- Hardware model
+- Software version
+- Member uptime (in days, highlighted if < 42 days)
+- Interface name
+- Description
+- State (connected/disabled/err-disabled/notconnect)
+- Protocol status
+- VLAN assignment
+- Input traffic (octets)
+- Last input time
+- "Suspect" flag (YES = has had traffic recently, highlighted in gold)
+
+**Color Coding:**
+- **Green**: Connected interfaces
+- **Yellow**: Not connected interfaces
+- **Gray**: Disabled interfaces
+- **Red**: Error-disabled interfaces
+- **Gold**: Interfaces with recent traffic
+- **Orange**: Stack members with < 42 days uptime
 
 ## Security Notes
 
@@ -80,6 +148,7 @@ switch-access-01           10.0.2.1        Switches and Hubs   Reachable
 - They are only used for the current session
 - SSL certificate verification is disabled by default (common for lab DNAC instances)
 - The token expires with each session
+- Command outputs are saved to files but not securely deleted; manage accordingly
 
 ## Troubleshooting
 
