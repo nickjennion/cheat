@@ -342,6 +342,23 @@ def execute_on_devices(
             failed_devices.append(hostname)
             continue
 
+        # Parse JSON if needed and extract command responses
+        try:
+            response_data = json.loads(output_text)
+            debug_print(f"Output is JSON, parsing commandResponses")
+            if isinstance(response_data, list) and len(response_data) > 0:
+                cmd_responses = response_data[0].get("commandResponses", {}).get("SUCCESS", {})
+                if cmd_responses:
+                    debug_print(f"Found {len(cmd_responses)} command responses")
+                    concatenated_output = ""
+                    for cmd, output in cmd_responses.items():
+                        concatenated_output += output + "\n\n"
+                    output_text = concatenated_output
+                    debug_print(f"Concatenated output length: {len(output_text)} bytes")
+        except (json.JSONDecodeError, IndexError, KeyError, TypeError) as e:
+            debug_print(f"Not JSON or parsing failed ({type(e).__name__}), treating as plain text")
+            pass
+
         # Save output to file
         filename = f"command_output_{hostname}_{session_timestamp}.txt"
         try:
