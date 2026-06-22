@@ -48,6 +48,31 @@ A Python CLI tool for discovering and managing unused network ports in Cisco DNA
 
 ## Usage
 
+### Credential Management
+
+#### Interactive Prompts (Default)
+
+Run CHEAT UNPLUGGED and enter credentials when prompted:
+```powershell
+python main.py
+```
+
+#### Credential File (Optional)
+
+Create a `dnac.env` file in the project directory with:
+```
+DNAC_HOST=dnac.example.com
+DNAC_USERNAME=admin
+DNAC_PASSWORD=yourpassword
+```
+
+Then run the tool — it will automatically load credentials from the file without prompting:
+```powershell
+python main.py
+```
+
+**Note**: The tool will NOT create a `dnac.env` file automatically. If the file doesn't exist, it falls back to interactive prompts.
+
 ### Quick Start
 
 Run CHEAT UNPLUGGED:
@@ -159,11 +184,13 @@ The tool automatically runs these four commands on selected devices:
 
 ## Security Notes
 
-- Credentials are NOT stored anywhere
-- They are only used for the current session
+- Credentials are NOT stored by the tool itself
+- Interactive prompts keep credentials in memory only for the current session
+- If using `dnac.env` file: store it securely and exclude from version control (add to `.gitignore`)
 - SSL certificate verification is disabled by default (common for lab DNAC instances)
-- The token expires with each session
+- The authentication token expires at session end
 - Command outputs are saved to files but not securely deleted; manage accordingly
+- Windows Store Python: No UAC elevation required for dependencies or file operations
 
 ## Troubleshooting
 
@@ -184,8 +211,32 @@ The tool automatically runs these four commands on selected devices:
 
 The tool uses the following DNAC REST API endpoints:
 
-- `POST /dna/system/api/v1/auth/token` - Authentication
+### Authentication
+- `POST /dna/system/api/v1/auth/token` - Get authentication token
+
+### Device Management
 - `GET /dna/intent/api/v1/network-device` - List all devices
 - `GET /dna/intent/api/v1/network-device?hostname={hostname}` - Query by hostname
 
+### Command Execution (Command Runner)
+- `POST /dna/intent/api/v1/network-device-poller/cli/read-request` - Execute commands on device
+- `GET /dna/intent/api/v1/task/{task_id}` - Poll command execution status
+- `GET /dna/intent/api/v1/file/{file_id}` - Retrieve command output from file storage
+
 For more information, refer to the Cisco DNAC API documentation.
+
+## Debug Mode
+
+For troubleshooting, use the debug version of the application:
+```powershell
+python main_debug.py
+```
+
+This version includes enhanced logging showing:
+- Credential loading from dnac.env (or prompting)
+- Authentication token details
+- Device discovery results
+- Command execution task IDs
+- Task polling progress
+- FileID extraction and file output retrieval
+- Parsing and Excel generation steps
