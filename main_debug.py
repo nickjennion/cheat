@@ -30,7 +30,8 @@ DNAC_COMMANDS = [
     "show hardware",
     "show interfaces",
     "show interfaces status",
-    "show interface counters"
+    "show interface counters",
+    "show cdp neighbors"
 ]
 
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
