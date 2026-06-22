@@ -83,10 +83,11 @@ class DNACClient:
             return None
 
         try:
-            url = f"{self.base_url}/dna/intent/api/v1/commandrunner/commands"
+            url = f"{self.base_url}/dna/intent/api/v1/network-device-poller/cli/read-request"
             headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
             payload = {
-                "deviceIds": [device_id],
+                "name": "cmd-run",
+                "deviceUuids": [device_id],
                 "commands": commands
             }
             response = requests.post(
@@ -110,7 +111,7 @@ class DNACClient:
             return None
 
         try:
-            url = f"{self.base_url}/dna/intent/api/v1/tasks/{task_id}"
+            url = f"{self.base_url}/dna/intent/api/v1/task/{task_id}"
             headers = {"X-Auth-Token": self.token}
             response = requests.get(
                 url,
@@ -122,4 +123,25 @@ class DNACClient:
             return response.json().get("response", {})
         except requests.exceptions.RequestException as e:
             print(f"Failed to get task result: {e}")
+            return None
+
+    def get_file_output(self, file_id: str) -> Optional[str]:
+        """Fetch file output from Command Runner results."""
+        if not self.token:
+            print("Not authenticated.")
+            return None
+
+        try:
+            url = f"{self.base_url}/dna/intent/api/v1/file/{file_id}"
+            headers = {"X-Auth-Token": self.token}
+            response = requests.get(
+                url,
+                headers=headers,
+                verify=self.verify_ssl,
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to get file output: {e}")
             return None

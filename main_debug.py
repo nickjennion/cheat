@@ -47,13 +47,55 @@ def debug_print(msg: str):
 # Credential Handling
 # ============================================================================
 
+def load_credentials_from_env() -> Optional[tuple[str, str, str]]:
+    """Load DNAC credentials from dnac.env file if it exists."""
+    env_file = Path("dnac.env")
+
+    if not env_file.exists():
+        debug_print("No dnac.env file found")
+        return None
+
+    try:
+        credentials = {}
+        with open(env_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    credentials[key.strip()] = value.strip()
+
+        host = credentials.get("DNAC_HOST")
+        username = credentials.get("DNAC_USERNAME")
+        password = credentials.get("DNAC_PASSWORD")
+
+        if host and username and password:
+            print("✓ Loaded credentials from dnac.env")
+            debug_print(f"Credentials: host={host}, username={username}")
+            return host, username, password
+        else:
+            debug_print("dnac.env missing required fields")
+    except Exception as e:
+        print(f"Warning: Failed to load dnac.env: {e}")
+        debug_print(f"Exception loading dnac.env: {e}")
+
+    return None
+
+
 def get_credentials() -> tuple[str, str, str]:
-    """Interactively prompt for DNAC credentials."""
+    """Interactively prompt for DNAC credentials (or load from dnac.env)."""
     print("=" * 60)
     print("CHEAT UNPLUGGED — Network Port Discovery (DEBUG MODE)")
     print("=" * 60)
     print()
 
+    # Try to load from environment file first
+    env_creds = load_credentials_from_env()
+    if env_creds:
+        return env_creds
+
+    # Prompt user
     host = input("Enter DNAC server hostname/IP: ").strip()
     if not host:
         print("Error: hostname/IP is required")
@@ -269,14 +311,34 @@ def execute_on_devices(
             failed_devices.append(hostname)
             continue
 
-        # Extract output
-        output_text = result.get("result", "")
-        debug_print(f"Output text length: {len(output_text)} bytes")
-        debug_print(f"Output preview: {output_text[:200]}...")
+        # Extract fileId from progress JSON
+        output_text = None
+        try:
+            progress_json = json.loads(result.get("progress", "{}"))
+            file_id = progress_json.get("fileId")
+            debug_print(f"Extracted from progress JSON: fileId={file_id}")
 
-        if not output_text:
-            print(f"✗ No output received from {hostname}")
-            debug_print(f"Result has no 'result' field or it's empty")
+            if file_id:
+                print(f"Fetching output file: {file_id}")
+                debug_print(f"Calling get_file_output({file_id})")
+                output_text = client.get_file_output(file_id)
+
+                if not output_text:
+                    print(f"✗ Failed to fetch output file")
+                    debug_print(f"get_file_output({file_id}) returned empty")
+                    failed_devices.append(hostname)
+                    continue
+
+                debug_print(f"Output text length: {len(output_text)} bytes")
+                debug_print(f"Output preview: {output_text[:200]}...")
+            else:
+                print(f"✗ No fileId found in task result")
+                debug_print(f"No fileId in progress JSON: {result.get('progress')}")
+                failed_devices.append(hostname)
+                continue
+        except json.JSONDecodeError as e:
+            print(f"✗ Failed to parse progress JSON: {e}")
+            debug_print(f"JSON parse error: {e}, progress={result.get('progress')}")
             failed_devices.append(hostname)
             continue
 
