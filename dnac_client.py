@@ -33,45 +33,75 @@ class DNACClient:
             return False
 
     def get_devices(self) -> List[Dict]:
-        """Get list of all devices from DNAC."""
+        """Get list of all devices from DNAC (with pagination)."""
         if not self.token:
             print("Not authenticated. Call authenticate() first.")
             return []
 
+        all_devices = []
+        offset = 0
+        limit = 500
+
         try:
-            devices_url = f"{self.base_url}/dna/intent/api/v1/network-device"
-            headers = {"X-Auth-Token": self.token}
-            response = requests.get(
-                devices_url,
-                headers=headers,
-                verify=self.verify_ssl,
-                timeout=10
-            )
-            response.raise_for_status()
-            devices = response.json().get("response", [])
-            return devices
+            while True:
+                devices_url = f"{self.base_url}/dna/intent/api/v1/network-device?limit={limit}&offset={offset}"
+                headers = {"X-Auth-Token": self.token}
+                response = requests.get(
+                    devices_url,
+                    headers=headers,
+                    verify=self.verify_ssl,
+                    timeout=10
+                )
+                response.raise_for_status()
+                devices = response.json().get("response", [])
+
+                if not devices:
+                    break
+
+                all_devices.extend(devices)
+                offset += limit
+
+                if len(devices) < limit:
+                    break
+
+            return all_devices
         except requests.exceptions.RequestException as e:
             print(f"Failed to get devices: {e}")
             return []
 
     def query_devices_by_hostname(self, hostname: str) -> List[Dict]:
-        """Query devices by hostname pattern."""
+        """Query devices by hostname pattern (with pagination)."""
         if not self.token:
             print("Not authenticated. Call authenticate() first.")
             return []
 
+        all_devices = []
+        offset = 0
+        limit = 500
+
         try:
-            query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}"
-            headers = {"X-Auth-Token": self.token}
-            response = requests.get(
-                query_url,
-                headers=headers,
-                verify=self.verify_ssl,
-                timeout=10
-            )
-            response.raise_for_status()
-            devices = response.json().get("response", [])
-            return devices
+            while True:
+                query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}&limit={limit}&offset={offset}"
+                headers = {"X-Auth-Token": self.token}
+                response = requests.get(
+                    query_url,
+                    headers=headers,
+                    verify=self.verify_ssl,
+                    timeout=10
+                )
+                response.raise_for_status()
+                devices = response.json().get("response", [])
+
+                if not devices:
+                    break
+
+                all_devices.extend(devices)
+                offset += limit
+
+                if len(devices) < limit:
+                    break
+
+            return all_devices
         except requests.exceptions.RequestException as e:
             print(f"Failed to query devices: {e}")
             return []
