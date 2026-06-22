@@ -43,6 +43,7 @@ class InterfaceRecord:
     vlan: str = ""
     counters_in: str = ""
     suspect: str = ""
+    cdp_neighbors: str = ""
 
 
 # ============================================================================
@@ -216,6 +217,48 @@ def parse_hardware(lines: list[str]) -> dict[int, StackMember]:
     return members
 
 
+def parse_cdp_neighbors(text: str) -> dict[str, str]:
+    """Parse 'show cdp neighbors' output.
+
+    Returns dict mapping interface name to comma-separated neighbor device names.
+    Example: {"Gi1/0/1": "device-a, device-b", "Gi1/0/2": "device-c"}
+    """
+    neighbors = {}
+    lines = text.split('\n')
+
+    in_cdp_table = False
+    for s in lines:
+        if 'Device ID' in s and 'Local Intrfce' in s:
+            in_cdp_table = True
+            continue
+
+        if not in_cdp_table:
+            continue
+
+        s = s.strip()
+        if not s or s.startswith('-'):
+            continue
+
+        if s and not any(char.isdigit() for char in s):
+            in_cdp_table = False
+            continue
+
+        parts = s.split()
+        if len(parts) >= 2:
+            device_id = parts[0]
+            local_iface = parts[1]
+
+            short_iface = shorten_iface(local_iface)
+
+            if short_iface in neighbors:
+                neighbors[short_iface] += f", {device_id}"
+            else:
+                neighbors[short_iface] = device_id
+
+    return neighbors
+
+
+
 def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[int, StackMember]]:
     """Parse concatenated command output and return interface records."""
     lines = text.split('\n')
@@ -303,6 +346,8 @@ def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[
                 int_data[short].counters_in = m.group(2)
             continue
 
+    cdp_neighbors = parse_cdp_neighbors(text)
+
     for rec in int_data.values():
         member_str = member_from_iface(rec.iface)
         rec.stack_member = member_str
@@ -319,6 +364,9 @@ def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[
                 pass
 
         rec.suspect = "NO" if (not rec.last_input or rec.last_input.lower() == "never") else "YES"
+
+        if rec.iface in cdp_neighbors:
+            rec.cdp_neighbors = cdp_neighbors[rec.iface]
 
     def sort_key(rec):
         parts = re.findall(r'\d+', rec.iface)

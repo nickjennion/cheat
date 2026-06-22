@@ -31,9 +31,10 @@ HEADERS = [
     "Counters In (Octets)",
     "Last Input",
     "Suspect (Has Had Traffic)",
+    "CDP Neighbors",
 ]
 
-COL_WIDTHS = [28, 13, 18, 12, 20, 12, 36, 14, 10, 8, 22, 14, 26]
+COL_WIDTHS = [28, 13, 18, 12, 20, 12, 36, 14, 10, 8, 22, 14, 26, 30]
 
 STATE_COLOURS = {
     "connected": "FFD4EDDA",
@@ -116,6 +117,7 @@ def write_excel_sheet(ws, records: list[InterfaceRecord], stack_members: dict[in
             rec.counters_in,
             rec.last_input,
             rec.suspect,
+            rec.cdp_neighbors,
         ]
 
         state_key = rec.state.lower() if rec.state else ""
