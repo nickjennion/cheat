@@ -171,12 +171,54 @@ def display_devices(devices: list[dict]) -> None:
 # Device Selection
 # ============================================================================
 
+def parse_device_numbers(input_str: str, max_devices: int) -> list[int]:
+    """Parse device number input supporting ranges.
+
+    Input examples: "1,3,5-8,10" → [1, 3, 5, 6, 7, 8, 10]
+    Returns list of device numbers (1-indexed).
+    """
+    indices = []
+    for segment in input_str.split(","):
+        segment = segment.strip()
+        if not segment:
+            continue
+
+        if "-" in segment:
+            try:
+                parts = segment.split("-")
+                if len(parts) != 2:
+                    print(f"  (skipped invalid range: {segment})")
+                    continue
+                start = int(parts[0].strip())
+                end = int(parts[1].strip())
+                if start > end:
+                    start, end = end, start
+                for num in range(start, end + 1):
+                    if 1 <= num <= max_devices:
+                        indices.append(num)
+                    else:
+                        print(f"  (skipped out of range: {num})")
+            except ValueError:
+                print(f"  (skipped invalid range: {segment})")
+        else:
+            try:
+                num = int(segment)
+                if 1 <= num <= max_devices:
+                    indices.append(num)
+                else:
+                    print(f"  (skipped out of range: {num})")
+            except ValueError:
+                print(f"  (skipped invalid: {segment})")
+
+    return list(dict.fromkeys(indices))
+
+
 def select_devices(devices: list[dict]) -> Optional[list[dict]]:
     """Interactive device selection (single or batch)."""
     while True:
         print("\nOptions:")
         print("  's' - Select single device")
-        print("  'b' - Select batch of devices")
+        print("  'b' - Select batch of devices (supports ranges: 1-5,7,9-12)")
         print("  'f' - Filter and try again")
         print("  'q' - Quit")
         choice = input("\nChoice: ").strip().lower()
@@ -200,21 +242,13 @@ def select_devices(devices: list[dict]) -> Optional[list[dict]]:
             continue
 
         if choice == "b":
-            device_nums = input("Enter device numbers (comma-separated): ").strip()
-            selected = []
-            try:
-                for num_str in device_nums.split(","):
-                    idx = int(num_str.strip()) - 1
-                    if 0 <= idx < len(devices):
-                        selected.append(devices[idx])
-                    else:
-                        print(f"  (skipped invalid: {num_str.strip()})")
-                if selected:
-                    return selected
-                else:
-                    print("✗ No valid devices selected")
-            except ValueError:
-                print("✗ Please enter numbers separated by commas")
+            device_nums = input("Enter device numbers (e.g., 1,3,5-8,10): ").strip()
+            device_indices = parse_device_numbers(device_nums, len(devices))
+            if device_indices:
+                selected = [devices[num - 1] for num in device_indices]
+                return selected
+            else:
+                print("✗ No valid devices selected")
             continue
 
         print("✗ Invalid choice")
