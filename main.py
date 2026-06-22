@@ -10,6 +10,7 @@ import json
 import sys
 import getpass
 import time
+import fnmatch
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -138,9 +139,13 @@ def save_devices(devices: list[dict], filename: str = "all_devices.json") -> boo
 
 
 def filter_devices_by_hostname(devices: list[dict], hostname_filter: str) -> list[dict]:
-    """Filter devices by hostname (case-insensitive substring match)."""
+    """Filter devices by hostname (wildcard pattern matching, case-insensitive).
+
+    Supports * (match any chars) and ? (match single char).
+    Examples: xyz*3850, *9300*, jim-ks*, *-ls[12]-*
+    """
     pattern = hostname_filter.lower()
-    return [d for d in devices if pattern in d.get("hostname", "").lower()]
+    return [d for d in devices if fnmatch.fnmatch(d.get("hostname", "").lower(), pattern)]
 
 
 def display_devices(devices: list[dict]) -> None:
