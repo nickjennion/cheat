@@ -49,21 +49,30 @@ def read_all_rows(wb) -> list[list]:
     all_rows: list[list] = []
     ncols = len(HEADERS)
 
-    for ws in wb.worksheets:
+    for sheet_idx, ws in enumerate(wb.worksheets, start=1):
+        print(f"  Reading sheet {sheet_idx}/{len(wb.worksheets)}: '{ws.title}'...", end=" ", flush=True)
+
         if ws.max_row < 2:
+            print("(empty, skipped)")
             continue
 
+        # Verify header matches expected
         header = [ws.cell(row=1, column=c).value for c in range(1, ncols + 1)]
         if header != HEADERS:
-            print(f"  ⚠ Skipping sheet '{ws.title}': unexpected header layout")
+            print(f"✗ unexpected header layout, skipped")
             continue
 
+        # Extract all data rows
+        row_count = 0
         for row in range(2, ws.max_row + 1):
             values = [ws.cell(row=row, column=c).value for c in range(1, ncols + 1)]
             # Skip fully blank rows that openpyxl sometimes reports at the tail.
             if all(v is None or v == "" for v in values):
                 continue
             all_rows.append(values)
+            row_count += 1
+
+        print(f"({row_count} rows)")
 
     return all_rows
 
@@ -121,23 +130,35 @@ def consolidate(input_path: str, output_path: str | None = None) -> tuple[bool, 
         stamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
         output_path = str(in_path.with_name(f"{in_path.stem}-consolidated-{stamp}.xlsx"))
 
+    print(f"Loading '{input_path}'...")
     try:
-        src = openpyxl.load_workbook(in_path, read_only=True, data_only=True)
+        src = openpyxl.load_workbook(in_path, data_only=True)
     except Exception as e:
         return False, f"✗ Failed to open '{input_path}': {e}"
 
     sheet_count = len(src.worksheets)
-    rows = read_all_rows(src)
-    src.close()
+    print(f"Found {sheet_count} sheet(s). Reading data...")
+    try:
+        rows = read_all_rows(src)
+    except Exception as e:
+        src.close()
+        return False, f"✗ Failed to read sheets: {e}"
+    finally:
+        src.close()
 
     if not rows:
         return False, "✗ No data rows found across any sheet"
 
+    print(f"Consolidating {len(rows)} rows onto single sheet...")
     out = openpyxl.Workbook()
     ws = out.active
     ws.title = SHEET_NAME
-    count = write_consolidated_sheet(ws, rows)
+    try:
+        count = write_consolidated_sheet(ws, rows)
+    except Exception as e:
+        return False, f"✗ Failed to consolidate: {e}"
 
+    print(f"Writing '{output_path}'...")
     try:
         out.save(output_path)
     except Exception as e:
