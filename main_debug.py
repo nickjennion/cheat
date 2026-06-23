@@ -162,9 +162,10 @@ def filter_devices_by_hostname(devices: list[dict], hostname_filter: str) -> lis
     """Filter devices by hostname (wildcard pattern matching, case-insensitive).
 
     Supports * (match any chars) and ? (match single char).
-    Examples: xyz*3850, *9300*, jim-ks*, *-ls[12]-*
+    Works as substring match - pattern is wrapped with * on both sides.
+    Examples: xyz*3850 matches xyz-wsx-3850.fqdn.com
     """
-    pattern = hostname_filter.lower()
+    pattern = f"*{hostname_filter.lower()}*"
     filtered = [d for d in devices if fnmatch.fnmatch((d.get("hostname") or "").lower(), pattern)]
     debug_print(f"Filter '{hostname_filter}' matched {len(filtered)} of {len(devices)} devices")
     return filtered
