@@ -228,25 +228,39 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
 
     in_cdp_table = False
     for s in lines:
-        if 'Device ID' in s and 'Local Intrfce' in s:
+        # Detect CDP table start
+        if 'Device ID' in s and ('Local Intrfce' in s or 'Local Interface' in s or 'Intrfce' in s):
             in_cdp_table = True
             continue
 
         if not in_cdp_table:
             continue
 
-        s = s.strip()
-        if not s or s.startswith('-'):
+        s_stripped = s.strip()
+
+        # Skip empty lines and separator lines
+        if not s_stripped or s_stripped.startswith('-') or s_stripped.startswith('='):
             continue
 
-        if s and not any(char.isdigit() for char in s):
-            in_cdp_table = False
-            continue
+        # Stop at end of table (blank line or non-data line)
+        if s_stripped and not any(c.isdigit() or c.isupper() for c in s_stripped[:20]):
+            if 'Device ID' not in s_stripped:
+                in_cdp_table = False
+                continue
 
-        parts = s.split()
+        # Parse CDP entry: Device ID is first field, Local Interface is second
+        parts = s_stripped.split()
         if len(parts) >= 2:
             device_id = parts[0]
             local_iface = parts[1]
+
+            # Validate device_id is not a header
+            if device_id.lower() in ['device', 'id', 'local', 'interface', 'intrfce']:
+                continue
+
+            # Validate interface looks like a Cisco interface
+            if not any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW']):
+                continue
 
             short_iface = shorten_iface(local_iface)
 
