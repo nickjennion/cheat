@@ -33,83 +33,47 @@ class DNACClient:
             return False
 
     def get_devices(self) -> List[Dict]:
-        """Get list of all devices from DNAC (with pagination)."""
+        """Get list of all devices from DNAC."""
         if not self.token:
             print("Not authenticated. Call authenticate() first.")
             return []
 
-        all_devices = []
-        skip = 0
-        top = 500
-        page = 1
-
         try:
-            print("  Fetching device pages...", flush=True)
-            while True:
-                print(f"  [Page {page}] Fetching devices (skip={skip}, top={top})...", end=" ", flush=True)
-                devices_url = f"{self.base_url}/dna/intent/api/v1/network-device?$skip={skip}&$top={top}"
-                headers = {"X-Auth-Token": self.token}
-                response = requests.get(
-                    devices_url,
-                    headers=headers,
-                    verify=self.verify_ssl,
-                    timeout=30
-                )
-                response.raise_for_status()
-                devices = response.json().get("response", [])
-
-                print(f"{len(devices)} devices (total: {len(all_devices) + len(devices)})", flush=True)
-
-                if not devices:
-                    print("  [Pagination complete]", flush=True)
-                    break
-
-                all_devices.extend(devices)
-                skip += top
-                page += 1
-
-                if len(devices) < top:
-                    print("  [Final page reached]", flush=True)
-                    break
-
-            return all_devices
+            print("  Fetching devices...", flush=True)
+            devices_url = f"{self.base_url}/dna/intent/api/v1/network-device"
+            headers = {"X-Auth-Token": self.token}
+            response = requests.get(
+                devices_url,
+                headers=headers,
+                verify=self.verify_ssl,
+                timeout=30
+            )
+            response.raise_for_status()
+            devices = response.json().get("response", [])
+            print(f"  Retrieved {len(devices)} devices", flush=True)
+            return devices
         except requests.exceptions.RequestException as e:
             print(f"Failed to get devices: {e}")
             return []
 
     def query_devices_by_hostname(self, hostname: str) -> List[Dict]:
-        """Query devices by hostname pattern (with pagination)."""
+        """Query devices by hostname pattern."""
         if not self.token:
             print("Not authenticated. Call authenticate() first.")
             return []
 
-        all_devices = []
-        skip = 0
-        top = 500
-
         try:
-            while True:
-                query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}&$skip={skip}&$top={top}"
-                headers = {"X-Auth-Token": self.token}
-                response = requests.get(
-                    query_url,
-                    headers=headers,
-                    verify=self.verify_ssl,
-                    timeout=10
-                )
-                response.raise_for_status()
-                devices = response.json().get("response", [])
-
-                if not devices:
-                    break
-
-                all_devices.extend(devices)
-                skip += top
-
-                if len(devices) < top:
-                    break
-
-            return all_devices
+            query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}"
+            headers = {"X-Auth-Token": self.token}
+            response = requests.get(
+                query_url,
+                headers=headers,
+                verify=self.verify_ssl,
+                timeout=10
+            )
+            response.raise_for_status()
+            devices = response.json().get("response", [])
+            return devices
         except requests.exceptions.RequestException as e:
             print(f"Failed to query devices: {e}")
             return []
