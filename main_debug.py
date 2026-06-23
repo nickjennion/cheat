@@ -479,7 +479,7 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
     # Generate Excel
     Path(OUTPUT_DIR).mkdir(exist_ok=True)
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
     excel_filename = str(Path(OUTPUT_DIR) / f"port-information-{date_str}.xlsx")
     debug_print(f"Generating Excel: {excel_filename}")
     success, message = write_excel(devices_data, excel_filename)
