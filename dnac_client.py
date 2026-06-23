@@ -39,7 +39,7 @@ class DNACClient:
             return []
 
         all_devices = []
-        offset = 0
+        offset = 1
         limit = 500
         page = 1
 
@@ -97,7 +97,7 @@ class DNACClient:
             return []
 
         all_devices = []
-        offset = 0
+        offset = 1
         limit = 500
 
         try:
