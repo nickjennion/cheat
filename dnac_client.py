@@ -47,11 +47,13 @@ class DNACClient:
             print("  Fetching device pages...", flush=True)
             while True:
                 print(f"  [Page {page}] offset={offset}, limit={limit}...", end=" ", flush=True)
-                devices_url = f"{self.base_url}/dna/intent/api/v1/network-device?offset={offset}&limit={limit}"
+                devices_url = f"{self.base_url}/dna/intent/api/v1/network-device"
                 headers = {"X-Auth-Token": self.token}
+                params = {"offset": offset, "limit": limit}
                 response = requests.get(
                     devices_url,
                     headers=headers,
+                    params=params,
                     verify=self.verify_ssl,
                     timeout=30
                 )
@@ -87,15 +89,16 @@ class DNACClient:
         all_devices = []
         offset = 0
         limit = 500
-        page = 1
 
         try:
             while True:
-                query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}&offset={offset}&limit={limit}"
+                query_url = f"{self.base_url}/dna/intent/api/v1/network-device"
                 headers = {"X-Auth-Token": self.token}
+                params = {"hostname": hostname, "offset": offset, "limit": limit}
                 response = requests.get(
                     query_url,
                     headers=headers,
+                    params=params,
                     verify=self.verify_ssl,
                     timeout=30
                 )
@@ -111,7 +114,6 @@ class DNACClient:
                     break
 
                 offset += limit
-                page += 1
 
             return all_devices
         except requests.exceptions.RequestException as e:
