@@ -55,11 +55,21 @@ def parse_last_input_days(last_input_str: str) -> Optional[float]:
     return total if total > 0 else None
 
 
+def is_copper_port(iface: str) -> bool:
+    """Check if interface is a base copper port (GiX/0/X or TeX/0/X)."""
+    if not iface:
+        return False
+    iface_upper = str(iface).upper()
+    # Match Gi<member>/0/<port> or Te<member>/0/<port> patterns
+    return bool(re.match(r"^(GI|TE)\d+/0/\d+", iface_upper))
+
+
 def analyse_workbook(
     wb_path: str, threshold_days: int = 42
 ) -> tuple[bool, str, dict]:
     """Analyse port utilisation from Excel workbook.
 
+    Only counts base copper ports (GiX/0/X and TeX/0/X).
     Returns (success: bool, message: str, results: dict[switch, (in_use, idle)])
     """
     in_path = Path(wb_path)
@@ -85,6 +95,7 @@ def analyse_workbook(
         headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
         try:
             switch_col = headers.index("Switch") + 1
+            iface_col = headers.index("Interface") + 1
             last_input_col = headers.index("Last Input") + 1
         except ValueError as e:
             print(f"✗ missing column ({e})")
@@ -93,12 +104,19 @@ def analyse_workbook(
         # Tally ports per switch
         switch_stats: dict[str, tuple[int, int]] = {}
         row_count = 0
+        skipped = 0
 
         for row in range(2, ws.max_row + 1):
             switch = ws.cell(row=row, column=switch_col).value
+            iface = ws.cell(row=row, column=iface_col).value
             last_input = ws.cell(row=row, column=last_input_col).value
 
             if not switch:
+                continue
+
+            # Only count base copper ports (Gi*/0/* and Te*/0/*)
+            if not is_copper_port(iface):
+                skipped += 1
                 continue
 
             row_count += 1
@@ -124,14 +142,17 @@ def analyse_workbook(
             else:
                 results[switch] = (in_use, idle)
 
-        print(f"({row_count} ports across {len(switch_stats)} switch(es))")
+        if skipped > 0:
+            print(f"({row_count} copper ports across {len(switch_stats)} switch(es), {skipped} non-copper skipped)")
+        else:
+            print(f"({row_count} copper ports across {len(switch_stats)} switch(es))")
 
     wb.close()
 
     if not results:
-        return False, "✗ No port data found", {}
+        return False, "✗ No copper port data found", {}
 
-    return True, f"✓ Analysed {sum(in_use + idle for in_use, idle in results.values())} ports", results
+    return True, f"✓ Analysed {sum(in_use + idle for in_use, idle in results.values())} copper ports", results
 
 
 def print_summary(results: dict[str, tuple[int, int]], threshold_days: int) -> None:
