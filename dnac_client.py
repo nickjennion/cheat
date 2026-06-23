@@ -50,6 +50,11 @@ class DNACClient:
                 devices_url = f"{self.base_url}/dna/intent/api/v1/network-device"
                 headers = {"X-Auth-Token": self.token}
                 params = {"offset": offset, "limit": limit}
+
+                print(f"\n    DEBUG: URL={devices_url}", flush=True)
+                print(f"    DEBUG: params={params}", flush=True)
+                print(f"    DEBUG: headers={headers}", flush=True)
+
                 response = requests.get(
                     devices_url,
                     headers=headers,
@@ -57,6 +62,10 @@ class DNACClient:
                     verify=self.verify_ssl,
                     timeout=30
                 )
+
+                print(f"    DEBUG: Status={response.status_code}", flush=True)
+                print(f"    DEBUG: Response text={response.text[:500]}", flush=True)
+
                 response.raise_for_status()
                 devices = response.json().get("response", [])
 
@@ -78,6 +87,7 @@ class DNACClient:
             return all_devices
         except requests.exceptions.RequestException as e:
             print(f"Failed to get devices: {e}")
+            return []
             return []
 
     def query_devices_by_hostname(self, hostname: str) -> List[Dict]:
