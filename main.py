@@ -146,7 +146,7 @@ def filter_devices_by_hostname(devices: list[dict], hostname_filter: str) -> lis
     Examples: xyz*3850, *9300*, jim-ks*, *-ls[12]-*
     """
     pattern = hostname_filter.lower()
-    return [d for d in devices if fnmatch.fnmatch(d.get("hostname", "").lower(), pattern)]
+    return [d for d in devices if fnmatch.fnmatch((d.get("hostname") or "").lower(), pattern)]
 
 
 def display_devices(devices: list[dict]) -> None:
