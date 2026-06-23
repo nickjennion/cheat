@@ -39,12 +39,12 @@ class DNACClient:
             return []
 
         all_devices = []
-        offset = 0
-        limit = 500
+        skip = 0
+        top = 500
 
         try:
             while True:
-                devices_url = f"{self.base_url}/dna/intent/api/v1/network-device?limit={limit}&offset={offset}"
+                devices_url = f"{self.base_url}/dna/intent/api/v1/network-device?$skip={skip}&$top={top}"
                 headers = {"X-Auth-Token": self.token}
                 response = requests.get(
                     devices_url,
@@ -59,9 +59,9 @@ class DNACClient:
                     break
 
                 all_devices.extend(devices)
-                offset += limit
+                skip += top
 
-                if len(devices) < limit:
+                if len(devices) < top:
                     break
 
             return all_devices
@@ -76,12 +76,12 @@ class DNACClient:
             return []
 
         all_devices = []
-        offset = 0
-        limit = 500
+        skip = 0
+        top = 500
 
         try:
             while True:
-                query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}&limit={limit}&offset={offset}"
+                query_url = f"{self.base_url}/dna/intent/api/v1/network-device?hostname={hostname}&$skip={skip}&$top={top}"
                 headers = {"X-Auth-Token": self.token}
                 response = requests.get(
                     query_url,
@@ -96,9 +96,9 @@ class DNACClient:
                     break
 
                 all_devices.extend(devices)
-                offset += limit
+                skip += top
 
-                if len(devices) < limit:
+                if len(devices) < top:
                     break
 
             return all_devices
