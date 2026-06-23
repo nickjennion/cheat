@@ -1,22 +1,16 @@
-# CHEAT — Cisco Homogeneous Environmental Awareness Tool
+# CHEAT UNPLUGGED
 
-A suite of network management utilities for large-scale Cisco infrastructure changes.
+Network port discovery and inventory tool for Cisco DNA Center (DNAC).
 
-## Quick Links
+## Quick Start
 
-- **[CHEAT UNPLUGGED](DNAC_README.md)** — Current tool for discovering unused ports and planning cable unplugging workflows
-- **[CHEAT Product Family](CHEAT_FAMILY.md)** — Overview of the CHEAT suite, roadmap, and architecture
-- **[CHEAT LINK](CHEAT_FAMILY.md#cheat-link-planned)** — Planned tool for CDP-based shadow device discovery
+```bash
+python main.py
+```
 
-## What is CHEAT?
+## What is CHEAT UNPLUGGED?
 
-CHEAT is a family of Python CLI tools designed to help large organizations safely manage network infrastructure during major upgrades or decommissioning projects.
-
-**Current Release:**
-
-### CHEAT UNPLUGGED
-
-Query Cisco DNAC for devices, run standardized diagnostics, and generate Excel reports identifying unused/problematic network ports.
+Query Cisco DNAC for devices, execute diagnostic commands, and generate Excel reports identifying unused/problematic network ports.
 
 **Perfect for:**
 - Pre-upgrade assessments
@@ -24,14 +18,16 @@ Query Cisco DNAC for devices, run standardized diagnostics, and generate Excel r
 - Identifying unused ports before unplugging
 - Creating audit trails for decommissioning
 
-**Quick start:**
-```bash
-python main.py
-```
+## Features
 
-See [DNAC_README.md](DNAC_README.md) for full documentation.
-
----
+✓ Interactive DNAC authentication (no stored credentials)  
+✓ Wildcard device filtering  
+✓ Single and batch device selection with range support (1-5,7,9-12)  
+✓ Automated command execution via DNAC Command Runner  
+✓ Intelligent output parsing  
+✓ Excel reports with color-coded interface analysis  
+✓ CDP neighbor discovery  
+✓ Support for stacked switches  
 
 ## Requirements
 
@@ -44,51 +40,42 @@ Install:
 pip install --user -r requirements.txt
 ```
 
-## Key Features
+## Credentials
 
-✓ Interactive DNAC authentication (no stored credentials)  
-✓ Device filtering and batch operations  
-✓ Automated command execution via DNAC Command Runner  
-✓ Intelligent output parsing  
-✓ Excel reports with color-coded interface analysis  
-✓ Support for stacked switches  
+Create `dnac.env` in the project directory (optional):
+```
+DNAC_HOST=dnac.example.com
+DNAC_USERNAME=admin
+DNAC_PASSWORD=yourpassword
+```
+
+If not present, you'll be prompted for credentials interactively.
+
+## Documentation
+
+See [DNAC_README.md](DNAC_README.md) for detailed usage and API reference.
 
 ## File Structure
 
 ```
 .
-├── main.py                    # CHEAT UNPLUGGED application
-├── dnac_client.py            # DNAC API client library
-├── requirements.txt          # Python dependencies
-├── README.md                 # This file
-├── DNAC_README.md            # CHEAT UNPLUGGED detailed docs
-├── CHEAT_FAMILY.md           # Product family overview & roadmap
+├── main.py                    # Production application
+├── main_debug.py              # Debug version with detailed logging
+├── dnac_client.py            # DNAC API client
+├── interface_parser.py        # CLI output parsing
+├── excel_generator.py         # Report generation
+├── requirements.txt           # Dependencies
+├── README.md                  # This file
 │
 ├── all_devices.json          # Device inventory (generated)
-├── command_output_*.txt      # Raw command outputs (generated)
+├── command_output_*.txt      # Raw outputs (generated)
 └── unpatching_list_*.xlsx    # Excel reports (generated)
 ```
 
-## Security Notes
+## Security
 
-- Credentials are entered interactively and never stored
-- SSL verification disabled by default (typical for lab DNAC instances with self-signed certs)
-- Command outputs are saved to files — manage file permissions accordingly
+- Credentials are never stored by the tool
+- SSL verification disabled for lab DNAC instances
 - Tokens expire at session end
+- If using dnac.env, add it to `.gitignore`
 
-## Roadmap
-
-**CHEAT LINK** (coming soon)
-- CDP-based device discovery
-- Shadow inventory detection
-- Identify devices in network but not in DNAC
-
-**CHEAT AUDIT** (planned)
-- Continuous compliance monitoring
-- Track unplugging activity over time
-
----
-
-For detailed CHEAT UNPLUGGED usage, see [DNAC_README.md](DNAC_README.md).
-
-For product family context, see [CHEAT_FAMILY.md](CHEAT_FAMILY.md).
