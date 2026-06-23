@@ -41,27 +41,35 @@ class DNACClient:
         all_devices = []
         skip = 0
         top = 500
+        page = 1
 
         try:
+            print("  Fetching device pages...", flush=True)
             while True:
+                print(f"  [Page {page}] Fetching devices (skip={skip}, top={top})...", end=" ", flush=True)
                 devices_url = f"{self.base_url}/dna/intent/api/v1/network-device?$skip={skip}&$top={top}"
                 headers = {"X-Auth-Token": self.token}
                 response = requests.get(
                     devices_url,
                     headers=headers,
                     verify=self.verify_ssl,
-                    timeout=10
+                    timeout=30
                 )
                 response.raise_for_status()
                 devices = response.json().get("response", [])
 
+                print(f"{len(devices)} devices (total: {len(all_devices) + len(devices)})", flush=True)
+
                 if not devices:
+                    print("  [Pagination complete]", flush=True)
                     break
 
                 all_devices.extend(devices)
                 skip += top
+                page += 1
 
                 if len(devices) < top:
+                    print("  [Final page reached]", flush=True)
                     break
 
             return all_devices
