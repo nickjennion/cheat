@@ -242,6 +242,7 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
         # Detect CDP table header
         if 'Device ID' in s and 'Local Intrfce' in s:
             in_cdp_table = True
+            print(f"[CDP DEBUG] Found CDP table header", flush=True)
             continue
 
         if not in_cdp_table:
@@ -258,26 +259,34 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
         # Check if this line starts with whitespace (indented = interface line)
         if s and s[0].isspace():
             # This is an interface/data line (indented)
+            print(f"[CDP DEBUG] Indented line: {s_stripped[:60]}", flush=True)
             if current_device:
                 parts = s_stripped.split()
                 if len(parts) >= 1:
                     local_iface = parts[0]
+                    print(f"[CDP DEBUG]   Device={current_device}, Interface={local_iface}", flush=True)
                     # Validate interface looks like a Cisco interface
                     if any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW', 'TEN']):
                         short_iface = shorten_iface(local_iface)
+                        print(f"[CDP DEBUG]   Shortened to: {short_iface}", flush=True)
                         if short_iface in neighbors:
                             neighbors[short_iface] += f", {current_device}"
                         else:
                             neighbors[short_iface] = current_device
+                    else:
+                        print(f"[CDP DEBUG]   Interface validation FAILED: {local_iface}", flush=True)
                 current_device = None
         else:
             # This is a device ID line (not indented)
+            print(f"[CDP DEBUG] Non-indented line: {s_stripped[:60]}", flush=True)
             device_line = s_stripped.split()
             if device_line and device_line[0] and device_line[0][0].isalpha():
                 # Validate it's not a header
                 if device_line[0].lower() not in ['device', 'id', 'local', 'interface']:
                     current_device = device_line[0]
+                    print(f"[CDP DEBUG]   Set current_device: {current_device}", flush=True)
 
+    print(f"[CDP DEBUG] Final neighbors dict: {neighbors}", flush=True)
     return neighbors
 
 
