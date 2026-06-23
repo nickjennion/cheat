@@ -44,17 +44,11 @@ class DNACClient:
         page = 1
 
         try:
-            print("  Fetching device pages...", flush=True)
             while True:
-                print(f"  [Page {page}] offset={offset}, limit={limit}...", end=" ", flush=True)
+                print(f"  [Page {page}] fetching devices {offset}-{offset + limit - 1}...", end=" ", flush=True)
                 devices_url = f"{self.base_url}/dna/intent/api/v1/network-device"
                 headers = {"X-Auth-Token": self.token}
                 params = {"offset": offset, "limit": limit}
-
-                print(f"\n    DEBUG: URL={devices_url}", flush=True)
-                print(f"    DEBUG: params={params}", flush=True)
-                print(f"    DEBUG: headers={headers}", flush=True)
-
                 response = requests.get(
                     devices_url,
                     headers=headers,
@@ -62,23 +56,17 @@ class DNACClient:
                     verify=self.verify_ssl,
                     timeout=30
                 )
-
-                print(f"    DEBUG: Status={response.status_code}", flush=True)
-                print(f"    DEBUG: Response text={response.text[:500]}", flush=True)
-
                 response.raise_for_status()
                 devices = response.json().get("response", [])
 
-                print(f"got {len(devices)} devices (total: {len(all_devices) + len(devices)})", flush=True)
+                print(f"got {len(devices)} (total: {len(all_devices) + len(devices)})", flush=True)
 
                 if not devices:
-                    print("  [No devices returned - pagination complete]", flush=True)
                     break
 
                 all_devices.extend(devices)
 
                 if len(devices) < limit:
-                    print("  [Final page reached - fewer than limit returned]", flush=True)
                     break
 
                 offset += limit
@@ -87,7 +75,6 @@ class DNACClient:
             return all_devices
         except requests.exceptions.RequestException as e:
             print(f"Failed to get devices: {e}")
-            return []
             return []
 
     def query_devices_by_hostname(self, hostname: str) -> List[Dict]:
