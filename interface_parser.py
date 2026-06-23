@@ -220,6 +220,11 @@ def parse_hardware(lines: list[str]) -> dict[int, StackMember]:
 def parse_cdp_neighbors(text: str) -> dict[str, str]:
     """Parse 'show cdp neighbors' output.
 
+    Handles both single-line and multi-line formats:
+    Single-line:  Device ID     Local Iface   ... data
+    Multi-line:   Device ID (on own line)
+                              Local Iface   ... data (indented next line)
+
     Returns dict mapping interface name to comma-separated neighbor device names.
     Example: {"Gi1/0/1": "device-a, device-b", "Gi1/0/2": "device-c"}
     """
@@ -227,9 +232,15 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
     lines = text.split('\n')
 
     in_cdp_table = False
-    for s in lines:
-        # Detect CDP table start
-        if 'Device ID' in s and ('Local Intrfce' in s or 'Local Interface' in s or 'Intrfce' in s):
+    current_device = None
+    i = 0
+
+    while i < len(lines):
+        s = lines[i]
+        i += 1
+
+        # Detect CDP table header
+        if 'Device ID' in s and 'Local Intrfce' in s:
             in_cdp_table = True
             continue
 
@@ -238,36 +249,34 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
 
         s_stripped = s.strip()
 
-        # Skip empty lines and separator lines
+        # Skip empty lines, separators, and capability codes
         if not s_stripped or s_stripped.startswith('-') or s_stripped.startswith('='):
             continue
+        if s_stripped.startswith('Capability') or s_stripped.startswith('R -') or s_stripped.startswith('S -'):
+            continue
 
-        # Stop at end of table (blank line or non-data line)
-        if s_stripped and not any(c.isdigit() or c.isupper() for c in s_stripped[:20]):
-            if 'Device ID' not in s_stripped:
-                in_cdp_table = False
-                continue
-
-        # Parse CDP entry: Device ID is first field, Local Interface is second
-        parts = s_stripped.split()
-        if len(parts) >= 2:
-            device_id = parts[0]
-            local_iface = parts[1]
-
-            # Validate device_id is not a header
-            if device_id.lower() in ['device', 'id', 'local', 'interface', 'intrfce']:
-                continue
-
-            # Validate interface looks like a Cisco interface
-            if not any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW']):
-                continue
-
-            short_iface = shorten_iface(local_iface)
-
-            if short_iface in neighbors:
-                neighbors[short_iface] += f", {device_id}"
-            else:
-                neighbors[short_iface] = device_id
+        # Check if this line starts with whitespace (indented = interface line)
+        if s and s[0].isspace():
+            # This is an interface/data line (indented)
+            if current_device:
+                parts = s_stripped.split()
+                if len(parts) >= 1:
+                    local_iface = parts[0]
+                    # Validate interface looks like a Cisco interface
+                    if any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW', 'TEN']):
+                        short_iface = shorten_iface(local_iface)
+                        if short_iface in neighbors:
+                            neighbors[short_iface] += f", {current_device}"
+                        else:
+                            neighbors[short_iface] = current_device
+                current_device = None
+        else:
+            # This is a device ID line (not indented)
+            device_line = s_stripped.split()
+            if device_line and device_line[0] and device_line[0][0].isalpha():
+                # Validate it's not a header
+                if device_line[0].lower() not in ['device', 'id', 'local', 'interface']:
+                    current_device = device_line[0]
 
     return neighbors
 
