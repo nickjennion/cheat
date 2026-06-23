@@ -83,9 +83,21 @@ RE_SHOW_HW_TRIGGER = re.compile(r'show\s+(hardware|version)', re.IGNORECASE)
 
 # CDP local interface: abbreviated type ("Ten", "Gig", "Fas"...) + space + slot/port.
 # Matches both multi-part (Ten 2/1/4) and single digit (Gig 0) port formats.
-# The first such match on a data line is the local interface; subsequent matches
-# are ignored or used for the neighbor port (Port ID column).
+# The local interface is always the first such match on a data line.
 RE_CDP_LOCAL_IFACE = re.compile(r'\b([A-Za-z]{2,4})\s+(\d+(?:/\d+)*)')
+
+# Neighbor Port ID sits at the very end of a CDP line. It is usually a Cisco
+# interface ("Gig 0", "Ten 2/1/19") but on non-Cisco neighbours can be anything
+# the device reports ("Port 1" on IP phones, "eth0" on AV/room gear). Capture
+# the trailing "<word> <slot/port>" form, falling back to a single bare token.
+RE_CDP_PORT_ID = re.compile(r'([A-Za-z][\w-]*)\s+(\d+(?:/\d+)*)\s*$')
+
+# Cisco interface-type abbreviations that should be normalised to short form
+# (Gig -> Gi0). Anything not in this set (Port, eth, Room...) is kept verbatim.
+CDP_CISCO_TYPES = {
+    "te", "ten", "gi", "gig", "fa", "fas", "fo", "for", "fou",
+    "hu", "hun", "tw", "two", "fi", "fiv", "et", "eth",
+}
 
 
 # ============================================================================
@@ -126,6 +138,23 @@ def uptime_days(uptime_str: str) -> Optional[float]:
         elif "hour" in unit:
             total += v / 24
     return total if total > 0 else None
+
+
+def extract_neighbor_port(stripped_line: str) -> str:
+    """Extract the neighbor's Port ID (last field) from a CDP data line.
+
+    Cisco interfaces are normalised to short form (Gig 0 -> Gi0); non-Cisco
+    port IDs (Port 1, eth0, ...) are preserved exactly as reported.
+    """
+    m = RE_CDP_PORT_ID.search(stripped_line)
+    if m:
+        word, num = m.group(1), m.group(2)
+        if word.lower() in CDP_CISCO_TYPES:
+            return word[:2].capitalize() + num
+        return f"{word} {num}"
+    # Single bare token at end of line, e.g. "eth0".
+    tokens = stripped_line.split()
+    return tokens[-1] if tokens else ""
 
 
 def parse_status_row(line: str):
@@ -273,18 +302,19 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
             continue
 
         indented = line[0].isspace()
-        matches = list(RE_CDP_LOCAL_IFACE.finditer(line))
+        local_match = RE_CDP_LOCAL_IFACE.search(line)
 
-        if matches:
-            # First match is local interface, last match (if different) is neighbor port
-            local_match = matches[0]
+        if local_match:
+            # First two letters of the CDP abbreviation == Cisco short form
+            # (Ten->Te, Gig->Gi, Fas->Fa, Fou->Fo, Hun->Hu, Two->Tw).
             local_iface = local_match.group(1)[:2].capitalize() + local_match.group(2)
 
-            # Neighbor port is the last interface pattern on the line
-            neighbor_port = ""
-            if len(matches) > 1:
-                neighbor_match = matches[-1]
-                neighbor_port = neighbor_match.group(1)[:2].capitalize() + neighbor_match.group(2)
+            # Neighbor Port ID is the trailing field; normalise only if Cisco.
+            neighbor_port = extract_neighbor_port(stripped)
+            # Guard against a single-neighbour line where the only interface
+            # token is the local one (no separate Port ID parsed).
+            if neighbor_port == local_iface:
+                neighbor_port = ""
 
             device = pending_device if indented else stripped.split()[0]
 
