@@ -13,6 +13,7 @@ Usage:
     python port_utilisation.py <report.xlsx> [threshold_days]
 
 Default threshold is 42 days (matching uptime highlight logic).
+Output includes both stdout summary and timestamped Excel file.
 """
 
 import sys
@@ -167,6 +168,97 @@ def print_summary(results: dict[str, tuple[int, int]], threshold_days: int) -> N
     print(f"{'='*80}\n")
 
 
+def write_summary_excel(
+    results: dict[str, tuple[int, int]], threshold_days: int, output_path: str | None = None
+) -> tuple[bool, str]:
+    """Write port utilisation summary to an Excel file.
+
+    Returns (success: bool, message: str with file path if successful)
+    """
+    if output_path is None:
+        stamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+        output_path = f"port_utilisation_summary_{stamp}.xlsx"
+
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Summary"
+
+        # Headers
+        headers = ["Switch/Stack", "In Use", "Idle", "Total", "% In Use", "Threshold (days)"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+            cell.fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
+            cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+
+        ws.column_dimensions["A"].width = 40
+        ws.column_dimensions["B"].width = 12
+        ws.column_dimensions["C"].width = 12
+        ws.column_dimensions["D"].width = 12
+        ws.column_dimensions["E"].width = 14
+        ws.column_dimensions["F"].width = 16
+
+        # Data rows
+        grand_in_use = 0
+        grand_idle = 0
+        row = 2
+
+        for switch in sorted(results.keys()):
+            in_use, idle = results[switch]
+            total = in_use + idle
+            grand_in_use += in_use
+            grand_idle += idle
+            pct = (in_use / total * 100) if total > 0 else 0
+
+            ws.cell(row=row, column=1, value=switch)
+            ws.cell(row=row, column=2, value=in_use)
+            ws.cell(row=row, column=3, value=idle)
+            ws.cell(row=row, column=4, value=total)
+            ws.cell(row=row, column=5, value=pct / 100)
+            ws.cell(row=row, column=6, value=threshold_days)
+
+            # Format percentage column
+            ws.cell(row=row, column=5).number_format = "0.0%"
+
+            row += 1
+
+        # Total row
+        grand_total = grand_in_use + grand_idle
+        grand_pct = (grand_in_use / grand_total * 100) if grand_total > 0 else 0
+
+        ws.cell(row=row, column=1, value="TOTAL")
+        ws.cell(row=row, column=2, value=grand_in_use)
+        ws.cell(row=row, column=3, value=grand_idle)
+        ws.cell(row=row, column=4, value=grand_total)
+        ws.cell(row=row, column=5, value=grand_pct / 100)
+        ws.cell(row=row, column=6, value=threshold_days)
+
+        # Bold and shade the total row
+        for col in range(1, 7):
+            cell = ws.cell(row=row, column=col)
+            cell.font = openpyxl.styles.Font(bold=True, name="Arial", size=10)
+            cell.fill = openpyxl.styles.PatternFill("solid", start_color="FFE2E2E2")
+
+        ws.cell(row=row, column=5).number_format = "0.0%"
+
+        # Add borders to all cells
+        thin_border = openpyxl.styles.Border(
+            bottom=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
+            right=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
+        )
+        for r in range(1, row + 1):
+            for c in range(1, 7):
+                ws.cell(row=r, column=c).border = thin_border
+
+        ws.freeze_panes = "A2"
+        wb.save(output_path)
+        return True, f"✓ Summary written to {output_path}"
+
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print(__doc__.strip())
@@ -180,6 +272,8 @@ def main(argv: list[str]) -> int:
 
     if success:
         print_summary(results, threshold_days)
+        success, excel_msg = write_summary_excel(results, threshold_days)
+        print(excel_msg)
     return 0 if success else 1
 
 
