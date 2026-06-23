@@ -27,10 +27,21 @@ class DNACClient:
             )
             response.raise_for_status()
             self.token = response.json().get("Token")
+            if self.token:
+                self._save_token(self.token)
             return bool(self.token)
         except requests.exceptions.RequestException as e:
             print(f"Authentication failed: {e}")
             return False
+
+    @staticmethod
+    def _save_token(token: str) -> None:
+        """Persist the issued token to token.env for reuse/inspection."""
+        try:
+            with open("token.env", "w") as f:
+                f.write(f"DNAC_TOKEN={token}\n")
+        except IOError as e:
+            print(f"Warning: could not write token.env: {e}")
 
     def get_devices(self) -> List[Dict]:
         """Get list of all devices from DNAC (with pagination using offset/limit)."""
