@@ -233,6 +233,7 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
 
     in_cdp_table = False
     current_device = None
+    blank_lines_seen = 0
     i = 0
 
     while i < len(lines):
@@ -242,7 +243,7 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
         # Detect CDP table header
         if 'Device ID' in s and 'Local Intrfce' in s:
             in_cdp_table = True
-            print(f"[CDP DEBUG] Found CDP table header", flush=True)
+            blank_lines_seen = 0
             continue
 
         if not in_cdp_table:
@@ -252,41 +253,56 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
 
         # Skip empty lines, separators, and capability codes
         if not s_stripped or s_stripped.startswith('-') or s_stripped.startswith('='):
+            blank_lines_seen += 1
+            # After 2+ blank lines, we've left the CDP table
+            if blank_lines_seen >= 2:
+                in_cdp_table = False
             continue
+        else:
+            blank_lines_seen = 0
+
         if s_stripped.startswith('Capability') or s_stripped.startswith('R -') or s_stripped.startswith('S -'):
+            continue
+
+        # CRITICAL: Stop if we hit a command prompt or another command's output
+        if s_stripped.endswith('#') or s_stripped.endswith('>'):
+            in_cdp_table = False
+            continue
+
+        # Stop if we see "show" (next command output)
+        if s_stripped.lower().startswith('show '):
+            in_cdp_table = False
             continue
 
         # Check if this line starts with whitespace (indented = interface line)
         if s and s[0].isspace():
             # This is an interface/data line (indented)
-            print(f"[CDP DEBUG] Indented line: {s_stripped[:60]}", flush=True)
             if current_device:
                 parts = s_stripped.split()
                 if len(parts) >= 1:
                     local_iface = parts[0]
-                    print(f"[CDP DEBUG]   Device={current_device}, Interface={local_iface}", flush=True)
-                    # Validate interface looks like a Cisco interface
-                    if any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW', 'TEN']):
+                    # Validate interface looks like a Cisco interface (but not just numbers)
+                    if any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW', 'TEN']) and not local_iface[0].isdigit():
                         short_iface = shorten_iface(local_iface)
-                        print(f"[CDP DEBUG]   Shortened to: {short_iface}", flush=True)
                         if short_iface in neighbors:
                             neighbors[short_iface] += f", {current_device}"
                         else:
                             neighbors[short_iface] = current_device
-                    else:
-                        print(f"[CDP DEBUG]   Interface validation FAILED: {local_iface}", flush=True)
                 current_device = None
         else:
             # This is a device ID line (not indented)
-            print(f"[CDP DEBUG] Non-indented line: {s_stripped[:60]}", flush=True)
+            # Only accept if it looks like a hostname/FQDN (contains letters, dashes, dots)
             device_line = s_stripped.split()
-            if device_line and device_line[0] and device_line[0][0].isalpha():
-                # Validate it's not a header
-                if device_line[0].lower() not in ['device', 'id', 'local', 'interface']:
-                    current_device = device_line[0]
-                    print(f"[CDP DEBUG]   Set current_device: {current_device}", flush=True)
+            if device_line and device_line[0]:
+                candidate = device_line[0]
+                # Must contain at least one letter and NOT be all numbers/slashes (not an interface)
+                has_letter = any(c.isalpha() for c in candidate)
+                is_not_iface = '/' not in candidate or not candidate[0].isalpha()
 
-    print(f"[CDP DEBUG] Final neighbors dict: {neighbors}", flush=True)
+                # Validate it's not a header
+                if has_letter and is_not_iface and candidate.lower() not in ['device', 'id', 'local', 'interface', 'capability']:
+                    current_device = candidate
+
     return neighbors
 
 
