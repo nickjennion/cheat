@@ -81,6 +81,11 @@ RE_HOSTNAME_UPTIME = re.compile(r'^\S+\s+uptime\s+is\s+(.+)', re.IGNORECASE)
 RE_MODEL_NUMBER = re.compile(r'Model Number\s*:\s*(\S+)', re.IGNORECASE)
 RE_SHOW_HW_TRIGGER = re.compile(r'show\s+(hardware|version)', re.IGNORECASE)
 
+# CDP local interface: abbreviated type ("Ten", "Gig", "Fas"...) + space + slot/port.
+# The first such match on a data line is the local interface (the Port ID column,
+# a second interface, appears later and is ignored because we use .search()).
+RE_CDP_LOCAL_IFACE = re.compile(r'\b([A-Za-z]{2,4})\s+(\d+(?:/\d+)+)')
+
 
 # ============================================================================
 # Helper Functions
@@ -218,90 +223,69 @@ def parse_hardware(lines: list[str]) -> dict[int, StackMember]:
 
 
 def parse_cdp_neighbors(text: str) -> dict[str, str]:
-    """Parse 'show cdp neighbors' output.
+    """Parse 'show cdp neighbors' output into {interface: neighbor device(s)}.
 
-    Handles both single-line and multi-line formats:
-    Single-line:  Device ID     Local Iface   ... data
-    Multi-line:   Device ID (on own line)
-                              Local Iface   ... data (indented next line)
+    Cisco CDP output puts the local interface in the second column. When the
+    Device ID is long it wraps onto its own line and the interface appears,
+    indented, on the following line:
 
-    Returns dict mapping interface name to comma-separated neighbor device names.
-    Example: {"Gi1/0/1": "device-a, device-b", "Gi1/0/2": "device-c"}
+        Device ID        Local Intrfce     Holdtme  Capability  Platform  Port ID
+        long-device-name.example.net
+                         Ten 2/1/4         163      R S I       WS-C4500X Ten 2/1/9
+        short-dev        Ten 1/0/46        166      R T         AIR-AP380 Gig 0
+
+    Interface types are abbreviated (Ten, Gig, Fas...) and space-separated from
+    the slot/port, so they are normalised to the same short form used elsewhere
+    (Te2/1/4, Gi1/0/46) so they match the interface records.
     """
-    neighbors = {}
-    lines = text.split('\n')
+    neighbors: dict[str, str] = {}
+    in_table = False
+    pending_device: Optional[str] = None
 
-    in_cdp_table = False
-    current_device = None
-    blank_lines_seen = 0
-    i = 0
+    for raw in text.split('\n'):
+        line = raw.rstrip()
 
-    while i < len(lines):
-        s = lines[i]
-        i += 1
-
-        # Detect CDP table header
-        if 'Device ID' in s and 'Local Intrfce' in s:
-            in_cdp_table = True
-            blank_lines_seen = 0
+        if not in_table:
+            if 'Device ID' in line and ('Local Intrfce' in line or 'Local Interface' in line):
+                in_table = True
             continue
 
-        if not in_cdp_table:
+        stripped = line.strip()
+
+        if not stripped:
             continue
 
-        s_stripped = s.strip()
-
-        # Skip empty lines, separators, and capability codes
-        if not s_stripped or s_stripped.startswith('-') or s_stripped.startswith('='):
-            blank_lines_seen += 1
-            # After 2+ blank lines, we've left the CDP table
-            if blank_lines_seen >= 2:
-                in_cdp_table = False
-            continue
-        else:
-            blank_lines_seen = 0
-
-        if s_stripped.startswith('Capability') or s_stripped.startswith('R -') or s_stripped.startswith('S -'):
+        # End of CDP output: device prompt, next command, or another section header.
+        if (stripped.endswith('#') or stripped.endswith('>')
+                or stripped.lower().startswith('show ')
+                or RE_COUNTERS_HEADER.match(stripped)
+                or RE_STATUS_HEADER.match(stripped)):
+            in_table = False
+            pending_device = None
             continue
 
-        # CRITICAL: Stop if we hit a command prompt or another command's output
-        if s_stripped.endswith('#') or s_stripped.endswith('>'):
-            in_cdp_table = False
+        # A repeated CDP header (rare) — skip it.
+        if 'Device ID' in line and ('Local Intrfce' in line or 'Local Interface' in line):
             continue
 
-        # Stop if we see "show" (next command output)
-        if s_stripped.lower().startswith('show '):
-            in_cdp_table = False
-            continue
+        indented = line[0].isspace()
+        m = RE_CDP_LOCAL_IFACE.search(line)
 
-        # Check if this line starts with whitespace (indented = interface line)
-        if s and s[0].isspace():
-            # This is an interface/data line (indented)
-            if current_device:
-                parts = s_stripped.split()
-                if len(parts) >= 1:
-                    local_iface = parts[0]
-                    # Validate interface looks like a Cisco interface (but not just numbers)
-                    if any(c in local_iface.upper() for c in ['GI', 'TE', 'ET', 'FA', 'SE', 'TW', 'TEN']) and not local_iface[0].isdigit():
-                        short_iface = shorten_iface(local_iface)
-                        if short_iface in neighbors:
-                            neighbors[short_iface] += f", {current_device}"
-                        else:
-                            neighbors[short_iface] = current_device
-                current_device = None
-        else:
-            # This is a device ID line (not indented)
-            # Only accept if it looks like a hostname/FQDN (contains letters, dashes, dots)
-            device_line = s_stripped.split()
-            if device_line and device_line[0]:
-                candidate = device_line[0]
-                # Must contain at least one letter and NOT be all numbers/slashes (not an interface)
-                has_letter = any(c.isalpha() for c in candidate)
-                is_not_iface = '/' not in candidate or not candidate[0].isalpha()
-
-                # Validate it's not a header
-                if has_letter and is_not_iface and candidate.lower() not in ['device', 'id', 'local', 'interface', 'capability']:
-                    current_device = candidate
+        if m:
+            # First two letters of the CDP abbreviation == Cisco short form
+            # (Ten->Te, Gig->Gi, Fas->Fa, Fou->Fo, Hun->Hu, Two->Tw).
+            local_iface = m.group(1)[:2].capitalize() + m.group(2)
+            device = pending_device if indented else stripped.split()[0]
+            pending_device = None
+            if device:
+                if local_iface in neighbors:
+                    neighbors[local_iface] += f", {device}"
+                else:
+                    neighbors[local_iface] = device
+        elif not indented:
+            # Non-indented line with no interface: a Device ID that wraps to
+            # the next line.
+            pending_device = stripped.split()[0]
 
     return neighbors
 
