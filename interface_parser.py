@@ -82,9 +82,10 @@ RE_MODEL_NUMBER = re.compile(r'Model Number\s*:\s*(\S+)', re.IGNORECASE)
 RE_SHOW_HW_TRIGGER = re.compile(r'show\s+(hardware|version)', re.IGNORECASE)
 
 # CDP local interface: abbreviated type ("Ten", "Gig", "Fas"...) + space + slot/port.
-# The first such match on a data line is the local interface (the Port ID column,
-# a second interface, appears later and is ignored because we use .search()).
-RE_CDP_LOCAL_IFACE = re.compile(r'\b([A-Za-z]{2,4})\s+(\d+(?:/\d+)+)')
+# Matches both multi-part (Ten 2/1/4) and single digit (Gig 0) port formats.
+# The first such match on a data line is the local interface; subsequent matches
+# are ignored or used for the neighbor port (Port ID column).
+RE_CDP_LOCAL_IFACE = re.compile(r'\b([A-Za-z]{2,4})\s+(\d+(?:/\d+)*)')
 
 
 # ============================================================================
@@ -223,7 +224,7 @@ def parse_hardware(lines: list[str]) -> dict[int, StackMember]:
 
 
 def parse_cdp_neighbors(text: str) -> dict[str, str]:
-    """Parse 'show cdp neighbors' output into {interface: neighbor device(s)}.
+    """Parse 'show cdp neighbors' output into {interface: "neighbor_device (neighbor_port)"}.
 
     Cisco CDP output puts the local interface in the second column. When the
     Device ID is long it wraps onto its own line and the interface appears,
@@ -237,6 +238,9 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
     Interface types are abbreviated (Ten, Gig, Fas...) and space-separated from
     the slot/port, so they are normalised to the same short form used elsewhere
     (Te2/1/4, Gi1/0/46) so they match the interface records.
+
+    The Port ID (last field) is appended in parentheses: "device (port)".
+    For multiple neighbors on one interface: "device1 (port1), device2 (port2)".
     """
     neighbors: dict[str, str] = {}
     in_table = False
@@ -269,19 +273,31 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
             continue
 
         indented = line[0].isspace()
-        m = RE_CDP_LOCAL_IFACE.search(line)
+        matches = list(RE_CDP_LOCAL_IFACE.finditer(line))
 
-        if m:
-            # First two letters of the CDP abbreviation == Cisco short form
-            # (Ten->Te, Gig->Gi, Fas->Fa, Fou->Fo, Hun->Hu, Two->Tw).
-            local_iface = m.group(1)[:2].capitalize() + m.group(2)
+        if matches:
+            # First match is local interface, last match (if different) is neighbor port
+            local_match = matches[0]
+            local_iface = local_match.group(1)[:2].capitalize() + local_match.group(2)
+
+            # Neighbor port is the last interface pattern on the line
+            neighbor_port = ""
+            if len(matches) > 1:
+                neighbor_match = matches[-1]
+                neighbor_port = neighbor_match.group(1)[:2].capitalize() + neighbor_match.group(2)
+
             device = pending_device if indented else stripped.split()[0]
+
             pending_device = None
             if device:
-                if local_iface in neighbors:
-                    neighbors[local_iface] += f", {device}"
+                if neighbor_port:
+                    neighbor_entry = f"{device} ({neighbor_port})"
                 else:
-                    neighbors[local_iface] = device
+                    neighbor_entry = device
+                if local_iface in neighbors:
+                    neighbors[local_iface] += f", {neighbor_entry}"
+                else:
+                    neighbors[local_iface] = neighbor_entry
         elif not indented:
             # Non-indented line with no interface: a Device ID that wraps to
             # the next line.
