@@ -32,6 +32,9 @@ DNAC_COMMANDS = [
     "show cdp neighbors"
 ]
 
+# Generated command-runner outputs and reports are written here.
+OUTPUT_DIR = "output"
+
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
 
@@ -348,7 +351,8 @@ def execute_on_devices(
             pass
 
         # Save output to file
-        filename = f"command_output_{hostname}_{session_timestamp}.txt"
+        Path(OUTPUT_DIR).mkdir(exist_ok=True)
+        filename = str(Path(OUTPUT_DIR) / f"command_output_{hostname}_{session_timestamp}.txt")
         try:
             with open(filename, "w") as f:
                 f.write(output_text)
@@ -413,7 +417,9 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
         return False
 
     # Generate Excel
-    excel_filename = f"unpatching_list_{session_timestamp}.xlsx"
+    Path(OUTPUT_DIR).mkdir(exist_ok=True)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    excel_filename = str(Path(OUTPUT_DIR) / f"port-information-{date_str}.xlsx")
     success, message = write_excel(devices_data, excel_filename)
     print(f"\n{message}")
     return success
