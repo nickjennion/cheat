@@ -1,4 +1,4 @@
-# CHEAT UNPLUGGED
+# CHEAT TOOL
 
 Network port discovery and inventory tool for Cisco DNA Center (DNAC).
 
@@ -8,7 +8,7 @@ Network port discovery and inventory tool for Cisco DNA Center (DNAC).
 python main.py
 ```
 
-## What is CHEAT UNPLUGGED?
+## What is CHEAT?
 
 Query Cisco DNAC for devices, execute diagnostic commands, and generate Excel reports identifying unused/problematic network ports.
 
@@ -67,7 +67,7 @@ See [DNAC_README.md](DNAC_README.md) for detailed usage and API reference.
 ├── requirements.txt           # Dependencies
 ├── README.md                  # This file
 │
-├── all_devices.json          # Device inventory (generated)
+├── all_devices.json          # Device inventory (generated on each run)
 ├── command_output_*.txt      # Raw outputs (generated)
 └── unpatching_list_*.xlsx    # Excel reports (generated)
 ```
@@ -77,5 +77,5 @@ See [DNAC_README.md](DNAC_README.md) for detailed usage and API reference.
 - Credentials are never stored by the tool
 - SSL verification disabled for lab DNAC instances
 - Tokens expire at session end
-- If using dnac.env, add it to `.gitignore`
+- dnac.env, used for local storage of DNAC server and credentials - git ignored
 
