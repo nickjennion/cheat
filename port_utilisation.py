@@ -58,7 +58,7 @@ def analyse_workbook(
     Only counts base copper ports (GiX/0/X and TeX/0/X).
     Returns (success: bool, message: str, results: dict[switch, (in_use, idle)])
     """
-    in_path = Path(wb_path)
+    in_path = Path(wb_path).resolve()
     if not in_path.is_file():
         return False, f"✗ File not found: {wb_path}", {}
 
@@ -184,7 +184,11 @@ def write_summary_excel(
     """
     if output_path is None:
         stamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-        output_path = f"port_utilisation_summary_{stamp}.xlsx"
+        excel_dir = Path("excel_reports").resolve()
+        if excel_dir.is_dir():
+            output_path = str(excel_dir / f"port_utilisation_summary_{stamp}.xlsx")
+        else:
+            output_path = f"port_utilisation_summary_{stamp}.xlsx"
 
     try:
         wb = openpyxl.Workbook()

@@ -37,7 +37,8 @@ DNAC_COMMANDS = [
 ]
 
 # Generated command-runner outputs and reports are written here.
-OUTPUT_DIR = "output"
+COMMAND_RUNNER_DIR = "command_runner_outputs"
+EXCEL_DIR = "excel_reports"
 
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
@@ -67,8 +68,10 @@ def parse_args():
     parser.add_argument("--batch", help="Device numbers to select (e.g. '1,3-5')")
     parser.add_argument("--dry-run", action="store_true",
                         help="Authenticate and preview, skip command execution")
-    parser.add_argument("--output-dir", default="output",
-                        help="Output directory (default: output/)")
+    parser.add_argument("--command-runner-dir", default="command_runner_outputs",
+                        help="Directory for raw command runner output files (default: command_runner_outputs/)")
+    parser.add_argument("--excel-dir", default="excel_reports",
+                        help="Directory for Excel report output (default: excel_reports/)")
     parser.add_argument("--port-util", action="store_true", default=None,
                         help="Run port utilisation analysis after Excel generation")
     parser.add_argument("--no-port-util", action="store_false", dest="port_util",
@@ -462,8 +465,9 @@ def execute_on_devices(
             pass
 
         # Save output to file
-        Path(OUTPUT_DIR).mkdir(exist_ok=True)
-        filename = str(Path(OUTPUT_DIR) / f"command_output_{hostname}_{session_timestamp}.txt")
+        cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
+        cmd_dir.mkdir(exist_ok=True)
+        filename = str(cmd_dir / f"command_output_{hostname}_{session_timestamp}.txt")
         try:
             with open(filename, "w") as f:
                 f.write(output_text)
@@ -536,9 +540,10 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
         return False, None
 
     # Generate Excel
-    Path(OUTPUT_DIR).mkdir(exist_ok=True)
+    excel_dir = Path(EXCEL_DIR).resolve()
+    excel_dir.mkdir(exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
-    excel_filename = str(Path(OUTPUT_DIR) / f"port-information-{date_str}.xlsx")
+    excel_filename = str(excel_dir / f"port-information-{date_str}.xlsx")
     debug_print(f"Generating Excel: {excel_filename}")
     success, message = write_excel(devices_data, excel_filename)
     print(f"\n{message}")
@@ -574,9 +579,10 @@ def main():
     """Main application loop."""
     args = parse_args()
 
-    # Override OUTPUT_DIR from CLI if provided
-    global OUTPUT_DIR
-    OUTPUT_DIR = args.output_dir
+    # Override directories from CLI if provided
+    global COMMAND_RUNNER_DIR, EXCEL_DIR
+    COMMAND_RUNNER_DIR = args.command_runner_dir
+    EXCEL_DIR = args.excel_dir
 
     try:
         # Authentication
@@ -640,7 +646,7 @@ def main():
 
             # Dry-run: preview and skip execution
             if args.dry_run:
-                print_dry_run_summary(selected, DNAC_COMMANDS, session_timestamp, OUTPUT_DIR)
+                print_dry_run_summary(selected, DNAC_COMMANDS, session_timestamp, EXCEL_DIR)
                 if args.filter and args.batch:
                     return   # one-shot CLI mode: exit after summary
                 continue     # interactive mode: loop back to filter prompt
