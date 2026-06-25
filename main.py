@@ -117,23 +117,24 @@ def get_credentials(args=None) -> tuple[str, str, str]:
     if args is not None:
         cli_host = getattr(args, "host", None)
         cli_username = getattr(args, "username", None)
-        # args.password is None when --password supplied without value (triggers prompt)
-        # args.password is absent (None via default) when --password not specified at all
         cli_password_raw = getattr(args, "password", None)
+        # Distinguish: --password VALUE (non-None) vs --password with no value (None but
+        # flag present in argv) vs --password not supplied at all (None, flag absent).
+        password_flag_present = "--password" in sys.argv
 
         if cli_host and cli_username:
             if cli_password_raw is not None:
                 # --password VALUE was given explicitly
                 print("✓ Using CLI credentials")
                 return cli_host, cli_username, cli_password_raw
-            else:
-                # --password with no value, or --password not supplied but host+user were
+            elif password_flag_present:
+                # --password supplied without a value → caller wants interactive prompt
                 cli_password = getpass.getpass("Enter password: ")
                 if not cli_password:
                     print("Error: password is required")
                     sys.exit(1)
-                print("✓ Using CLI credentials")
                 return cli_host, cli_username, cli_password
+            # else: --password not supplied at all → fall through to dnac.env / interactive
 
     # Try to load from environment file
     env_creds = load_credentials_from_env()
@@ -494,7 +495,7 @@ def print_dry_run_summary(devices, commands, timestamp, output_dir):
     for cmd in commands:
         print(f"    - {cmd}")
     print(f"  Output directory: {output_dir}/")
-    date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    date_str = datetime.strptime(timestamp, "%Y%m%d_%H%M%S").strftime("%Y-%m-%d-%H-%M")
     print(f"  Excel report would be: {output_dir}/port-information-{date_str}.xlsx")
     print("[DRY RUN] No commands executed, no files written.")
 
