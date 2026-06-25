@@ -8,6 +8,7 @@ parses outputs, and generates Excel reports for cable management workflows.
 DEBUG VERSION - Enhanced logging for troubleshooting
 """
 
+import argparse
 import json
 import sys
 import getpass
@@ -40,12 +41,40 @@ OUTPUT_DIR = "output"
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
 DEBUG = True  # Enable debug output
+# TODO: merge into main.py with --debug flag
 
 
 def debug_print(msg: str):
     """Print debug message if DEBUG is enabled."""
     if DEBUG:
         print(f"[DEBUG] {msg}")
+
+
+# ============================================================================
+# Argument Parsing
+# ============================================================================
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="CHEAT UNPLUGGED — Network port discovery and inventory (DEBUG)"
+    )
+    parser.add_argument("--host", help="DNAC server hostname/IP")
+    parser.add_argument("--username", help="DNAC username")
+    parser.add_argument("--password", nargs='?', const=None,
+                        help="DNAC password (omit value for interactive prompt)")
+    parser.add_argument("--filter", help="Hostname filter pattern (e.g. 'switch-*')")
+    parser.add_argument("--batch", help="Device numbers to select (e.g. '1,3-5')")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Authenticate and preview, skip command execution")
+    parser.add_argument("--output-dir", default="output",
+                        help="Output directory (default: output/)")
+    parser.add_argument("--port-util", action="store_true", default=None,
+                        help="Run port utilisation analysis after Excel generation")
+    parser.add_argument("--no-port-util", action="store_false", dest="port_util",
+                        help="Skip port utilisation analysis")
+    parser.add_argument("--port-util-threshold", type=int, default=42,
+                        help="Port utilisation threshold in days (default: 42)")
+    return parser.parse_args()
 
 
 # ============================================================================
@@ -88,19 +117,43 @@ def load_credentials_from_env() -> Optional[tuple[str, str, str]]:
     return None
 
 
-def get_credentials() -> tuple[str, str, str]:
-    """Interactively prompt for DNAC credentials (or load from dnac.env)."""
+def get_credentials(args=None) -> tuple[str, str, str]:
+    """Return DNAC credentials.
+
+    Precedence: CLI args → dnac.env file → interactive prompt.
+    If args provides host+username and password is None, interactive getpass is called.
+    """
     print("=" * 60)
     print("CHEAT UNPLUGGED — Network Port Discovery (DEBUG MODE)")
     print("=" * 60)
     print()
+
+    # CLI args take highest priority
+    if args is not None:
+        cli_host = getattr(args, "host", None)
+        cli_username = getattr(args, "username", None)
+        cli_password_raw = getattr(args, "password", None)
+
+        if cli_host and cli_username:
+            if cli_password_raw is not None:
+                debug_print(f"Using CLI credentials: host={cli_host}, username={cli_username}")
+                print("✓ Using CLI credentials")
+                return cli_host, cli_username, cli_password_raw
+            else:
+                cli_password = getpass.getpass("Enter password: ")
+                if not cli_password:
+                    print("Error: password is required")
+                    sys.exit(1)
+                debug_print(f"Using CLI credentials (interactive password): host={cli_host}, username={cli_username}")
+                print("✓ Using CLI credentials")
+                return cli_host, cli_username, cli_password
 
     # Try to load from environment file first
     env_creds = load_credentials_from_env()
     if env_creds:
         return env_creds
 
-    # Prompt user
+    # Prompt user interactively
     host = input("Enter DNAC server hostname/IP: ").strip()
     if not host:
         print("Error: hostname/IP is required")
@@ -489,14 +542,40 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
 
 # ============================================================================
+# Dry-Run Preview
+# ============================================================================
+
+def print_dry_run_summary(devices, commands, timestamp, output_dir):
+    """Print a preview of what would be executed without doing anything."""
+    print("\n[DRY RUN] Would execute the following:")
+    print(f"  Devices ({len(devices)}):")
+    for d in devices:
+        print(f"    - {d.get('hostname', 'unknown')} ({d.get('managementIpAddress', '?')})"
+              f" [{d.get('type', '?')}]")
+    print(f"  Commands ({len(commands)}):")
+    for cmd in commands:
+        print(f"    - {cmd}")
+    print(f"  Output directory: {output_dir}/")
+    date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    print(f"  Excel report would be: {output_dir}/port-information-{date_str}.xlsx")
+    print("[DRY RUN] No commands executed, no files written.")
+
+
+# ============================================================================
 # Main Workflow
 # ============================================================================
 
 def main():
     """Main application loop."""
+    args = parse_args()
+
+    # Override OUTPUT_DIR from CLI if provided
+    global OUTPUT_DIR
+    OUTPUT_DIR = args.output_dir
+
     try:
         # Authentication
-        host, username, password = get_credentials()
+        host, username, password = get_credentials(args)
         result = authenticate_and_fetch(host, username, password)
         if result is None:
             sys.exit(1)
@@ -534,6 +613,13 @@ def main():
                 continue
             if not selected:
                 continue
+
+            # Dry-run: preview and skip execution
+            if args.dry_run:
+                print_dry_run_summary(selected, DNAC_COMMANDS, session_timestamp, OUTPUT_DIR)
+                if args.filter and args.batch:
+                    return   # one-shot CLI mode: exit after summary
+                continue     # interactive mode: loop back to filter prompt
 
             # Execute and parse
             outputs = execute_on_devices(selected, client, session_timestamp)
