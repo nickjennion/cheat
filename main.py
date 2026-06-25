@@ -19,6 +19,7 @@ from typing import Optional
 from dnac_client import DNACClient
 from interface_parser import parse_output
 from excel_generator import write_excel
+from port_utilisation import analyse_workbook, print_summary, write_summary_excel
 
 
 # ============================================================================
@@ -430,14 +431,14 @@ def execute_on_devices(
 # Parsing & Excel Generation
 # ============================================================================
 
-def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) -> bool:
+def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) -> tuple[bool, Optional[str]]:
     """
     Parse command outputs and generate Excel report.
-    Returns success status.
+    Returns (success: bool, excel_filename: Optional[str]).
     """
     if not outputs:
         print("✗ No command outputs to parse")
-        return False
+        return False, None
 
     print("\n" + "=" * 60)
     print("Parsing outputs and generating Excel...")
@@ -469,7 +470,7 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
     if not devices_data:
         print("✗ No parsed data to write to Excel")
-        return False
+        return False, None
 
     # Generate Excel
     Path(OUTPUT_DIR).mkdir(exist_ok=True)
@@ -477,7 +478,7 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
     excel_filename = str(Path(OUTPUT_DIR) / f"port-information-{date_str}.xlsx")
     success, message = write_excel(devices_data, excel_filename)
     print(f"\n{message}")
-    return success
+    return success, excel_filename if success else None
 
 
 # ============================================================================
@@ -562,7 +563,22 @@ def main():
             # Execute and parse
             outputs = execute_on_devices(selected, client, session_timestamp)
             if outputs:
-                parse_and_generate_excel(outputs, session_timestamp)
+                success, excel_path = parse_and_generate_excel(outputs, session_timestamp)
+
+                if success and excel_path:
+                    do_port_util = args.port_util
+                    if do_port_util is None:
+                        choice = input("\nRun port utilisation analysis? [Y/n]: ").strip().lower()
+                        do_port_util = choice in ('', 'y', 'yes')
+
+                    if do_port_util:
+                        threshold = args.port_util_threshold
+                        ok, msg, results = analyse_workbook(excel_path, threshold)
+                        print(msg)
+                        if ok and results:
+                            print_summary(results, threshold)
+                            ok2, msg2 = write_summary_excel(results, threshold)
+                            print(msg2)
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Exiting...")
