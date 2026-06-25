@@ -1,28 +1,40 @@
 import requests
 import json
+import urllib3
 from typing import Dict, List, Optional
 from urllib3.exceptions import InsecureRequestWarning
+from requests.adapters import HTTPAdapter
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
 class DNACClient:
-    def __init__(self, host: str, username: str, password: str, verify_ssl: bool = False):
+    def __init__(self, host: str, username: str, password: str, verify_ssl: bool = False,
+                 retry_total: int = 3, retry_backoff: int = 1):
         self.host = host
         self.username = username
         self.password = password
         self.verify_ssl = verify_ssl
         self.token: Optional[str] = None
         self.base_url = f"https://{host}"
+        self.session = requests.Session()
+        self.session.verify = verify_ssl
+        retry_strategy = urllib3.Retry(
+            total=retry_total,
+            backoff_factor=retry_backoff,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
 
     def authenticate(self) -> bool:
         """Get authentication token from DNAC."""
         try:
             auth_url = f"{self.base_url}/dna/system/api/v1/auth/token"
-            response = requests.post(
+            response = self.session.post(
                 auth_url,
                 auth=(self.username, self.password),
-                verify=self.verify_ssl,
                 timeout=10
             )
             response.raise_for_status()
@@ -60,11 +72,10 @@ class DNACClient:
                 devices_url = f"{self.base_url}/dna/intent/api/v1/network-device"
                 headers = {"X-Auth-Token": self.token}
                 params = {"offset": offset, "limit": limit}
-                response = requests.get(
+                response = self.session.get(
                     devices_url,
                     headers=headers,
                     params=params,
-                    verify=self.verify_ssl,
                     timeout=30
                 )
                 response.raise_for_status()
@@ -103,11 +114,10 @@ class DNACClient:
                 query_url = f"{self.base_url}/dna/intent/api/v1/network-device"
                 headers = {"X-Auth-Token": self.token}
                 params = {"hostname": hostname, "offset": offset, "limit": limit}
-                response = requests.get(
+                response = self.session.get(
                     query_url,
                     headers=headers,
                     params=params,
-                    verify=self.verify_ssl,
                     timeout=30
                 )
                 response.raise_for_status()
@@ -142,11 +152,10 @@ class DNACClient:
                 "deviceUuids": [device_id],
                 "commands": commands
             }
-            response = requests.post(
+            response = self.session.post(
                 url,
                 json=payload,
                 headers=headers,
-                verify=self.verify_ssl,
                 timeout=10
             )
             response.raise_for_status()
@@ -165,10 +174,9 @@ class DNACClient:
         try:
             url = f"{self.base_url}/dna/intent/api/v1/task/{task_id}"
             headers = {"X-Auth-Token": self.token}
-            response = requests.get(
+            response = self.session.get(
                 url,
                 headers=headers,
-                verify=self.verify_ssl,
                 timeout=10
             )
             response.raise_for_status()
@@ -186,10 +194,9 @@ class DNACClient:
         try:
             url = f"{self.base_url}/dna/intent/api/v1/file/{file_id}"
             headers = {"X-Auth-Token": self.token}
-            response = requests.get(
+            response = self.session.get(
                 url,
                 headers=headers,
-                verify=self.verify_ssl,
                 timeout=10
             )
             response.raise_for_status()
