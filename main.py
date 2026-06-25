@@ -586,6 +586,8 @@ def main():
             else:
                 raw = input("Excel filename prefix [port-information]: ").strip()
                 filename_prefix = raw if raw else "port-information"
+            # Sanitise: strip any directory components to prevent path traversal
+            filename_prefix = Path(filename_prefix).name or "port-information"
 
             # Dry-run: preview and skip execution
             if args.dry_run:
