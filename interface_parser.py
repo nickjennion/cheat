@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from time_utils import parse_duration_days
+
 
 # ============================================================================
 # Data Models
@@ -126,18 +128,7 @@ def member_from_iface(iface: str) -> str:
 
 def uptime_days(uptime_str: str) -> Optional[float]:
     """Convert uptime string to approximate days for highlighting."""
-    if not uptime_str:
-        return None
-    total = 0.0
-    for val, unit in re.findall(r'(\d+)\s+(week|day|hour|minute)', uptime_str, re.I):
-        v = int(val)
-        if "week" in unit:
-            total += v * 7
-        elif "day" in unit:
-            total += v
-        elif "hour" in unit:
-            total += v / 24
-    return total if total > 0 else None
+    return parse_duration_days(uptime_str)
 
 
 def extract_neighbor_port(stripped_line: str) -> str:

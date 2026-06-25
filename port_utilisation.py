@@ -24,6 +24,8 @@ from typing import Optional
 
 import openpyxl
 
+from time_utils import parse_duration_days
+
 
 def parse_last_input_days(last_input_str: str) -> Optional[float]:
     """Convert a "Last Input" string to days ago, or None if invalid/never.
@@ -36,46 +38,7 @@ def parse_last_input_days(last_input_str: str) -> Optional[float]:
       "00:00:11" → ~0.00013 days (11 seconds)
       "never" or "" → None
     """
-    if not last_input_str or str(last_input_str).strip().lower() == "never":
-        return None
-
-    s = str(last_input_str).strip()
-    total = 0.0
-
-    # Try HH:MM:SS format first (e.g., "00:00:13", "00:50:30")
-    if ":" in s:
-        parts = s.split(":")
-        try:
-            if len(parts) == 3:  # HH:MM:SS
-                hours = int(parts[0])
-                minutes = int(parts[1])
-                seconds = int(parts[2])
-                total = (hours + minutes / 60 + seconds / 3600) / 24
-                return total if total > 0 else None
-            elif len(parts) == 2:  # MM:SS
-                minutes = int(parts[0])
-                seconds = int(parts[1])
-                total = (minutes / 60 + seconds / 3600) / 24
-                return total if total > 0 else None
-        except (ValueError, IndexError):
-            pass  # Fall through to letter-based parsing
-
-    # Try letter-based format (e.g., "2d3h", "5w", "222h")
-    for val, unit in re.findall(r"(\d+)\s*([a-z]+)", s, re.I):
-        v = int(val)
-        unit_lower = unit.lower()
-        if unit_lower.startswith("w"):
-            total += v * 7
-        elif unit_lower.startswith("d"):
-            total += v
-        elif unit_lower.startswith("h"):
-            total += v / 24
-        elif unit_lower.startswith("m"):
-            total += v / (24 * 60)
-        elif unit_lower.startswith("s"):
-            total += v / (24 * 3600)
-
-    return total if total > 0 else None
+    return parse_duration_days(str(last_input_str).strip())
 
 
 def is_copper_port(iface: str) -> bool:
