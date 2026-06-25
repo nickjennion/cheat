@@ -270,6 +270,62 @@ def write_summary_excel(
         return False, f"✗ Failed to write Excel: {e}"
 
 
+def write_utilisation_sheet(ws, results: dict, threshold_days: int) -> None:
+    """Write port utilisation summary to an existing openpyxl worksheet."""
+    headers = ["Switch/Stack", "In Use", "Idle", "Total", "% In Use", "Threshold (days)"]
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+        cell.fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+
+    col_widths = {"A": 40, "B": 12, "C": 12, "D": 12, "E": 14, "F": 16}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    grand_in_use = 0
+    grand_idle = 0
+    row = 2
+
+    for switch in sorted(results.keys()):
+        in_use, idle = results[switch]
+        total = in_use + idle
+        grand_in_use += in_use
+        grand_idle += idle
+        pct = (in_use / total) if total > 0 else 0.0
+
+        ws.cell(row=row, column=1, value=switch)
+        ws.cell(row=row, column=2, value=in_use)
+        ws.cell(row=row, column=3, value=idle)
+        ws.cell(row=row, column=4, value=total)
+        pct_cell = ws.cell(row=row, column=5, value=pct)
+        pct_cell.number_format = "0.0%"
+        ws.cell(row=row, column=6, value=threshold_days)
+        row += 1
+
+    grand_total = grand_in_use + grand_idle
+    grand_pct = (grand_in_use / grand_total) if grand_total > 0 else 0.0
+
+    for col, val in enumerate(
+        ["TOTAL", grand_in_use, grand_idle, grand_total, grand_pct, threshold_days], start=1
+    ):
+        cell = ws.cell(row=row, column=col, value=val)
+        cell.font = openpyxl.styles.Font(bold=True, name="Arial", size=10)
+        cell.fill = openpyxl.styles.PatternFill("solid", start_color="FFE2E2E2")
+
+    ws.cell(row=row, column=5).number_format = "0.0%"
+
+    thin_border = openpyxl.styles.Border(
+        bottom=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
+        right=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
+    )
+    for r in range(1, row + 1):
+        for c in range(1, 7):
+            ws.cell(row=r, column=c).border = thin_border
+
+    ws.freeze_panes = "A2"
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print(__doc__.strip())
