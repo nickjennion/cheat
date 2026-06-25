@@ -525,10 +525,19 @@ def main():
 
         session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+        # Pre-populate from CLI args for one-shot / non-interactive use
+        cli_filter = getattr(args, 'filter', None)
+        cli_batch = getattr(args, 'batch', None)
+
         # Main loop: filter → select → execute → parse
         while True:
             print("\n" + "=" * 60)
-            hostname_filter = input("Enter hostname filter (or 'quit' to exit): ").strip()
+            if cli_filter:
+                hostname_filter = cli_filter
+                cli_filter = None  # consume once; subsequent loops are interactive
+                print(f"Using filter from --filter: {hostname_filter}")
+            else:
+                hostname_filter = input("Enter hostname filter (or 'quit' to exit): ").strip()
 
             if hostname_filter.lower() == "quit":
                 print("Exiting...")
@@ -547,7 +556,17 @@ def main():
 
             display_devices(filtered)
 
-            selected = select_devices(filtered)
+            if cli_batch:
+                batch_input = cli_batch
+                cli_batch = None  # consume once
+                device_indices = parse_device_numbers(batch_input, len(filtered))
+                if device_indices:
+                    selected = [filtered[num - 1] for num in device_indices]
+                else:
+                    print("✗ No valid devices in --batch selection")
+                    continue
+            else:
+                selected = select_devices(filtered)
             if selected is None:
                 continue
             if not selected:
@@ -579,6 +598,9 @@ def main():
                             print_summary(results, threshold)
                             ok2, msg2 = write_summary_excel(results, threshold)
                             print(msg2)
+
+                if args.filter and args.batch:
+                    break  # one-shot CLI mode
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Exiting...")

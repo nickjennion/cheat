@@ -21,6 +21,7 @@ from typing import Optional
 from dnac_client import DNACClient
 from interface_parser import parse_output
 from excel_generator import write_excel
+from port_utilisation import analyse_workbook, print_summary, write_summary_excel
 
 
 # ============================================================================
@@ -487,14 +488,14 @@ def execute_on_devices(
 # Parsing & Excel Generation
 # ============================================================================
 
-def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) -> bool:
+def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) -> tuple[bool, Optional[str]]:
     """
     Parse command outputs and generate Excel report.
-    Returns success status.
+    Returns (success: bool, excel_filename: Optional[str]).
     """
     if not outputs:
         print("✗ No command outputs to parse")
-        return False
+        return False, None
 
     print("\n" + "=" * 60)
     print("Parsing outputs and generating Excel...")
@@ -532,7 +533,7 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
     if not devices_data:
         print("✗ No parsed data to write to Excel")
-        return False
+        return False, None
 
     # Generate Excel
     Path(OUTPUT_DIR).mkdir(exist_ok=True)
@@ -542,7 +543,7 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
     success, message = write_excel(devices_data, excel_filename)
     print(f"\n{message}")
     debug_print(f"Excel generation result: {success}, message: {message}")
-    return success
+    return success, excel_filename if success else None
 
 
 # ============================================================================
@@ -590,10 +591,19 @@ def main():
         session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         debug_print(f"Session timestamp: {session_timestamp}")
 
+        # Pre-populate from CLI args for one-shot / non-interactive use
+        cli_filter = getattr(args, 'filter', None)
+        cli_batch = getattr(args, 'batch', None)
+
         # Main loop: filter → select → execute → parse
         while True:
             print("\n" + "=" * 60)
-            hostname_filter = input("Enter hostname filter (or 'quit' to exit): ").strip()
+            if cli_filter:
+                hostname_filter = cli_filter
+                cli_filter = None  # consume once; subsequent loops are interactive
+                print(f"Using filter from --filter: {hostname_filter}")
+            else:
+                hostname_filter = input("Enter hostname filter (or 'quit' to exit): ").strip()
 
             if hostname_filter.lower() == "quit":
                 print("Exiting...")
@@ -612,7 +622,17 @@ def main():
 
             display_devices(filtered)
 
-            selected = select_devices(filtered)
+            if cli_batch:
+                batch_input = cli_batch
+                cli_batch = None  # consume once
+                device_indices = parse_device_numbers(batch_input, len(filtered))
+                if device_indices:
+                    selected = [filtered[num - 1] for num in device_indices]
+                else:
+                    print("✗ No valid devices in --batch selection")
+                    continue
+            else:
+                selected = select_devices(filtered)
             if selected is None:
                 continue
             if not selected:
@@ -628,7 +648,25 @@ def main():
             # Execute and parse
             outputs = execute_on_devices(selected, client, session_timestamp)
             if outputs:
-                parse_and_generate_excel(outputs, session_timestamp)
+                success, excel_path = parse_and_generate_excel(outputs, session_timestamp)
+
+                if success and excel_path:
+                    do_port_util = args.port_util
+                    if do_port_util is None:
+                        choice = input("\nRun port utilisation analysis? [Y/n]: ").strip().lower()
+                        do_port_util = choice in ('', 'y', 'yes')
+
+                    if do_port_util:
+                        threshold = args.port_util_threshold
+                        ok, msg, results = analyse_workbook(excel_path, threshold)
+                        print(msg)
+                        if ok and results:
+                            print_summary(results, threshold)
+                            ok2, msg2 = write_summary_excel(results, threshold)
+                            print(msg2)
+
+                if args.filter and args.batch:
+                    break  # one-shot CLI mode
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Exiting...")
