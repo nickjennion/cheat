@@ -70,8 +70,17 @@ def analyse_workbook(
 
     results: dict[str, tuple[int, int]] = {}  # switch → (in_use, idle)
 
+    # Known summary sheets produced by write_combined_excel — skip to avoid
+    # double-counting ("All Ports" has the same Switch/Interface/Last Input
+    # columns as per-stack sheets and would cause every port to be tallied twice).
+    SKIP_TITLES = {"All Ports", "Port Utilisation"}
+
     for sheet_idx, ws in enumerate(wb.worksheets, start=1):
         print(f"  Sheet {sheet_idx}/{len(wb.worksheets)}: '{ws.title}'...", end=" ", flush=True)
+
+        if ws.title in SKIP_TITLES:
+            print("(summary sheet, skipped)")
+            continue
 
         # Find column indices by header
         if ws.max_row < 1:

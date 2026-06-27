@@ -55,13 +55,17 @@ def debug_print(msg: str):
 # Argument Parsing
 # ============================================================================
 
+# Sentinel: distinguishes "--password" (flag present, no value) from flag absent.
+_PASSWORD_PROMPT = object()
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="CHEAT UNPLUGGED — Network port discovery and inventory (DEBUG)"
     )
     parser.add_argument("--host", help="DNAC server hostname/IP")
     parser.add_argument("--username", help="DNAC username")
-    parser.add_argument("--password", nargs='?', const=None,
+    parser.add_argument("--password", nargs='?', const=_PASSWORD_PROMPT,
                         help="DNAC password (omit value for interactive prompt)")
     parser.add_argument("--filter", help="Hostname filter pattern (e.g. 'switch-*')")
     parser.add_argument("--batch", help="Device numbers to select (e.g. '1,3-5')")
@@ -134,24 +138,22 @@ def get_credentials(args=None) -> tuple[str, str, str]:
         cli_host = getattr(args, "host", None)
         cli_username = getattr(args, "username", None)
         cli_password_raw = getattr(args, "password", None)
-        # Distinguish: --password VALUE (non-None) vs --password with no value (None but
-        # flag present in argv) vs --password not supplied at all (None, flag absent).
-        password_flag_present = "--password" in sys.argv
 
         if cli_host and cli_username:
-            if cli_password_raw is not None:
+            if cli_password_raw is not None and cli_password_raw is not _PASSWORD_PROMPT:
+                # --password VALUE was given explicitly
                 debug_print(f"Using CLI credentials: host={cli_host}, username={cli_username}")
                 print("✓ Using CLI credentials")
                 return cli_host, cli_username, cli_password_raw
-            elif password_flag_present:
-                # --password supplied without a value → caller wants interactive prompt
+            else:
+                # --host and --username given; password absent or --password flag with no
+                # value → prompt interactively (documented contract: host+user → getpass)
                 cli_password = getpass.getpass("Enter password: ")
                 if not cli_password:
                     print("Error: password is required")
                     sys.exit(1)
                 debug_print(f"Using CLI credentials (interactive password): host={cli_host}, username={cli_username}")
                 return cli_host, cli_username, cli_password
-            # else: --password not supplied at all → fall through to dnac.env / interactive
 
     # Try to load from environment file first
     env_creds = load_credentials_from_env()
