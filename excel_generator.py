@@ -183,6 +183,10 @@ def write_excel(
                     if test_name not in wb.sheetnames:
                         sheet_name = test_name
                         break
+                else:
+                    raise ValueError(
+                        f"Cannot create unique sheet name for hostname prefix '{sheet_name[:27]}'"
+                    )
 
             ws = wb.create_sheet(title=sheet_name)
             count = write_excel_sheet(ws, records, stack_members)
@@ -264,6 +268,10 @@ def write_combined_excel(
                     if candidate not in wb.sheetnames:
                         sheet_name = candidate
                         break
+                else:
+                    raise ValueError(
+                        f"Cannot create unique sheet name for hostname prefix '{sheet_name[:27]}'"
+                    )
             ws = wb.create_sheet(title=sheet_name)
             write_excel_sheet(ws, records, stack_members)
             total_devices += 1

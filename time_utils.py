@@ -44,12 +44,12 @@ def parse_duration_days(value: str) -> Optional[float]:
                 minutes = int(parts[1])
                 seconds = int(parts[2])
                 total = (hours + minutes / 60 + seconds / 3600) / 24
-                return total if total > 0 else None
+                return total  # 0.0 is valid: traffic within the current second
             elif len(parts) == 2:  # MM:SS
                 minutes = int(parts[0])
                 seconds = int(parts[1])
                 total = (minutes / 60 + seconds / 3600) / 24
-                return total if total > 0 else None
+                return total  # 0.0 is valid: traffic within the current second
         except (ValueError, IndexError):
             pass  # Fall through to regex-based parsing
 
@@ -70,7 +70,7 @@ def parse_duration_days(value: str) -> Optional[float]:
                 total += v / (24 * 60)
             elif "second" in unit_lower:
                 total += v / (24 * 3600)
-        return total if total > 0 else None
+        return total  # 0.0 is valid (e.g. "0 days" from a just-rebooted device)
 
     # Try compact format: r'(\d+)\s*([a-z]+)'
     # First letter of unit determines the multiplier (w/d/h/m/s)
@@ -89,6 +89,6 @@ def parse_duration_days(value: str) -> Optional[float]:
                 total += v / (24 * 60)
             elif unit_lower.startswith("s"):
                 total += v / (24 * 3600)
-        return total if total > 0 else None
+        return total  # 0.0 is valid
 
     return None

@@ -49,8 +49,16 @@ def read_all_rows(wb) -> list[list]:
     all_rows: list[list] = []
     ncols = len(HEADERS)
 
+    # Known summary sheets produced by write_combined_excel — skip to avoid
+    # double-counting ("All Ports" has identical headers to per-stack sheets).
+    SKIP_TITLES = {"All Ports", "Port Utilisation"}
+
     for sheet_idx, ws in enumerate(wb.worksheets, start=1):
         print(f"  Reading sheet {sheet_idx}/{len(wb.worksheets)}: '{ws.title}'...", end=" ", flush=True)
+
+        if ws.title in SKIP_TITLES:
+            print("(summary sheet, skipped)")
+            continue
 
         if ws.max_row < 2:
             print("(empty, skipped)")
