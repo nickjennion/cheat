@@ -138,7 +138,17 @@ class DNACClient:
             print(f"Failed to query devices: {e}")
             return []
 
-    def execute_commands(self, device_id: str, commands: List[str]) -> Optional[str]:
+    def enable_slow_mode(self) -> None:
+        """Rebuild retry adapter with backoff_factor=2 (doubled from default 1)."""
+        retry_strategy = urllib3.Retry(
+            total=3,
+            backoff_factor=2,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        self.session.mount("https://", HTTPAdapter(max_retries=retry_strategy))
+
+    def execute_commands(self, device_id: str, commands: List[str], timeout: int = 10) -> Optional[str]:
         """Execute commands on a device via Command Runner. Returns task ID."""
         if not self.token:
             print("Not authenticated.")
@@ -156,7 +166,7 @@ class DNACClient:
                 url,
                 json=payload,
                 headers=headers,
-                timeout=10
+                timeout=timeout
             )
             response.raise_for_status()
             result = response.json()

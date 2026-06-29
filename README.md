@@ -92,6 +92,25 @@ pip install --user -r requirements.txt
 python main.py
 ```
 
+## Rate & Timeout Reference
+
+Default values used by `dnac_client.py` and `cheat_core.py`. All timeouts are in seconds.
+
+| Operation | Parameter | Default | Slow Mode |
+|-----------|-----------|---------|-----------|
+| Authentication (`POST /auth/token`) | `timeout` | 10s | — |
+| Device listing (`GET /network-device`) | `timeout` | 30s | — |
+| Device listing page size | `limit` | 500 devices/page | — |
+| Command submission (`POST /cli/read-request`) | `submit_timeout` | 10s | 20s |
+| Task poll interval | `poll_interval` | 1s | 3s |
+| Task poll max wait | `poll_timeout` | 30s | 60s |
+| Task result (`GET /task/{id}`) | `timeout` | 10s | — |
+| File retrieval (`GET /file/{id}`) | `timeout` | 10s | — |
+| HTTP retry count | `retry_total` | 3 | — |
+| HTTP retry backoff factor | `retry_backoff` | 1 | 2 (doubled) |
+
+**Slow mode** is toggled on the Menu 6 confirmation screen (press `s`). It applies to the current execution only and does not persist across runs. The retry backoff formula is `{backoff_factor} × (2^(N-1))` seconds between attempts, so backoff factor 2 gives 2s, 4s, 8s between retries vs 1s, 2s, 4s at default.
+
 ## Generated Outputs (Gitignored)
 
 | Pattern | Source | Contents |
