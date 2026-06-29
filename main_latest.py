@@ -64,9 +64,9 @@ def load_credentials_from_env():
     return None
 
 
-def _prompt_filename():
+def _prompt_filename(label="Filename"):
     """Prompt for an Excel filename; append .xlsx if omitted. Returns None if blank."""
-    name = input("  Filename: ").strip()
+    name = input(f"  {label}: ").strip()
     if not name:
         return None
     if not name.lower().endswith(".xlsx"):
@@ -572,7 +572,8 @@ def menu_5(selected_devices, client, host, username):
 
         elif choice in ("1", "2"):
             print()
-            filename = _prompt_filename()
+            label = "Filename (stem — one file per device)" if choice == "1" and len(selected_devices) > 1 else "Filename"
+            filename = _prompt_filename(label)
             if not filename:
                 print("  Cancelled.")
                 pause()
