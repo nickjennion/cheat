@@ -7,20 +7,15 @@ Interactive menu launcher.
 import getpass
 import json
 import sys
-import time
-from datetime import datetime
 from pathlib import Path
 
 from dnac_client import DNACClient
-from interface_parser import parse_output
-from excel_generator import write_excel, write_combined_excel
-from main import (
-    execute_on_devices,
+from cheat_core import (
     DNAC_COMMANDS,
-    COMMAND_RUNNER_DIR,
     EXCEL_DIR,
-    COMMAND_POLLING_TIMEOUT_SECONDS,
-    COMMAND_POLLING_INTERVAL_SECONDS,
+    run_commands,
+    parse_outputs,
+    generate_excel,
 )
 
 
@@ -76,23 +71,6 @@ def _prompt_filename():
     if not name.lower().endswith(".xlsx"):
         name += ".xlsx"
     return name
-
-
-def _parse_outputs(outputs: dict) -> dict:
-    """Parse command runner outputs. Returns {hostname: (records, stack_members)}."""
-    devices_data = {}
-    for hostname, output_text in outputs.items():
-        print(f"  Parsing {hostname}...", end=" ", flush=True)
-        try:
-            records, stack_members = parse_output(output_text, hostname)
-            if records:
-                devices_data[hostname] = (records, stack_members)
-                print(f"✓ {len(records)} interfaces")
-            else:
-                print("⚠ no interfaces found")
-        except Exception as e:
-            print(f"✗ {e}")
-    return devices_data
 
 
 # ============================================================================
@@ -379,90 +357,8 @@ def menu_4(devices, client, host, username):
 
 
 # ============================================================================
-# Menu 5 — Commands
+# Menu 6 — Confirmation
 # ============================================================================
-
-def _run_commands(selected_devices, client, commands):
-    """Execute commands on devices using existing authenticated client token.
-    Returns outputs dict {hostname: output_text}."""
-    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
-    cmd_dir.mkdir(exist_ok=True)
-    outputs = {}
-    failed = []
-
-    for device in selected_devices:
-        hostname = device.get("hostname", "unknown")
-        device_id = device.get("id")
-        print(f"\n{'='*55}")
-        print(f"  Device: {hostname}")
-        print(f"{'='*55}")
-        print(f"  Executing {len(commands)} command(s)...")
-
-        task_id = client.execute_commands(device_id, commands)
-        if not task_id:
-            print(f"  ✗ Failed to start command execution")
-            failed.append(hostname)
-            continue
-
-        print(f"  Task ID: {task_id}")
-        print(f"  Polling ({COMMAND_POLLING_TIMEOUT_SECONDS}s timeout)...")
-
-        result = None
-        for i in range(COMMAND_POLLING_TIMEOUT_SECONDS):
-            time.sleep(COMMAND_POLLING_INTERVAL_SECONDS)
-            task_result = client.get_task_result(task_id)
-            if task_result and task_result.get("endTime"):
-                result = task_result
-                print(f"  ✓ Complete")
-                break
-            remaining = COMMAND_POLLING_TIMEOUT_SECONDS - (i + 1)
-            if remaining > 0 and remaining % 5 == 0:
-                print(f"  [{remaining}s remaining...]")
-
-        if not result:
-            print(f"  ✗ Timed out")
-            failed.append(hostname)
-            continue
-
-        output_text = None
-        try:
-            progress_json = json.loads(result.get("progress", "{}"))
-            file_id = progress_json.get("fileId")
-            if file_id:
-                print(f"  Fetching output file {file_id}...")
-                output_text = client.get_file_output(file_id)
-        except (json.JSONDecodeError, Exception) as e:
-            print(f"  ✗ Could not extract file ID: {e}")
-
-        if not output_text:
-            print(f"  ✗ No output received")
-            failed.append(hostname)
-            continue
-
-        # Unwrap commandResponses JSON if present
-        try:
-            response_data = json.loads(output_text)
-            if isinstance(response_data, list) and response_data:
-                cmd_responses = response_data[0].get("commandResponses", {}).get("SUCCESS", {})
-                if cmd_responses:
-                    output_text = "\n\n".join(cmd_responses.values())
-        except (json.JSONDecodeError, TypeError, KeyError):
-            pass
-
-        out_file = cmd_dir / f"command_output_{hostname}_{timestamp}.txt"
-        try:
-            out_file.write_text(output_text)
-            print(f"  ✓ Saved: {out_file}")
-            outputs[hostname] = output_text
-        except IOError as e:
-            print(f"  ✗ Could not save output: {e}")
-            failed.append(hostname)
-
-    if failed:
-        print(f"\n  ⚠ Failed on: {', '.join(failed)}")
-    return outputs
-
 
 def menu_6(selected_devices, commands):
     """Confirmation screen — shows commands and target hosts before execution.
@@ -478,6 +374,27 @@ def menu_6(selected_devices, commands):
     print()
     entry = input("  Press Enter to proceed or 'b' to go back: ").strip().lower()
     return entry != "b"
+
+
+# ============================================================================
+# Menu 5 — Commands
+# ============================================================================
+
+def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42):
+    """Run commands → parse → generate Excel. Used by menu_5 options 1-3."""
+    outputs = run_commands(selected_devices, client, commands)
+    if not outputs:
+        pause()
+        return
+    devices_data = parse_outputs(outputs)
+    if not devices_data:
+        pause()
+        return
+    stem = Path(filename).stem
+    results = generate_excel(devices_data, mode, stem, threshold)
+    for _, msg in results:
+        print(f"\n  {msg}")
+    pause()
 
 
 def menu_5(selected_devices, client, host, username):
@@ -497,31 +414,7 @@ def menu_5(selected_devices, client, host, username):
         if choice == "5":
             return
 
-        elif choice == "1":
-            print()
-            filename_base = _prompt_filename()
-            if not filename_base:
-                print("  Cancelled.")
-                pause()
-                continue
-            if not menu_6(selected_devices, DNAC_COMMANDS):
-                continue
-            stem = Path(filename_base).stem
-            outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
-            if not outputs:
-                pause()
-                continue
-            devices_data = _parse_outputs(outputs)
-            excel_dir = Path(EXCEL_DIR).resolve()
-            excel_dir.mkdir(exist_ok=True)
-            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
-            for hostname, data in devices_data.items():
-                outpath = str(excel_dir / f"{stem}-{hostname}-{ts}.xlsx")
-                ok, msg = write_excel({hostname: data}, outpath)
-                print(f"  {msg}")
-            pause()
-
-        elif choice == "2":
+        elif choice in ("1", "2"):
             print()
             filename = _prompt_filename()
             if not filename:
@@ -530,22 +423,7 @@ def menu_5(selected_devices, client, host, username):
                 continue
             if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
-            outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
-            if not outputs:
-                pause()
-                continue
-            devices_data = _parse_outputs(outputs)
-            if not devices_data:
-                pause()
-                continue
-            excel_dir = Path(EXCEL_DIR).resolve()
-            excel_dir.mkdir(exist_ok=True)
-            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
-            stem = Path(filename).stem
-            outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
-            ok, msg = write_excel(devices_data, outpath)
-            print(f"\n  {msg}")
-            pause()
+            _exec_and_report(selected_devices, client, DNAC_COMMANDS, int(choice), filename)
 
         elif choice == "3":
             print()
@@ -558,22 +436,7 @@ def menu_5(selected_devices, client, host, username):
             threshold = int(threshold_str) if threshold_str.isdigit() else 42
             if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
-            outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
-            if not outputs:
-                pause()
-                continue
-            devices_data = _parse_outputs(outputs)
-            if not devices_data:
-                pause()
-                continue
-            excel_dir = Path(EXCEL_DIR).resolve()
-            excel_dir.mkdir(exist_ok=True)
-            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
-            stem = Path(filename).stem
-            outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
-            ok, msg = write_combined_excel(devices_data, threshold, outpath)
-            print(f"\n  {msg}")
-            pause()
+            _exec_and_report(selected_devices, client, DNAC_COMMANDS, 3, filename, threshold)
 
         elif choice == "4":
             print()
@@ -589,8 +452,7 @@ def menu_5(selected_devices, client, host, username):
                 pause()
                 continue
             # TODO: route through menu_6 when option 4 is fully built out
-            print(f"\n  Running {len(commands)} command(s) on {len(selected_devices)} device(s)...")
-            _run_commands(selected_devices, client, commands)
+            run_commands(selected_devices, client, commands)
             pause()
 
         else:
