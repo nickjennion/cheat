@@ -29,7 +29,7 @@ from interface_parser import parse_output
 from excel_generator import write_combined_excel
 
 # ── Sandbox credentials (publicly documented by Cisco DevNet) ─────────────────
-SANDBOX_HOST = os.environ.get("DNAC_HOST", "sandboxdnacenter.cisco.com")
+SANDBOX_HOST = os.environ.get("DNAC_HOST", "sandboxdnac.cisco.com")
 SANDBOX_USER = os.environ.get("DNAC_USER", "devnetuser")
 SANDBOX_PASS = os.environ.get("DNAC_PASS", "Cisco123!")
 
