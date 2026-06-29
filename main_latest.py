@@ -17,6 +17,7 @@ from cheat_core import (
     parse_outputs,
     generate_excel,
 )
+from excel_generator import write_client_search_excel
 
 
 ENV_FILE = Path("dnac.env")
@@ -466,6 +467,20 @@ def action_mac_search(client):
         name     = c.get("name") or "—"
         print(f"  {mac:<19} {switch:<30} {port:<28} {vlan:<6} {ip:<16} {status:<12} {name}")
 
+    print()
+    entry = input("  Press Enter to return or 'e' to export to Excel: ").strip().lower()
+    if entry == "e":
+        filename = _prompt_filename()
+        if filename:
+            from datetime import datetime
+            from pathlib import Path
+            excel_dir = Path(EXCEL_DIR).resolve()
+            excel_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+            stem = Path(filename).stem
+            outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
+            ok, msg = write_client_search_excel(clients, outpath)
+            print(f"\n  {msg}")
     pause()
 
 
