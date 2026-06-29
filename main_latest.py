@@ -301,55 +301,80 @@ def _parse_numbers(entry: str, max_idx: int) -> list[int]:
     return sorted(i for i in result if 1 <= i <= max_idx)
 
 
+def _matches_filters(device, filter_terms: list[str]) -> bool:
+    """Return True if device matches ALL filter terms (AND logic).
+    Within each term, '|' separates alternatives (OR logic).
+    Matches against hostname and platformId."""
+    text = (
+        (device.get("hostname") or "") + " " + (device.get("platformId") or "")
+    ).lower()
+    for term in filter_terms:
+        alternatives = [a.strip() for a in term.split("|") if a.strip()]
+        if not any(alt in text for alt in alternatives):
+            return False
+    return True
+
+
+def _filter_label(filter_terms: list[str]) -> str:
+    """Human-readable representation of the active filter stack."""
+    if not filter_terms:
+        return "(none)"
+    return "  AND  ".join(f"[{t}]" for t in filter_terms)
+
+
 def menu_4(devices, client, host, username):
     """Switch selection screen. Returns list of selected device dicts, or []."""
-    filter_term = ""
+    filter_terms: list[str] = []
     selected = set()
 
     while True:
-        # Apply filter
-        if filter_term:
-            switches = [
-                d for d in devices
-                if filter_term in (d.get("hostname") or "").lower()
-                or filter_term in (d.get("platformId") or "").lower()
-            ]
-        else:
-            switches = []
+        switches = [d for d in devices if _matches_filters(d, filter_terms)] if filter_terms else []
 
         banner()
-        print(f"  Host: {host}  |  Filter: '{filter_term or '(none)'}'\n")
+        print(f"  Host: {host}\n")
         print(f"  Menu 4 — Select Switches\n")
+        print(f"  Filters: {_filter_label(filter_terms)}\n")
 
-        if not filter_term:
-            print("  Enter a filter term to show matching devices (e.g. 3850, sw, core)")
+        if not filter_terms:
+            print("  Add a filter to show matching devices.")
+            print("  Use '|' for OR within a term  (e.g. f 3850|9300)")
+            print("  Stack multiple filters with 'f' again  (each adds an AND clause)")
         elif not switches:
-            print(f"  No devices matched '{filter_term}'")
+            print(f"  No devices matched — try 'fc' to clear filters and start over")
         else:
             print(f"  {'#':<5} {'':3} {'Hostname':<40} {'Platform':<20} {'IP Address'}")
             print(f"  {'-'*5} {'-'*3} {'-'*40} {'-'*20} {'-'*15}")
             for i, d in enumerate(switches, 1):
                 check = "[X]" if i in selected else "[ ]"
-                print(f"  {i:<5} {check} {d.get('hostname','unknown'):<40} {d.get('platformId',''):<20} {d.get('managementIpAddress','')}")
+                h  = str(d.get("hostname") or "unknown")
+                p  = str(d.get("platformId") or "")
+                ip = str(d.get("managementIpAddress") or "")
+                print(f"  {i:<5} {check} {h:<40} {p:<20} {ip}")
             print(f"\n  Selected: {len(selected)} device(s)")
 
         print()
-        print("  'f <term>' to filter  |  number(s) to toggle (e.g. 1  or  1,3-5)")
-        print("  'p' to Proceed        |  'b' to go Back")
+        print("  'f <term>'  add filter (| = OR, e.g. f 3850|9300)  |  'fc' clear all filters")
+        print("  number(s)   toggle selection (e.g. 1  or  1,3-5)")
+        print("  'p'         Proceed    |    'b'  Back")
         print()
         entry = input("  > ").strip()
 
         if entry.lower() == "b":
             return []
-        elif entry.lower() == "p" or entry == "":
+        elif entry.lower() in ("p", ""):
             if not selected:
                 print("\n  No devices selected — pick at least one.")
                 pause()
             else:
                 return [switches[i - 1] for i in sorted(selected) if i <= len(switches)]
-        elif entry.lower().startswith("f "):
-            filter_term = entry[2:].strip().lower()
+        elif entry.lower() == "fc":
+            filter_terms.clear()
             selected.clear()
+        elif entry.lower().startswith("f "):
+            term = entry[2:].strip().lower()
+            if term:
+                filter_terms.append(term)
+                selected.clear()
         else:
             toggled = _parse_numbers(entry, len(switches))
             if not toggled:
