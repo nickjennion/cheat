@@ -413,6 +413,45 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
     pause()
 
 
+def action_mac_lookup(client):
+    """Prompt for a MAC address and display client-detail results."""
+    print()
+    mac = input("  MAC address: ").strip()
+    if not mac:
+        print("  Cancelled.")
+        pause()
+        return
+
+    print(f"\n  Looking up {mac} ...")
+    detail = client.lookup_client(mac)
+
+    if not detail:
+        print("  ✗ Not found — client may be offline, unknown to Assurance, or MAC format invalid.")
+        pause()
+        return
+
+    switch    = detail.get("nasIdentifier") or "—"
+    port      = detail.get("nasPortId")     or "—"
+    vlan      = detail.get("vlanId")        or "—"
+    status    = detail.get("connectionStatus") or "—"
+    ipv4      = detail.get("ipv4")          or "—"
+    hostname  = detail.get("hostName")      or "—"
+    dev_type  = detail.get("deviceType")    or "—"
+    user_id   = detail.get("userId")        or "—"
+
+    print()
+    print(f"  {'MAC':<18} {mac}")
+    print(f"  {'Switch':<18} {switch}")
+    print(f"  {'Port':<18} {port}")
+    print(f"  {'VLAN':<18} {vlan}")
+    print(f"  {'Status':<18} {status}")
+    print(f"  {'IP':<18} {ipv4}")
+    print(f"  {'Hostname':<18} {hostname}")
+    print(f"  {'Device type':<18} {dev_type}")
+    print(f"  {'User':<18} {user_id}")
+    pause()
+
+
 def menu_5(selected_devices, client, host, username):
     """Command execution menu for selected devices."""
     while True:
@@ -423,11 +462,12 @@ def menu_5(selected_devices, client, host, username):
         print("  2) Get port info (one workbook, one sheet per device)")
         print("  3) Get port info + port usage tab")
         print("  4) Custom commands")
-        print("  5) Back")
+        print("  5) MAC address lookup (Assurance client-detail)")
+        print("  6) Back")
         print()
-        choice = input("  Select [1-5]: ").strip()
+        choice = input("  Select [1-6]: ").strip()
 
-        if choice == "5":
+        if choice == "6":
             return
 
         elif choice in ("1", "2"):
@@ -474,6 +514,9 @@ def menu_5(selected_devices, client, host, username):
             # TODO: route through menu_6 when option 4 is fully built out
             run_commands(selected_devices, client, commands)
             pause()
+
+        elif choice == "5":
+            action_mac_lookup(client)
 
         else:
             print("\n  Invalid selection.")
