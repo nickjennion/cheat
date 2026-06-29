@@ -635,6 +635,8 @@ def action_mac_lookup(client):
         pause()
         return
 
+    from datetime import datetime, timezone
+
     switch    = detail.get("nasIdentifier") or "—"
     port      = detail.get("nasPortId")     or "—"
     vlan      = detail.get("vlanId")        or "—"
@@ -644,16 +646,33 @@ def action_mac_lookup(client):
     dev_type  = detail.get("deviceType")    or "—"
     user_id   = detail.get("userId")        or "—"
 
+    def _fmt_ts(raw):
+        if not raw:
+            return "—", "—"
+        try:
+            iso = datetime.fromtimestamp(int(raw) / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            iso = "—"
+        return str(raw), iso
+
+    raw_lu, iso_lu = _fmt_ts(detail.get("lastUpdated"))
+    raw_lc, iso_lc = _fmt_ts(detail.get("lastConnected"))
+
+    lw = 22
     print()
-    print(f"  {'MAC':<18} {mac}")
-    print(f"  {'Switch':<18} {switch}")
-    print(f"  {'Port':<18} {port}")
-    print(f"  {'VLAN':<18} {vlan}")
-    print(f"  {'Status':<18} {status}")
-    print(f"  {'IP':<18} {ipv4}")
-    print(f"  {'Hostname':<18} {hostname}")
-    print(f"  {'Device type':<18} {dev_type}")
-    print(f"  {'User':<18} {user_id}")
+    print(f"  {'MAC':<{lw}} {mac}")
+    print(f"  {'Switch':<{lw}} {switch}")
+    print(f"  {'Port':<{lw}} {port}")
+    print(f"  {'VLAN':<{lw}} {vlan}")
+    print(f"  {'Status':<{lw}} {status}")
+    print(f"  {'IP':<{lw}} {ipv4}")
+    print(f"  {'Hostname':<{lw}} {hostname}")
+    print(f"  {'Device type':<{lw}} {dev_type}")
+    print(f"  {'User':<{lw}} {user_id}")
+    print(f"  {'Last Updated (raw)':<{lw}} {raw_lu}")
+    print(f"  {'Last Updated (UTC)':<{lw}} {iso_lu}")
+    print(f"  {'Last Connected (raw)':<{lw}} {raw_lc}")
+    print(f"  {'Last Connected (UTC)':<{lw}} {iso_lc}")
     pause()
 
 
