@@ -362,27 +362,43 @@ def menu_4(devices, client, host, username):
 
 def menu_6(selected_devices, commands):
     """Confirmation screen — shows commands and target hosts before execution.
-    Returns True to proceed, False to go back."""
-    banner()
-    print("  Menu 6 — Confirm Execution\n")
-    print("  You are about to execute:\n")
-    for cmd in commands:
-        print(f"    • {cmd}")
-    print(f"\n  On:\n")
-    for d in selected_devices:
-        print(f"    • {d.get('hostname', 'unknown')}  ({d.get('managementIpAddress', '')})")
-    print()
-    entry = input("  Press Enter to proceed or 'b' to go back: ").strip().lower()
-    return entry != "b"
+    Returns (proceed: bool, slow_mode: bool). Slow mode: poll 60s/3s, submit 20s, backoff×2."""
+    slow_mode = False
+    while True:
+        banner()
+        print("  Menu 6 — Confirm Execution\n")
+        print("  Commands:\n")
+        for cmd in commands:
+            print(f"    • {cmd}")
+        print(f"\n  Targets:\n")
+        for d in selected_devices:
+            print(f"    • {d.get('hostname', 'unknown')}  ({d.get('managementIpAddress', '')})")
+        print()
+        slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
+        print(f"  s) Slow mode [{slow_label}]")
+        print()
+        entry = input("  Press Enter to proceed, 's' to toggle slow mode, or 'b' to go back: ").strip().lower()
+        if entry == "b":
+            return False, False
+        elif entry == "s":
+            slow_mode = not slow_mode
+        else:
+            return True, slow_mode
 
 
 # ============================================================================
 # Menu 5 — Commands
 # ============================================================================
 
-def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42):
+def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42, slow_mode=False):
     """Run commands → parse → generate Excel. Used by menu_5 options 1-3."""
-    outputs = run_commands(selected_devices, client, commands)
+    if slow_mode:
+        client.enable_slow_mode()
+        print("  [Slow mode: poll 60s / 3s interval, submit 20s, backoff×2]")
+        outputs = run_commands(selected_devices, client, commands,
+                               poll_timeout=60, poll_interval=3, submit_timeout=20)
+    else:
+        outputs = run_commands(selected_devices, client, commands)
     if not outputs:
         pause()
         return
@@ -421,9 +437,11 @@ def menu_5(selected_devices, client, host, username):
                 print("  Cancelled.")
                 pause()
                 continue
-            if not menu_6(selected_devices, DNAC_COMMANDS):
+            proceed, slow_mode = menu_6(selected_devices, DNAC_COMMANDS)
+            if not proceed:
                 continue
-            _exec_and_report(selected_devices, client, DNAC_COMMANDS, int(choice), filename)
+            _exec_and_report(selected_devices, client, DNAC_COMMANDS, int(choice), filename,
+                             slow_mode=slow_mode)
 
         elif choice == "3":
             print()
@@ -434,9 +452,11 @@ def menu_5(selected_devices, client, host, username):
                 continue
             threshold_str = input("  Port usage threshold in days [42]: ").strip()
             threshold = int(threshold_str) if threshold_str.isdigit() else 42
-            if not menu_6(selected_devices, DNAC_COMMANDS):
+            proceed, slow_mode = menu_6(selected_devices, DNAC_COMMANDS)
+            if not proceed:
                 continue
-            _exec_and_report(selected_devices, client, DNAC_COMMANDS, 3, filename, threshold)
+            _exec_and_report(selected_devices, client, DNAC_COMMANDS, 3, filename, threshold,
+                             slow_mode=slow_mode)
 
         elif choice == "4":
             print()

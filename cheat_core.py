@@ -36,7 +36,14 @@ COMMAND_POLLING_INTERVAL_SECONDS = 1
 # Command Execution
 # ============================================================================
 
-def run_commands(selected_devices: list, client, commands: list) -> dict:
+def run_commands(
+    selected_devices: list,
+    client,
+    commands: list,
+    poll_timeout: int = COMMAND_POLLING_TIMEOUT_SECONDS,
+    poll_interval: int = COMMAND_POLLING_INTERVAL_SECONDS,
+    submit_timeout: int = 10,
+) -> dict:
     """Execute commands on devices via an authenticated DNACClient.
 
     Saves raw output to COMMAND_RUNNER_DIR/<hostname>_<timestamp>.txt.
@@ -57,24 +64,24 @@ def run_commands(selected_devices: list, client, commands: list) -> dict:
         print(f"{'='*55}")
         print(f"  Executing {len(commands)} command(s)...")
 
-        task_id = client.execute_commands(device_id, commands)
+        task_id = client.execute_commands(device_id, commands, timeout=submit_timeout)
         if not task_id:
             print(f"  ✗ Failed to start command execution")
             failed.append(hostname)
             continue
 
         print(f"  Task ID: {task_id}")
-        print(f"  Polling ({COMMAND_POLLING_TIMEOUT_SECONDS}s timeout)...")
+        print(f"  Polling ({poll_timeout}s timeout, {poll_interval}s interval)...")
 
         result = None
-        for i in range(COMMAND_POLLING_TIMEOUT_SECONDS):
-            time.sleep(COMMAND_POLLING_INTERVAL_SECONDS)
+        for i in range(poll_timeout):
+            time.sleep(poll_interval)
             task_result = client.get_task_result(task_id)
             if task_result and task_result.get("endTime"):
                 result = task_result
                 print(f"  ✓ Complete")
                 break
-            remaining = COMMAND_POLLING_TIMEOUT_SECONDS - (i + 1)
+            remaining = poll_timeout - (i + 1)
             if remaining > 0 and remaining % 5 == 0:
                 print(f"  [{remaining}s remaining...]")
 
