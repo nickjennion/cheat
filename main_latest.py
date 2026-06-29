@@ -318,40 +318,53 @@ def _parse_numbers(entry: str, max_idx: int) -> list[int]:
 
 def menu_4(devices, client, host, username):
     """Switch selection screen. Returns list of selected device dicts, or []."""
-    switch_keywords = ("3850", "9300", "9200", "3650", "2960", "catalyst", "sw", "switch")
-    switches = [
-        d for d in devices
-        if any(kw in (d.get("hostname") or "").lower() or
-               kw in (d.get("platformId") or "").lower()
-               for kw in switch_keywords)
-    ] or devices
-
+    filter_term = ""
     selected = set()
 
     while True:
+        # Apply filter
+        if filter_term:
+            switches = [
+                d for d in devices
+                if filter_term in (d.get("hostname") or "").lower()
+                or filter_term in (d.get("platformId") or "").lower()
+            ]
+        else:
+            switches = []
+
         banner()
-        print(f"  Host: {host}  |  Showing: {len(switches)} switch(es)\n")
+        print(f"  Host: {host}  |  Filter: '{filter_term or '(none)'}'\n")
         print(f"  Menu 4 — Select Switches\n")
-        print(f"  {'#':<5} {'':3} {'Hostname':<40} {'Platform':<20} {'IP Address'}")
-        print(f"  {'-'*5} {'-'*3} {'-'*40} {'-'*20} {'-'*15}")
-        for i, d in enumerate(switches, 1):
-            check = "[X]" if i in selected else "[ ]"
-            print(f"  {i:<5} {check} {d.get('hostname','unknown'):<40} {d.get('platformId',''):<20} {d.get('managementIpAddress','')}")
 
-        print(f"\n  Selected: {len(selected)} device(s)")
-        print()
-        print("  Enter number(s) to toggle (e.g. 1  or  1,3-5)")
-        print("  'p' to Proceed  |  'b' to go Back")
-        print()
-        entry = input("  > ").strip().lower()
+        if not filter_term:
+            print("  Enter a filter term to show matching devices (e.g. 3850, sw, core)")
+        elif not switches:
+            print(f"  No devices matched '{filter_term}'")
+        else:
+            print(f"  {'#':<5} {'':3} {'Hostname':<40} {'Platform':<20} {'IP Address'}")
+            print(f"  {'-'*5} {'-'*3} {'-'*40} {'-'*20} {'-'*15}")
+            for i, d in enumerate(switches, 1):
+                check = "[X]" if i in selected else "[ ]"
+                print(f"  {i:<5} {check} {d.get('hostname','unknown'):<40} {d.get('platformId',''):<20} {d.get('managementIpAddress','')}")
+            print(f"\n  Selected: {len(selected)} device(s)")
 
-        if entry == "b":
+        print()
+        print("  'f <term>' to filter  |  number(s) to toggle (e.g. 1  or  1,3-5)")
+        print("  'p' to Proceed        |  'b' to go Back")
+        print()
+        entry = input("  > ").strip()
+
+        if entry.lower() == "b":
             return []
-        elif entry in ("p", "") and selected:
-            return [switches[i - 1] for i in sorted(selected)]
-        elif entry in ("p", ""):
-            print("\n  No devices selected — pick at least one.")
-            pause()
+        elif entry.lower() == "p" or entry == "":
+            if not selected:
+                print("\n  No devices selected — pick at least one.")
+                pause()
+            else:
+                return [switches[i - 1] for i in sorted(selected) if i <= len(switches)]
+        elif entry.lower().startswith("f "):
+            filter_term = entry[2:].strip().lower()
+            selected.clear()
         else:
             toggled = _parse_numbers(entry, len(switches))
             if not toggled:
