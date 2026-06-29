@@ -43,6 +43,8 @@ class InterfaceRecord:
     protocol: str = ""
     last_input: str = ""
     vlan: str = ""
+    speed: str = ""
+    if_type: str = ""
     counters_in: str = ""
     suspect: str = ""
     cdp_neighbors: str = ""
@@ -63,7 +65,11 @@ RE_LAST_INPUT = re.compile(r'^\s+Last input\s+(\S+),', re.IGNORECASE)
 RE_STATUS_HEADER = re.compile(r'^Port\s+Name\s+Status\s+Vlan', re.IGNORECASE)
 RE_STATUS_PORT = re.compile(r'^((?:Gi|Te|Fa|Fo|Hu|Po)\d+(?:/\d+){1,3})\s+', re.IGNORECASE)
 RE_STATUS_FIND = re.compile(
-    r'\b(connected|notconnect|disabled|err-disabled|inactive|sfpAbsent|xcvrAbsent)\s+(\S+)',
+    r'\b(connected|notconnect|disabled|err-disabled|inactive|sfpAbsent|xcvrAbsent)'
+    r'\s+(\S+)'              # vlan
+    r'(?:\s+(\S+)'          # duplex (optional)
+    r'\s+(\S+)'             # speed (optional)
+    r'\s+(\S+))?',          # type (optional)
     re.IGNORECASE
 )
 RE_COUNTERS_HEADER = re.compile(r'^Port\s+InOctets', re.IGNORECASE)
@@ -157,7 +163,13 @@ def parse_status_row(line: str):
     m2 = RE_STATUS_FIND.search(line)
     if not m2:
         return None
-    return port, m2.group(1).lower(), m2.group(2)
+    return (
+        port,
+        m2.group(1).lower(),  # status
+        m2.group(2),          # vlan
+        m2.group(4) or "",    # speed (group 3 is duplex, skip)
+        m2.group(5) or "",    # type
+    )
 
 
 # ============================================================================
@@ -399,11 +411,13 @@ def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[
         if in_show_status:
             result = parse_status_row(s)
             if result:
-                short, status, vlan = result
+                short, status, vlan, speed, if_type = result
                 if short not in int_data:
                     int_data[short] = InterfaceRecord(switch=hostname, iface=short)
                 int_data[short].state = status
                 int_data[short].vlan = vlan
+                int_data[short].speed = speed
+                int_data[short].if_type = if_type
             continue
 
         if in_show_counters:
