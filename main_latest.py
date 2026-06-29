@@ -229,21 +229,115 @@ def menu_2(host, username, password):
 # ============================================================================
 
 def menu_3(devices, host, username):
-    """Placeholder — device-level actions on the downloaded inventory."""
+    """Device actions menu — operates on the loaded inventory."""
     while True:
         banner()
         print(f"  Host: {host}  |  User: {username}  |  Devices loaded: {len(devices)}\n")
         print("  Menu 3 — Device Actions\n")
-        print("  (coming soon)\n")
-        print("  0) Back to Menu 2")
+        print("  1) Select switches")
+        print("  2) List all devices")
+        print("  3) Quit")
         print()
-        choice = input("  Select [0]: ").strip()
+        choice = input("  Select [1-3]: ").strip()
 
-        if choice == "0":
+        if choice == "1":
+            selected = menu_4(devices, host, username)
+            if selected:
+                # TODO: proceed to next stage with selected devices
+                print(f"\n  Proceeding with {len(selected)} device(s)...")
+                pause()
+        elif choice == "2":
+            banner()
+            print(f"  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
+            print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
+            for i, d in enumerate(devices, 1):
+                print(f"  {i:<5} {d.get('hostname',''):<45} {d.get('platformId',''):<22} {d.get('managementIpAddress','')}")
+            print(f"\n  Total: {len(devices)} device(s)")
+            pause()
+        elif choice == "3":
             return
         else:
             print("\n  Invalid selection.")
             pause()
+
+
+# ============================================================================
+# Menu 4 — Switch Selection
+# ============================================================================
+
+def _parse_numbers(entry: str, max_idx: int) -> list[int]:
+    """Parse comma-separated numbers and ranges (e.g. '1,3-5') into a list of indices."""
+    result = set()
+    for part in entry.split(","):
+        part = part.strip()
+        if "-" in part:
+            try:
+                lo, hi = part.split("-", 1)
+                result.update(range(int(lo), int(hi) + 1))
+            except ValueError:
+                pass
+        elif part.isdigit():
+            result.add(int(part))
+    return sorted(i for i in result if 1 <= i <= max_idx)
+
+
+def menu_4(devices, host, username):
+    """
+    Switch selection screen.
+    Displays devices as numbered checkboxes; type numbers to toggle selection.
+    Enter 'p' or blank with selections made to Proceed; 'b' to go Back.
+    Returns list of selected device dicts, or [] if user went back.
+    """
+    # Filter to likely switches (hostnames or platforms containing common switch identifiers)
+    switch_keywords = ("3850", "9300", "9200", "3650", "2960", "catalyst", "sw", "switch")
+    switches = [
+        d for d in devices
+        if any(kw in (d.get("hostname") or "").lower() or
+               kw in (d.get("platformId") or "").lower()
+               for kw in switch_keywords)
+    ] or devices  # fall back to all devices if no keyword match
+
+    selected = set()  # indices (1-based) of selected devices
+
+    while True:
+        banner()
+        print(f"  Host: {host}  |  Showing: {len(switches)} switch(es)\n")
+        print(f"  Menu 4 — Select Switches\n")
+        print(f"  {'#':<5} {'':3} {'Hostname':<40} {'Platform':<20} {'IP Address'}")
+        print(f"  {'-'*5} {'-'*3} {'-'*40} {'-'*20} {'-'*15}")
+        for i, d in enumerate(switches, 1):
+            check = "[X]" if i in selected else "[ ]"
+            hostname = d.get("hostname", "unknown")
+            platform = d.get("platformId", "")
+            ip = d.get("managementIpAddress", "")
+            print(f"  {i:<5} {check} {hostname:<40} {platform:<20} {ip}")
+
+        sel_count = len(selected)
+        print(f"\n  Selected: {sel_count} device(s)")
+        print()
+        print("  Enter number(s) to toggle (e.g. 1  or  1,3-5)")
+        print("  'p' + Enter to Proceed  |  'b' + Enter to go Back")
+        print()
+        entry = input("  > ").strip().lower()
+
+        if entry == "b":
+            return []
+        elif entry in ("p", "") and selected:
+            return [switches[i - 1] for i in sorted(selected)]
+        elif entry in ("p", ""):
+            print("\n  No devices selected — pick at least one.")
+            pause()
+        else:
+            toggled = _parse_numbers(entry, len(switches))
+            if not toggled:
+                print("\n  Unrecognised input.")
+                pause()
+            else:
+                for idx in toggled:
+                    if idx in selected:
+                        selected.discard(idx)
+                    else:
+                        selected.add(idx)
 
 
 # ============================================================================
