@@ -49,8 +49,16 @@ def read_all_rows(wb) -> list[list]:
     all_rows: list[list] = []
     ncols = len(HEADERS)
 
+    # Known summary sheets produced by write_combined_excel — skip to avoid
+    # double-counting ("All Ports" has identical headers to per-stack sheets).
+    SKIP_TITLES = {"All Ports", "Port Utilisation"}
+
     for sheet_idx, ws in enumerate(wb.worksheets, start=1):
         print(f"  Reading sheet {sheet_idx}/{len(wb.worksheets)}: '{ws.title}'...", end=" ", flush=True)
+
+        if ws.title in SKIP_TITLES:
+            print("(summary sheet, skipped)")
+            continue
 
         if ws.max_row < 2:
             print("(empty, skipped)")
@@ -122,13 +130,17 @@ def write_consolidated_sheet(ws, rows: list[list]) -> int:
 
 def consolidate(input_path: str, output_path: str | None = None) -> tuple[bool, str]:
     """Read a per-stack workbook and write a single-sheet consolidated workbook."""
-    in_path = Path(input_path)
+    in_path = Path(input_path).resolve()
     if not in_path.is_file():
         return False, f"✗ Input file not found: {input_path}"
 
     if output_path is None:
         stamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-        output_path = str(in_path.with_name(f"{in_path.stem}-consolidated-{stamp}.xlsx"))
+        excel_dir = Path("excel_reports").resolve()
+        if excel_dir.is_dir():
+            output_path = str(excel_dir / f"{in_path.stem}-consolidated-{stamp}.xlsx")
+        else:
+            output_path = str(in_path.parent / f"{in_path.stem}-consolidated-{stamp}.xlsx")
 
     print(f"Loading '{input_path}'...")
     try:

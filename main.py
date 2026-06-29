@@ -6,6 +6,7 @@ Queries DNAC for devices, executes diagnostics via Command Runner,
 parses outputs, and generates Excel reports for cable management workflows.
 """
 
+import argparse
 import json
 import sys
 import getpass
@@ -17,7 +18,7 @@ from typing import Optional
 
 from dnac_client import DNACClient
 from interface_parser import parse_output
-from excel_generator import write_excel
+from excel_generator import write_combined_excel
 
 
 # ============================================================================
@@ -33,10 +34,42 @@ DNAC_COMMANDS = [
 ]
 
 # Generated command-runner outputs and reports are written here.
-OUTPUT_DIR = "output"
+COMMAND_RUNNER_DIR = "command_runner_outputs"
+EXCEL_DIR = "excel_reports"
 
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
+
+
+# ============================================================================
+# Argument Parsing
+# ============================================================================
+
+# Sentinel: distinguishes "--password" (flag present, no value) from flag absent.
+_PASSWORD_PROMPT = object()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="CHEAT UNPLUGGED — Network port discovery and inventory"
+    )
+    parser.add_argument("--host", help="DNAC server hostname/IP")
+    parser.add_argument("--username", help="DNAC username")
+    parser.add_argument("--password", nargs='?', const=_PASSWORD_PROMPT,
+                        help="DNAC password (omit value for interactive prompt)")
+    parser.add_argument("--filter", help="Hostname filter pattern (e.g. 'switch-*')")
+    parser.add_argument("--batch", help="Device numbers to select (e.g. '1,3-5')")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Authenticate and preview, skip command execution")
+    parser.add_argument("--command-runner-dir", default="command_runner_outputs",
+                        help="Directory for raw command runner output files (default: command_runner_outputs/)")
+    parser.add_argument("--excel-dir", default="excel_reports",
+                        help="Directory for Excel report output (default: excel_reports/)")
+    parser.add_argument("--port-util-threshold", type=int, default=None,
+                        help="Port utilisation threshold in days (default: prompt, 42 if not specified)")
+    parser.add_argument("--filename",
+                        help="Excel filename prefix (default: prompt for 'port-information')")
+    return parser.parse_args()
 
 
 # ============================================================================
@@ -74,19 +107,43 @@ def load_credentials_from_env() -> Optional[tuple[str, str, str]]:
     return None
 
 
-def get_credentials() -> tuple[str, str, str]:
-    """Interactively prompt for DNAC credentials (or load from dnac.env)."""
+def get_credentials(args=None) -> tuple[str, str, str]:
+    """Return DNAC credentials.
+
+    Precedence: CLI args → dnac.env file → interactive prompt.
+    If args provides host+username and password is None, interactive getpass is called.
+    """
     print("=" * 60)
     print("CHEAT UNPLUGGED — Network Port Discovery")
     print("=" * 60)
     print()
 
-    # Try to load from environment file first
+    # CLI args take highest priority
+    if args is not None:
+        cli_host = getattr(args, "host", None)
+        cli_username = getattr(args, "username", None)
+        cli_password_raw = getattr(args, "password", None)
+
+        if cli_host and cli_username:
+            if cli_password_raw is not None and cli_password_raw is not _PASSWORD_PROMPT:
+                # --password VALUE was given explicitly
+                print("✓ Using CLI credentials")
+                return cli_host, cli_username, cli_password_raw
+            else:
+                # --host and --username given; password absent or --password flag with no
+                # value → prompt interactively (documented contract: host+user → getpass)
+                cli_password = getpass.getpass("Enter password: ")
+                if not cli_password:
+                    print("Error: password is required")
+                    sys.exit(1)
+                return cli_host, cli_username, cli_password
+
+    # Try to load from environment file
     env_creds = load_credentials_from_env()
     if env_creds:
         return env_creds
 
-    # Prompt user
+    # Prompt user interactively
     host = input("Enter DNAC server hostname/IP: ").strip()
     if not host:
         print("Error: hostname/IP is required")
@@ -351,8 +408,9 @@ def execute_on_devices(
             pass
 
         # Save output to file
-        Path(OUTPUT_DIR).mkdir(exist_ok=True)
-        filename = str(Path(OUTPUT_DIR) / f"command_output_{hostname}_{session_timestamp}.txt")
+        cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
+        cmd_dir.mkdir(exist_ok=True)
+        filename = str(cmd_dir / f"command_output_{hostname}_{session_timestamp}.txt")
         try:
             with open(filename, "w") as f:
                 f.write(output_text)
@@ -375,14 +433,16 @@ def execute_on_devices(
 # Parsing & Excel Generation
 # ============================================================================
 
-def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) -> bool:
-    """
-    Parse command outputs and generate Excel report.
-    Returns success status.
-    """
+def parse_and_generate_excel(
+    outputs: dict[str, str],
+    session_timestamp: str,
+    threshold_days: int,
+    filename_prefix: str
+) -> tuple[bool, Optional[str]]:
+    """Parse command outputs and generate combined Excel report."""
     if not outputs:
         print("✗ No command outputs to parse")
-        return False
+        return False, None
 
     print("\n" + "=" * 60)
     print("Parsing outputs and generating Excel...")
@@ -393,18 +453,14 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
     for hostname, output_text in outputs.items():
         print(f"\nParsing {hostname}...", end=" ")
-
         try:
             records, stack_members = parse_output(output_text, hostname)
-
             if not records:
                 print(f"⚠ No interfaces found (parsing may have failed)")
                 parse_failures.append(hostname)
                 continue
-
             devices_data[hostname] = (records, stack_members)
             print(f"✓ {len(records)} interfaces")
-
         except Exception as e:
             print(f"✗ Parsing error: {e}")
             parse_failures.append(hostname)
@@ -414,15 +470,36 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
     if not devices_data:
         print("✗ No parsed data to write to Excel")
-        return False
+        return False, None
 
-    # Generate Excel
-    Path(OUTPUT_DIR).mkdir(exist_ok=True)
+    excel_dir = Path(EXCEL_DIR).resolve()
+    excel_dir.mkdir(exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
-    excel_filename = str(Path(OUTPUT_DIR) / f"port-information-{date_str}.xlsx")
-    success, message = write_excel(devices_data, excel_filename)
+    excel_filename = str(excel_dir / f"{filename_prefix}-{date_str}.xlsx")
+
+    success, message = write_combined_excel(devices_data, threshold_days, excel_filename)
     print(f"\n{message}")
-    return success
+    return success, excel_filename if success else None
+
+
+# ============================================================================
+# Dry-Run Preview
+# ============================================================================
+
+def print_dry_run_summary(devices, commands, timestamp, output_dir, filename_prefix="port-information"):
+    """Print a preview of what would be executed without doing anything."""
+    print("\n[DRY RUN] Would execute the following:")
+    print(f"  Devices ({len(devices)}):")
+    for d in devices:
+        print(f"    - {d.get('hostname', 'unknown')} ({d.get('managementIpAddress', '?')})"
+              f" [{d.get('type', '?')}]")
+    print(f"  Commands ({len(commands)}):")
+    for cmd in commands:
+        print(f"    - {cmd}")
+    print(f"  Output directory: {output_dir}/")
+    date_str = datetime.strptime(timestamp, "%Y%m%d_%H%M%S").strftime("%Y-%m-%d-%H-%M")
+    print(f"  Excel report would be: {output_dir}/{filename_prefix}-{date_str}.xlsx")
+    print("[DRY RUN] No commands executed, no files written.")
 
 
 # ============================================================================
@@ -431,9 +508,16 @@ def parse_and_generate_excel(outputs: dict[str, str], session_timestamp: str) ->
 
 def main():
     """Main application loop."""
+    args = parse_args()
+
+    # Override directories from CLI if provided
+    global COMMAND_RUNNER_DIR, EXCEL_DIR
+    COMMAND_RUNNER_DIR = args.command_runner_dir
+    EXCEL_DIR = args.excel_dir
+
     try:
         # Authentication
-        host, username, password = get_credentials()
+        host, username, password = get_credentials(args)
         result = authenticate_and_fetch(host, username, password)
         if result is None:
             sys.exit(1)
@@ -443,10 +527,19 @@ def main():
 
         session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+        # Pre-populate from CLI args for one-shot / non-interactive use
+        cli_filter = getattr(args, 'filter', None)
+        cli_batch = getattr(args, 'batch', None)
+
         # Main loop: filter → select → execute → parse
         while True:
             print("\n" + "=" * 60)
-            hostname_filter = input("Enter hostname filter (or 'quit' to exit): ").strip()
+            if cli_filter:
+                hostname_filter = cli_filter
+                cli_filter = None  # consume once; subsequent loops are interactive
+                print(f"Using filter from --filter: {hostname_filter}")
+            else:
+                hostname_filter = input("Enter hostname filter (or 'quit' to exit): ").strip()
 
             if hostname_filter.lower() == "quit":
                 print("Exiting...")
@@ -465,16 +558,54 @@ def main():
 
             display_devices(filtered)
 
-            selected = select_devices(filtered)
+            if cli_batch:
+                batch_input = cli_batch
+                cli_batch = None  # consume once
+                device_indices = parse_device_numbers(batch_input, len(filtered))
+                if device_indices:
+                    selected = [filtered[num - 1] for num in device_indices]
+                else:
+                    print("✗ No valid devices in --batch selection")
+                    continue
+            else:
+                selected = select_devices(filtered)
             if selected is None:
                 continue
             if not selected:
                 continue
 
+            # Threshold prompt (skip if --port-util-threshold provided)
+            if args.port_util_threshold is not None:
+                threshold = args.port_util_threshold
+            else:
+                raw = input("\nPort utilisation threshold in days [42]: ").strip()
+                threshold = int(raw) if raw.isdigit() else 42
+
+            # Filename prefix prompt (skip if --filename provided)
+            if args.filename:
+                filename_prefix = args.filename
+            else:
+                raw = input("Excel filename prefix [port-information]: ").strip()
+                filename_prefix = raw if raw else "port-information"
+            # Sanitise: strip any directory components to prevent path traversal
+            filename_prefix = Path(filename_prefix).name or "port-information"
+
+            # Dry-run: preview and skip execution
+            if args.dry_run:
+                print_dry_run_summary(selected, DNAC_COMMANDS, session_timestamp, EXCEL_DIR, filename_prefix)
+                if args.filter and args.batch:
+                    return   # one-shot CLI mode: exit after summary
+                continue     # interactive mode: loop back to filter prompt
+
             # Execute and parse
             outputs = execute_on_devices(selected, client, session_timestamp)
             if outputs:
-                parse_and_generate_excel(outputs, session_timestamp)
+                success, excel_path = parse_and_generate_excel(
+                    outputs, session_timestamp, threshold, filename_prefix
+                )
+
+            if args.filter and args.batch:
+                break  # one-shot CLI mode
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Exiting...")
