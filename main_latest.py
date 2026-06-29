@@ -464,6 +464,22 @@ def _run_commands(selected_devices, client, commands):
     return outputs
 
 
+def menu_6(selected_devices, commands):
+    """Confirmation screen — shows commands and target hosts before execution.
+    Returns True to proceed, False to go back."""
+    banner()
+    print("  Menu 6 — Confirm Execution\n")
+    print("  You are about to execute:\n")
+    for cmd in commands:
+        print(f"    • {cmd}")
+    print(f"\n  On:\n")
+    for d in selected_devices:
+        print(f"    • {d.get('hostname', 'unknown')}  ({d.get('managementIpAddress', '')})")
+    print()
+    entry = input("  Press Enter to proceed or 'b' to go back: ").strip().lower()
+    return entry != "b"
+
+
 def menu_5(selected_devices, client, host, username):
     """Command execution menu for selected devices."""
     while True:
@@ -488,6 +504,8 @@ def menu_5(selected_devices, client, host, username):
                 print("  Cancelled.")
                 pause()
                 continue
+            if not menu_6(selected_devices, DNAC_COMMANDS):
+                continue
             stem = Path(filename_base).stem
             outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
             if not outputs:
@@ -509,6 +527,8 @@ def menu_5(selected_devices, client, host, username):
             if not filename:
                 print("  Cancelled.")
                 pause()
+                continue
+            if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
             outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
             if not outputs:
@@ -536,6 +556,8 @@ def menu_5(selected_devices, client, host, username):
                 continue
             threshold_str = input("  Port usage threshold in days [42]: ").strip()
             threshold = int(threshold_str) if threshold_str.isdigit() else 42
+            if not menu_6(selected_devices, DNAC_COMMANDS):
+                continue
             outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
             if not outputs:
                 pause()
@@ -566,6 +588,7 @@ def menu_5(selected_devices, client, host, username):
                 print("  No commands entered.")
                 pause()
                 continue
+            # TODO: route through menu_6 when option 4 is fully built out
             print(f"\n  Running {len(commands)} command(s) on {len(selected_devices)} device(s)...")
             _run_commands(selected_devices, client, commands)
             pause()
