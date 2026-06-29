@@ -363,28 +363,18 @@ def menu_4(devices, client, host, username):
 
 def menu_6(selected_devices, commands):
     """Confirmation screen — shows commands and target hosts before execution.
-    Returns (proceed: bool, slow_mode: bool). Slow mode: poll 60s/3s, submit 20s, backoff×2."""
-    slow_mode = False
-    while True:
-        banner()
-        print("  Menu 6 — Confirm Execution\n")
-        print("  Commands:\n")
-        for cmd in commands:
-            print(f"    • {cmd}")
-        print(f"\n  Targets:\n")
-        for d in selected_devices:
-            print(f"    • {d.get('hostname', 'unknown')}  ({d.get('managementIpAddress', '')})")
-        print()
-        slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
-        print(f"  s) Slow mode [{slow_label}]")
-        print()
-        entry = input("  Press Enter to proceed, 's' to toggle slow mode, or 'b' to go back: ").strip().lower()
-        if entry == "b":
-            return False, False
-        elif entry == "s":
-            slow_mode = not slow_mode
-        else:
-            return True, slow_mode
+    Returns True to proceed, False to go back."""
+    banner()
+    print("  Menu 6 — Confirm Execution\n")
+    print("  Commands:\n")
+    for cmd in commands:
+        print(f"    • {cmd}")
+    print(f"\n  Targets:\n")
+    for d in selected_devices:
+        print(f"    • {d.get('hostname', 'unknown')}  ({d.get('managementIpAddress', '')})")
+    print()
+    entry = input("  Press Enter to proceed or 'b' to go back: ").strip().lower()
+    return entry != "b"
 
 
 # ============================================================================
@@ -525,9 +515,12 @@ def action_mac_lookup(client):
 
 def menu_5(selected_devices, client, host, username):
     """Command execution menu for selected devices."""
+    slow_mode = False
+
     while True:
         banner()
-        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)\n")
+        slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
+        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}\n")
         print("  Menu 5 — Commands\n")
         print("  1) Get port info (separate Excel per device)")
         print("  2) Get port info (one workbook, one sheet per device)")
@@ -535,12 +528,16 @@ def menu_5(selected_devices, client, host, username):
         print("  4) Custom commands")
         print("  5) MAC address lookup (Assurance client-detail)")
         print("  6) MAC prefix search  (Assurance /clients, wildcard)")
+        print("  s) Toggle slow mode")
         print("  7) Back")
         print()
-        choice = input("  Select [1-7]: ").strip()
+        choice = input("  Select [1-7 / s]: ").strip().lower()
 
         if choice == "7":
             return
+
+        elif choice == "s":
+            slow_mode = not slow_mode
 
         elif choice in ("1", "2"):
             print()
@@ -549,8 +546,7 @@ def menu_5(selected_devices, client, host, username):
                 print("  Cancelled.")
                 pause()
                 continue
-            proceed, slow_mode = menu_6(selected_devices, DNAC_COMMANDS)
-            if not proceed:
+            if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
             _exec_and_report(selected_devices, client, DNAC_COMMANDS, int(choice), filename,
                              slow_mode=slow_mode)
@@ -564,8 +560,7 @@ def menu_5(selected_devices, client, host, username):
                 continue
             threshold_str = input("  Port usage threshold in days [42]: ").strip()
             threshold = int(threshold_str) if threshold_str.isdigit() else 42
-            proceed, slow_mode = menu_6(selected_devices, DNAC_COMMANDS)
-            if not proceed:
+            if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
             _exec_and_report(selected_devices, client, DNAC_COMMANDS, 3, filename, threshold,
                              slow_mode=slow_mode)
@@ -583,7 +578,8 @@ def menu_5(selected_devices, client, host, username):
                 print("  No commands entered.")
                 pause()
                 continue
-            # TODO: route through menu_6 when option 4 is fully built out
+            if not menu_6(selected_devices, commands):
+                continue
             run_commands(selected_devices, client, commands)
             pause()
 
