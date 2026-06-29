@@ -271,8 +271,13 @@ def main() -> None:
     client = test_auth()
     devices = test_device_discovery(client)
 
-    device = devices[0]
+    device_index = int(os.environ.get("DNAC_DEVICE_INDEX", "0"))
+    if device_index >= len(devices):
+        print(f"  ✗ DNAC_DEVICE_INDEX={device_index} out of range (only {len(devices)} device(s))")
+        sys.exit(1)
+    device = devices[device_index]
     hostname = device.get("hostname", "unknown")
+    print(f"\n  Target device [{device_index}]: {hostname}  ({device.get('managementIpAddress', '')})")
 
     output_text = test_command_execution(client, device, timestamp)
     records, stack_members = test_parsing(output_text, hostname)
