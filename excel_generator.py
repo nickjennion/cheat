@@ -11,6 +11,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from interface_parser import InterfaceRecord, StackMember, uptime_days
+from port_utilisation import is_copper_port, write_utilisation_sheet
+from time_utils import parse_duration_days
 
 
 # ============================================================================
@@ -181,6 +183,10 @@ def write_excel(
                     if test_name not in wb.sheetnames:
                         sheet_name = test_name
                         break
+                else:
+                    raise ValueError(
+                        f"Cannot create unique sheet name for hostname prefix '{sheet_name[:27]}'"
+                    )
 
             ws = wb.create_sheet(title=sheet_name)
             count = write_excel_sheet(ws, records, stack_members)
@@ -190,6 +196,91 @@ def write_excel(
         wb.save(outpath)
         msg = f"✓ Saved: {outpath} ({total_records} interfaces across {total_devices} devices)"
         return True, msg
+
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"
+
+
+def _compute_utilisation(
+    devices_data: dict,
+    threshold_days: int
+) -> dict[str, tuple[int, int]]:
+    """Compute port utilisation from in-memory records. Returns {hostname: (in_use, idle)}."""
+    results: dict[str, tuple[int, int]] = {}
+    for hostname, (records, _) in devices_data.items():
+        in_use = 0
+        idle = 0
+        for rec in records:
+            if not is_copper_port(rec.iface):
+                continue
+            days = parse_duration_days(str(rec.last_input).strip() if rec.last_input else "")
+            if days is not None and days < threshold_days:
+                in_use += 1
+            else:
+                idle += 1
+        if in_use + idle > 0:
+            results[hostname] = (in_use, idle)
+    return results
+
+
+def write_combined_excel(
+    devices_data: dict[str, tuple[list[InterfaceRecord], dict[int, StackMember]]],
+    threshold_days: int,
+    outpath: str
+) -> tuple[bool, str]:
+    """Write single combined workbook: All Ports -> Port Utilisation -> per-stack tabs.
+
+    Sheet order:
+      Sheet 1 "All Ports"         -- every port from every device on one sheet
+      Sheet 2 "Port Utilisation"  -- copper-port utilisation summary
+      Sheets 3-N <hostname>       -- one tab per device/stack
+    """
+    if not devices_data:
+        return False, "No device data to write"
+
+    try:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        # Sheet 1: All Ports — consolidate all records
+        all_records = [rec for records, _ in devices_data.values() for rec in records]
+        ws_all = wb.create_sheet(title="All Ports")
+        write_excel_sheet(ws_all, all_records, {})
+
+        # Sheet 2: Port Utilisation
+        util_results = _compute_utilisation(devices_data, threshold_days)
+        ws_util = wb.create_sheet(title="Port Utilisation")
+        if util_results:
+            write_utilisation_sheet(ws_util, util_results, threshold_days)
+        else:
+            ws_util.cell(row=1, column=1, value="No copper port data found")
+
+        # Sheets 3-N: per-stack
+        total_records = len(all_records)
+        total_devices = 0
+        for hostname, (records, stack_members) in devices_data.items():
+            if not records:
+                continue
+            sheet_name = hostname[:31]
+            if sheet_name in wb.sheetnames:
+                for i in range(2, 100):
+                    candidate = f"{sheet_name[:27]}_{i}"
+                    if candidate not in wb.sheetnames:
+                        sheet_name = candidate
+                        break
+                else:
+                    raise ValueError(
+                        f"Cannot create unique sheet name for hostname prefix '{sheet_name[:27]}'"
+                    )
+            ws = wb.create_sheet(title=sheet_name)
+            write_excel_sheet(ws, records, stack_members)
+            total_devices += 1
+
+        wb.save(outpath)
+        return True, (
+            f"✓ Saved: {outpath} "
+            f"({total_records} interfaces across {total_devices} device(s))"
+        )
 
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"

@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from interface_parser import parse_output, InterfaceRecord, StackMember
-from excel_generator import write_excel
+from excel_generator import write_combined_excel
 
 
 # ============================================================================
@@ -257,11 +257,11 @@ def test_excel_generation(records, stack_members):
     with tempfile.TemporaryDirectory() as tmpdir:
         filename = Path(tmpdir) / f"mock_report_{timestamp}.xlsx"
 
-        print(f"\nGenerating Excel: {filename.name}")
+        print(f"\nGenerating combined Excel: {filename.name}")
         print(f"  Devices: {len(devices_data)}")
         print(f"  Total interfaces: {sum(len(r[0]) for r in devices_data.values())}")
 
-        success, message = write_excel(devices_data, str(filename))
+        success, message = write_combined_excel(devices_data, 42, str(filename))
 
         if not success:
             print(f"✗ FAILED: {message}")

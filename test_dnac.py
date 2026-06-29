@@ -10,13 +10,15 @@ Tests all major components:
 5. Excel generation
 """
 
+import json
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 from dnac_client import DNACClient
 from interface_parser import parse_output, InterfaceRecord, StackMember
-from excel_generator import write_excel
+from excel_generator import write_combined_excel
 
 
 def print_section(title: str):
@@ -89,7 +91,8 @@ def test_command_execution(client: DNACClient, devices: list[dict]) -> str | Non
         "show hardware",
         "show interfaces",
         "show interfaces status",
-        "show interface counters"
+        "show interface counters",
+        "show cdp neighbors",
     ]
 
     print(f"\nExecuting {len(commands)} commands...")
@@ -123,10 +126,36 @@ def test_command_execution(client: DNACClient, devices: list[dict]) -> str | Non
         print("✗ FAILED: Command execution timed out")
         return None
 
-    output = result.get("result", "")
-    if not output:
-        print("✗ FAILED: No output received")
+    # Extract fileId from progress JSON, fetch file contents
+    try:
+        progress_json = json.loads(result.get("progress", "{}"))
+        file_id = progress_json.get("fileId")
+    except json.JSONDecodeError:
+        print("✗ FAILED: Could not parse task progress JSON")
         return None
+
+    if not file_id:
+        print("✗ FAILED: No fileId in task result")
+        return None
+
+    print(f"  Fetching output file: {file_id}")
+    raw = client.get_file_output(file_id)
+    if not raw:
+        print("✗ FAILED: Could not retrieve output file")
+        return None
+
+    # Unwrap Command Runner JSON envelope
+    output = raw
+    try:
+        response_data = json.loads(raw)
+        if isinstance(response_data, list) and response_data:
+            cmd_responses = (
+                response_data[0].get("commandResponses", {}).get("SUCCESS", {})
+            )
+            if cmd_responses:
+                output = "\n\n".join(cmd_responses.values())
+    except (json.JSONDecodeError, IndexError, KeyError, TypeError):
+        pass
 
     print(f"✓ PASSED: Received {len(output)} bytes of output")
     print(f"  First 200 chars: {output[:200]}...")
@@ -174,14 +203,16 @@ def test_excel_generation(
     print_section("TEST 5: Excel Report Generation")
 
     devices_data = {hostname: (records, stack_members)}
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"test_report_{hostname}_{timestamp}.xlsx"
+    date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
 
-    print(f"Generating Excel report: {filename}")
-    print(f"  Devices: 1")
-    print(f"  Total interfaces: {len(records)}")
+    excel_dir = Path("excel_reports").resolve()
+    excel_dir.mkdir(exist_ok=True)
+    filename = str(excel_dir / f"test_report_{hostname}_{date_str}.xlsx")
 
-    success, message = write_excel(devices_data, filename)
+    print(f"Generating combined Excel report: {Path(filename).name}")
+    print(f"  Devices: 1  |  Interfaces: {len(records)}  |  Threshold: 42 days")
+
+    success, message = write_combined_excel(devices_data, 42, filename)
 
     if not success:
         print(f"✗ FAILED: {message}")
@@ -245,8 +276,8 @@ def main():
     # Summary
     print_section("Test Summary")
     print("✓ All tests passed!")
-    print(f"\n  Generated report: test_report_{hostname}_*.xlsx")
-    print(f"  Raw output: command_output_{hostname}_*.txt (if saved)")
+    print(f"\n  Generated report: excel_reports/test_report_{hostname}_*.xlsx")
+    print(f"  Raw output: command_runner_outputs/command_output_{hostname}_*.txt (if saved)")
 
 
 if __name__ == "__main__":

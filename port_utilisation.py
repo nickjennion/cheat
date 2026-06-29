@@ -24,6 +24,8 @@ from typing import Optional
 
 import openpyxl
 
+from time_utils import parse_duration_days
+
 
 def parse_last_input_days(last_input_str: str) -> Optional[float]:
     """Convert a "Last Input" string to days ago, or None if invalid/never.
@@ -36,46 +38,7 @@ def parse_last_input_days(last_input_str: str) -> Optional[float]:
       "00:00:11" → ~0.00013 days (11 seconds)
       "never" or "" → None
     """
-    if not last_input_str or str(last_input_str).strip().lower() == "never":
-        return None
-
-    s = str(last_input_str).strip()
-    total = 0.0
-
-    # Try HH:MM:SS format first (e.g., "00:00:13", "00:50:30")
-    if ":" in s:
-        parts = s.split(":")
-        try:
-            if len(parts) == 3:  # HH:MM:SS
-                hours = int(parts[0])
-                minutes = int(parts[1])
-                seconds = int(parts[2])
-                total = (hours + minutes / 60 + seconds / 3600) / 24
-                return total if total > 0 else None
-            elif len(parts) == 2:  # MM:SS
-                minutes = int(parts[0])
-                seconds = int(parts[1])
-                total = (minutes / 60 + seconds / 3600) / 24
-                return total if total > 0 else None
-        except (ValueError, IndexError):
-            pass  # Fall through to letter-based parsing
-
-    # Try letter-based format (e.g., "2d3h", "5w", "222h")
-    for val, unit in re.findall(r"(\d+)\s*([a-z]+)", s, re.I):
-        v = int(val)
-        unit_lower = unit.lower()
-        if unit_lower.startswith("w"):
-            total += v * 7
-        elif unit_lower.startswith("d"):
-            total += v
-        elif unit_lower.startswith("h"):
-            total += v / 24
-        elif unit_lower.startswith("m"):
-            total += v / (24 * 60)
-        elif unit_lower.startswith("s"):
-            total += v / (24 * 3600)
-
-    return total if total > 0 else None
+    return parse_duration_days(str(last_input_str).strip())
 
 
 def is_copper_port(iface: str) -> bool:
@@ -95,7 +58,7 @@ def analyse_workbook(
     Only counts base copper ports (GiX/0/X and TeX/0/X).
     Returns (success: bool, message: str, results: dict[switch, (in_use, idle)])
     """
-    in_path = Path(wb_path)
+    in_path = Path(wb_path).resolve()
     if not in_path.is_file():
         return False, f"✗ File not found: {wb_path}", {}
 
@@ -107,8 +70,17 @@ def analyse_workbook(
 
     results: dict[str, tuple[int, int]] = {}  # switch → (in_use, idle)
 
+    # Known summary sheets produced by write_combined_excel — skip to avoid
+    # double-counting ("All Ports" has the same Switch/Interface/Last Input
+    # columns as per-stack sheets and would cause every port to be tallied twice).
+    SKIP_TITLES = {"All Ports", "Port Utilisation"}
+
     for sheet_idx, ws in enumerate(wb.worksheets, start=1):
         print(f"  Sheet {sheet_idx}/{len(wb.worksheets)}: '{ws.title}'...", end=" ", flush=True)
+
+        if ws.title in SKIP_TITLES:
+            print("(summary sheet, skipped)")
+            continue
 
         # Find column indices by header
         if ws.max_row < 1:
@@ -221,7 +193,11 @@ def write_summary_excel(
     """
     if output_path is None:
         stamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-        output_path = f"port_utilisation_summary_{stamp}.xlsx"
+        excel_dir = Path("excel_reports").resolve()
+        if excel_dir.is_dir():
+            output_path = str(excel_dir / f"port_utilisation_summary_{stamp}.xlsx")
+        else:
+            output_path = f"port_utilisation_summary_{stamp}.xlsx"
 
     try:
         wb = openpyxl.Workbook()
@@ -301,6 +277,62 @@ def write_summary_excel(
 
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"
+
+
+def write_utilisation_sheet(ws, results: dict, threshold_days: int) -> None:
+    """Write port utilisation summary to an existing openpyxl worksheet."""
+    headers = ["Switch/Stack", "In Use", "Idle", "Total", "% In Use", "Threshold (days)"]
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+        cell.fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+
+    col_widths = {"A": 40, "B": 12, "C": 12, "D": 12, "E": 14, "F": 16}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    grand_in_use = 0
+    grand_idle = 0
+    row = 2
+
+    for switch in sorted(results.keys()):
+        in_use, idle = results[switch]
+        total = in_use + idle
+        grand_in_use += in_use
+        grand_idle += idle
+        pct = (in_use / total) if total > 0 else 0.0
+
+        ws.cell(row=row, column=1, value=switch)
+        ws.cell(row=row, column=2, value=in_use)
+        ws.cell(row=row, column=3, value=idle)
+        ws.cell(row=row, column=4, value=total)
+        pct_cell = ws.cell(row=row, column=5, value=pct)
+        pct_cell.number_format = "0.0%"
+        ws.cell(row=row, column=6, value=threshold_days)
+        row += 1
+
+    grand_total = grand_in_use + grand_idle
+    grand_pct = (grand_in_use / grand_total) if grand_total > 0 else 0.0
+
+    for col, val in enumerate(
+        ["TOTAL", grand_in_use, grand_idle, grand_total, grand_pct, threshold_days], start=1
+    ):
+        cell = ws.cell(row=row, column=col, value=val)
+        cell.font = openpyxl.styles.Font(bold=True, name="Arial", size=10)
+        cell.fill = openpyxl.styles.PatternFill("solid", start_color="FFE2E2E2")
+
+    ws.cell(row=row, column=5).number_format = "0.0%"
+
+    thin_border = openpyxl.styles.Border(
+        bottom=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
+        right=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
+    )
+    for r in range(1, row + 1):
+        for c in range(1, 7):
+            ws.cell(row=r, column=c).border = thin_border
+
+    ws.freeze_panes = "A2"
 
 
 def main(argv: list[str]) -> int:
