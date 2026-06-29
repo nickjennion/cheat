@@ -413,6 +413,62 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
     pause()
 
 
+def _validate_mac_prefix(raw: str) -> str:
+    """Strip separators and check at least 4 hex chars are present.
+    Returns the original (with separators) if valid, or '' if too short/invalid."""
+    hex_only = raw.replace(":", "").replace("-", "").replace(".", "")
+    if not all(c in "0123456789abcdefABCDEF" for c in hex_only):
+        return ""
+    if len(hex_only) < 4:
+        return ""
+    return raw
+
+
+def action_mac_search(client):
+    """Wildcard MAC search via /dna/data/api/v1/clients."""
+    print()
+    print("  MAC prefix search  (minimum 4 hex digits, e.g. 00:11  or  0011:22)")
+    print("  Wildcard '*' is appended automatically.\n")
+    raw_mac = input("  MAC prefix: ").strip()
+    if not raw_mac:
+        print("  Cancelled.")
+        pause()
+        return
+    if not _validate_mac_prefix(raw_mac):
+        print("  ✗ Minimum 4 hex digits required (e.g. 00:11 or 0011).")
+        pause()
+        return
+
+    device_filter = input("  Switch hostname filter (optional, wildcard ok, e.g. core*): ").strip() or None
+
+    print()
+    clients = client.search_clients(raw_mac, device_name=device_filter)
+
+    if not clients:
+        print("  No matching clients found.")
+        pause()
+        return
+
+    print(f"\n  Found {len(clients)} client(s)\n")
+    hdr = f"  {'MAC':<19} {'Switch':<30} {'Port':<28} {'VLAN':<6} {'IP':<16} {'Status':<12} {'Name'}"
+    print(hdr)
+    print("  " + "─" * (len(hdr) - 2))
+
+    for c in clients:
+        mac      = c.get("macAddress", "—")
+        nd       = c.get("connectedNetworkDevice") or {}
+        switch   = nd.get("connectedNetworkDeviceName") or "—"
+        port     = nd.get("interfaceName") or "—"
+        conn     = c.get("connection") or {}
+        vlan     = conn.get("vlanId") or "—"
+        ip       = c.get("ipv4Address") or "—"
+        status   = c.get("connectionStatus") or "—"
+        name     = c.get("name") or "—"
+        print(f"  {mac:<19} {switch:<30} {port:<28} {vlan:<6} {ip:<16} {status:<12} {name}")
+
+    pause()
+
+
 def action_mac_lookup(client):
     """Prompt for a MAC address and display client-detail results."""
     print()
@@ -463,11 +519,12 @@ def menu_5(selected_devices, client, host, username):
         print("  3) Get port info + port usage tab")
         print("  4) Custom commands")
         print("  5) MAC address lookup (Assurance client-detail)")
-        print("  6) Back")
+        print("  6) MAC prefix search  (Assurance /clients, wildcard)")
+        print("  7) Back")
         print()
-        choice = input("  Select [1-6]: ").strip()
+        choice = input("  Select [1-7]: ").strip()
 
-        if choice == "6":
+        if choice == "7":
             return
 
         elif choice in ("1", "2"):
@@ -517,6 +574,9 @@ def menu_5(selected_devices, client, host, username):
 
         elif choice == "5":
             action_mac_lookup(client)
+
+        elif choice == "6":
+            action_mac_search(client)
 
         else:
             print("\n  Invalid selection.")
