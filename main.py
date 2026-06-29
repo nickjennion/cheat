@@ -19,27 +19,13 @@ from typing import Optional
 from dnac_client import DNACClient
 from interface_parser import parse_output
 from excel_generator import write_combined_excel
-
-
-# ============================================================================
-# Constants
-# ============================================================================
-
-DNAC_COMMANDS = [
-    "show hardware",
-    "show interfaces",
-    "show interfaces status",
-    "show interface counters",
-    "show cdp neighbors"
-]
-
-# Generated command-runner outputs and reports are written here.
-COMMAND_RUNNER_DIR = "command_runner_outputs"
-EXCEL_DIR = "excel_reports"
-
-COMMAND_POLLING_TIMEOUT_SECONDS = 30
-COMMAND_POLLING_INTERVAL_SECONDS = 1
-
+from cheat_core import (
+    DNAC_COMMANDS,
+    COMMAND_RUNNER_DIR,
+    EXCEL_DIR,
+    COMMAND_POLLING_TIMEOUT_SECONDS,
+    COMMAND_POLLING_INTERVAL_SECONDS,
+)
 
 # ============================================================================
 # Argument Parsing
