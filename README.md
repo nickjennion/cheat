@@ -10,9 +10,11 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 
 | File | Purpose |
 |------|---------|
-| `main.py` | **Production entry point.** Interactive CLI that authenticates with DNAC, fetches the device inventory, filters by hostname wildcard, executes five diagnostic `show` commands via Command Runner on selected devices, parses the output, and generates a color-coded multi-sheet Excel report. Reads optional credentials from `dnac.env` or prompts interactively via `getpass`. |
+| `main_latest.py` | **Interactive menu launcher (current development entry point).** Two-stage menu flow: credentials (dnac.env or manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Pure UI — no business logic. Delegates all execution, parsing, and Excel generation to `cheat_core.py`. |
+| `main.py` | **Original CLI entry point.** Argparse-driven workflow: authenticate, fetch inventory, filter by hostname wildcard, execute five diagnostic commands via Command Runner, parse output, generate combined Excel report. Imports shared constants and execution logic from `cheat_core.py`. |
 | `main_debug.py` | **Debug variant of main.py.** Identical workflow with verbose logging enabled (`DEBUG = True`). Prints stack traces on errors, logs partial auth tokens, shows poll-by-poll task progress, and dumps raw JSON responses. **Note:** logs the username and first 30 characters of the bearer token to stdout — do not redirect output to shared files in this mode. |
-| `dnac_client.py` | **DNAC REST API client.** Provides the `DNACClient` class wrapping five endpoints: auth token acquisition, paginated device listing (`/network-device`), command execution submission (`/network-device-poller/cli/read-request`), task polling (`/task/{id}`), and file retrieval (`/file/{id}`). Persists the auth token to `token.env` on every successful authentication. SSL verification is disabled by default for lab/self-signed DNAC instances. |
+| `cheat_core.py` | **Shared execution and reporting module.** UI-agnostic. Provides `run_commands()` (execute/poll/save loop), `parse_outputs()` (parse loop wrapper), `generate_excel()` (modes: separate-per-device, one-workbook, combined-with-utilisation), and all shared constants (`DNAC_COMMANDS`, `COMMAND_RUNNER_DIR`, `EXCEL_DIR`, polling timeouts). Import this from any entry point. |
+| `dnac_client.py` | **DNAC REST API client.** Provides the `DNACClient` class wrapping six endpoints: auth token acquisition, paginated device listing (`/network-device`), hostname-filtered device query, command execution submission (`/network-device-poller/cli/read-request`), task polling (`/task/{id}`), and file retrieval (`/file/{id}`). Persists the auth token to `token.env` on every successful authentication. Includes exponential backoff retry on all calls. SSL verification is disabled by default for lab/self-signed DNAC instances. |
 
 ### Parsing & Reporting
 
@@ -29,6 +31,7 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 |------|---------|
 | `test_dnac.py` | **Live integration test suite.** Validates all components against a real Cisco DNAC instance (or DevNet sandbox). Runs five sequential tests: authentication, device discovery, command execution (60s timeout), output parsing, and Excel generation. Prompts for credentials at runtime. **Warning:** uses plain `input()` for the password (not `getpass`). Standalone — not called by any other tool. |
 | `test_mock_dnac.py` | **Offline unit test suite.** Validates parsing and Excel generation logic using hardcoded mock Cisco IOS command output (C3850 two-member stack). No network connectivity required. Tests parsing completeness, data extraction accuracy, edge cases, and Excel file creation. Standalone. |
+| `test_sandbox.py` | **Zero-config DevNet sandbox demo.** Connects to the Cisco DevNet Always-On DNAC sandbox (`sandboxdnacenter.cisco.com`) using public credentials. Credentials and host can be overridden via `DNAC_HOST`, `DNAC_USER`, `DNAC_PASS` environment variables. Useful for verifying the tool end-to-end without a private DNAC instance. |
 
 ### Configuration & Dependencies
 
@@ -93,8 +96,8 @@ python main.py
 
 | Pattern | Source | Contents |
 |---------|--------|----------|
-| `all_devices.json` | `main.py` | Full DNAC device inventory |
-| `command_runner_outputs/command_output_*.txt` | `main.py` | Raw command output per device |
-| `excel_reports/port-information-*.xlsx` | `main.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) |
+| `all_devices.json` | `main.py` / `main_latest.py` | Full DNAC device inventory |
+| `command_runner_outputs/command_output_*.txt` | `cheat_core.py` | Raw command output per device |
+| `excel_reports/port-information-*.xlsx` | `cheat_core.py` / `main.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) |
 | `excel_reports/port_utilisation_summary_*.xlsx` | `port_utilisation.py` | Per-switch port utilisation summary |
 | `token.env` | `dnac_client.py` | Bearer token from last auth |
