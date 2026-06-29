@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
 """
 CHEAT — Cisco Homogenous Environment Awareness Tool
-Two-stage interactive menu launcher.
+Interactive menu launcher.
 """
 
 import getpass
 import json
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 from dnac_client import DNACClient
+from interface_parser import parse_output
+from excel_generator import write_excel, write_combined_excel
+from main import (
+    execute_on_devices,
+    DNAC_COMMANDS,
+    COMMAND_RUNNER_DIR,
+    EXCEL_DIR,
+    COMMAND_POLLING_TIMEOUT_SECONDS,
+    COMMAND_POLLING_INTERVAL_SECONDS,
+)
 
 
 ENV_FILE = Path("dnac.env")
@@ -54,6 +66,33 @@ def load_credentials_from_env():
     except Exception as e:
         print(f"  Warning: could not read dnac.env: {e}")
     return None
+
+
+def _prompt_filename():
+    """Prompt for an Excel filename; append .xlsx if omitted. Returns None if blank."""
+    name = input("  Filename: ").strip()
+    if not name:
+        return None
+    if not name.lower().endswith(".xlsx"):
+        name += ".xlsx"
+    return name
+
+
+def _parse_outputs(outputs: dict) -> dict:
+    """Parse command runner outputs. Returns {hostname: (records, stack_members)}."""
+    devices_data = {}
+    for hostname, output_text in outputs.items():
+        print(f"  Parsing {hostname}...", end=" ", flush=True)
+        try:
+            records, stack_members = parse_output(output_text, hostname)
+            if records:
+                devices_data[hostname] = (records, stack_members)
+                print(f"✓ {len(records)} interfaces")
+            else:
+                print("⚠ no interfaces found")
+        except Exception as e:
+            print(f"✗ {e}")
+    return devices_data
 
 
 # ============================================================================
@@ -103,7 +142,7 @@ def menu_1():
                 print(f"  --- {ENV_FILE} ---")
                 for line in ENV_FILE.read_text().splitlines():
                     if "=" in line and not line.strip().startswith("#"):
-                        k, v = line.split("=", 1)
+                        k, _ = line.split("=", 1)
                         if k.strip().upper() == "DNAC_PASSWORD":
                             print(f"  {k.strip()}=********")
                         else:
@@ -138,10 +177,12 @@ def _auth(host, username, password):
 
 
 def action_get_devices(host, username, password):
+    """Authenticate, fetch all devices, save all_devices.json.
+    Returns (devices, client) on success, (None, None) on failure."""
     client = _auth(host, username, password)
     if not client:
         pause()
-        return None
+        return None, None
 
     print("\n  Fetching all devices...\n")
     devices = client.get_devices()   # paginated; prints progress per page
@@ -149,9 +190,8 @@ def action_get_devices(host, username, password):
     if not devices:
         print("  No devices returned.")
         pause()
-        return None
+        return None, None
 
-    # Save to all_devices.json
     try:
         ALL_DEVICES_FILE.write_text(json.dumps(devices, indent=2))
         print(f"\n  ✓ Saved {len(devices)} device(s) to {ALL_DEVICES_FILE}")
@@ -161,17 +201,14 @@ def action_get_devices(host, username, password):
     print(f"\n  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
     print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
     for i, d in enumerate(devices, 1):
-        hostname = d.get("hostname", "unknown")
-        platform = d.get("platformId", "")
-        ip = d.get("managementIpAddress", "")
-        print(f"  {i:<5} {hostname:<45} {platform:<22} {ip}")
+        print(f"  {i:<5} {d.get('hostname','unknown'):<45} {d.get('platformId',''):<22} {d.get('managementIpAddress','')}")
     print(f"\n  Total: {len(devices)} device(s)")
 
     print()
     nav = input("  Press Enter to continue or 'quit' to return to Menu 2: ").strip().lower()
     if nav == "quit":
-        return None
-    return devices
+        return None, None
+    return devices, client
 
 
 def action_get_version(host, username, password):
@@ -214,9 +251,9 @@ def menu_2(host, username, password):
         if choice == "0":
             return
         elif choice == "1":
-            devices = action_get_devices(host, username, password)
+            devices, client = action_get_devices(host, username, password)
             if devices is not None:
-                menu_3(devices, host, username)
+                menu_3(devices, client, host, username)
         elif choice == "2":
             action_get_version(host, username, password)
         else:
@@ -228,7 +265,7 @@ def menu_2(host, username, password):
 # Menu 3 — Device Actions
 # ============================================================================
 
-def menu_3(devices, host, username):
+def menu_3(devices, client, host, username):
     """Device actions menu — operates on the loaded inventory."""
     while True:
         banner()
@@ -241,11 +278,9 @@ def menu_3(devices, host, username):
         choice = input("  Select [1-3]: ").strip()
 
         if choice == "1":
-            selected = menu_4(devices, host, username)
+            selected = menu_4(devices, client, host, username)
             if selected:
-                # TODO: proceed to next stage with selected devices
-                print(f"\n  Proceeding with {len(selected)} device(s)...")
-                pause()
+                menu_5(selected, client, host, username)
         elif choice == "2":
             banner()
             print(f"  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
@@ -266,7 +301,7 @@ def menu_3(devices, host, username):
 # ============================================================================
 
 def _parse_numbers(entry: str, max_idx: int) -> list[int]:
-    """Parse comma-separated numbers and ranges (e.g. '1,3-5') into a list of indices."""
+    """Parse comma-separated numbers and ranges (e.g. '1,3-5') into indices."""
     result = set()
     for part in entry.split(","):
         part = part.strip()
@@ -281,23 +316,17 @@ def _parse_numbers(entry: str, max_idx: int) -> list[int]:
     return sorted(i for i in result if 1 <= i <= max_idx)
 
 
-def menu_4(devices, host, username):
-    """
-    Switch selection screen.
-    Displays devices as numbered checkboxes; type numbers to toggle selection.
-    Enter 'p' or blank with selections made to Proceed; 'b' to go Back.
-    Returns list of selected device dicts, or [] if user went back.
-    """
-    # Filter to likely switches (hostnames or platforms containing common switch identifiers)
+def menu_4(devices, client, host, username):
+    """Switch selection screen. Returns list of selected device dicts, or []."""
     switch_keywords = ("3850", "9300", "9200", "3650", "2960", "catalyst", "sw", "switch")
     switches = [
         d for d in devices
         if any(kw in (d.get("hostname") or "").lower() or
                kw in (d.get("platformId") or "").lower()
                for kw in switch_keywords)
-    ] or devices  # fall back to all devices if no keyword match
+    ] or devices
 
-    selected = set()  # indices (1-based) of selected devices
+    selected = set()
 
     while True:
         banner()
@@ -307,16 +336,12 @@ def menu_4(devices, host, username):
         print(f"  {'-'*5} {'-'*3} {'-'*40} {'-'*20} {'-'*15}")
         for i, d in enumerate(switches, 1):
             check = "[X]" if i in selected else "[ ]"
-            hostname = d.get("hostname", "unknown")
-            platform = d.get("platformId", "")
-            ip = d.get("managementIpAddress", "")
-            print(f"  {i:<5} {check} {hostname:<40} {platform:<20} {ip}")
+            print(f"  {i:<5} {check} {d.get('hostname','unknown'):<40} {d.get('platformId',''):<20} {d.get('managementIpAddress','')}")
 
-        sel_count = len(selected)
-        print(f"\n  Selected: {sel_count} device(s)")
+        print(f"\n  Selected: {len(selected)} device(s)")
         print()
         print("  Enter number(s) to toggle (e.g. 1  or  1,3-5)")
-        print("  'p' + Enter to Proceed  |  'b' + Enter to go Back")
+        print("  'p' to Proceed  |  'b' to go Back")
         print()
         entry = input("  > ").strip().lower()
 
@@ -338,6 +363,203 @@ def menu_4(devices, host, username):
                         selected.discard(idx)
                     else:
                         selected.add(idx)
+
+
+# ============================================================================
+# Menu 5 — Commands
+# ============================================================================
+
+def _run_commands(selected_devices, client, commands):
+    """Execute commands on devices using existing authenticated client token.
+    Returns outputs dict {hostname: output_text}."""
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
+    cmd_dir.mkdir(exist_ok=True)
+    outputs = {}
+    failed = []
+
+    for device in selected_devices:
+        hostname = device.get("hostname", "unknown")
+        device_id = device.get("id")
+        print(f"\n{'='*55}")
+        print(f"  Device: {hostname}")
+        print(f"{'='*55}")
+        print(f"  Executing {len(commands)} command(s)...")
+
+        task_id = client.execute_commands(device_id, commands)
+        if not task_id:
+            print(f"  ✗ Failed to start command execution")
+            failed.append(hostname)
+            continue
+
+        print(f"  Task ID: {task_id}")
+        print(f"  Polling ({COMMAND_POLLING_TIMEOUT_SECONDS}s timeout)...")
+
+        result = None
+        for i in range(COMMAND_POLLING_TIMEOUT_SECONDS):
+            time.sleep(COMMAND_POLLING_INTERVAL_SECONDS)
+            task_result = client.get_task_result(task_id)
+            if task_result and task_result.get("endTime"):
+                result = task_result
+                print(f"  ✓ Complete")
+                break
+            remaining = COMMAND_POLLING_TIMEOUT_SECONDS - (i + 1)
+            if remaining > 0 and remaining % 5 == 0:
+                print(f"  [{remaining}s remaining...]")
+
+        if not result:
+            print(f"  ✗ Timed out")
+            failed.append(hostname)
+            continue
+
+        output_text = None
+        try:
+            progress_json = json.loads(result.get("progress", "{}"))
+            file_id = progress_json.get("fileId")
+            if file_id:
+                print(f"  Fetching output file {file_id}...")
+                output_text = client.get_file_output(file_id)
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"  ✗ Could not extract file ID: {e}")
+
+        if not output_text:
+            print(f"  ✗ No output received")
+            failed.append(hostname)
+            continue
+
+        # Unwrap commandResponses JSON if present
+        try:
+            response_data = json.loads(output_text)
+            if isinstance(response_data, list) and response_data:
+                cmd_responses = response_data[0].get("commandResponses", {}).get("SUCCESS", {})
+                if cmd_responses:
+                    output_text = "\n\n".join(cmd_responses.values())
+        except (json.JSONDecodeError, TypeError, KeyError):
+            pass
+
+        out_file = cmd_dir / f"command_output_{hostname}_{timestamp}.txt"
+        try:
+            out_file.write_text(output_text)
+            print(f"  ✓ Saved: {out_file}")
+            outputs[hostname] = output_text
+        except IOError as e:
+            print(f"  ✗ Could not save output: {e}")
+            failed.append(hostname)
+
+    if failed:
+        print(f"\n  ⚠ Failed on: {', '.join(failed)}")
+    return outputs
+
+
+def menu_5(selected_devices, client, host, username):
+    """Command execution menu for selected devices."""
+    while True:
+        banner()
+        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)\n")
+        print("  Menu 5 — Commands\n")
+        print("  1) Get port info (separate Excel per device)")
+        print("  2) Get port info (one workbook, one sheet per device)")
+        print("  3) Get port info + port usage tab")
+        print("  4) Custom commands")
+        print("  5) Back")
+        print()
+        choice = input("  Select [1-5]: ").strip()
+
+        if choice == "5":
+            return
+
+        elif choice == "1":
+            print()
+            filename_base = _prompt_filename()
+            if not filename_base:
+                print("  Cancelled.")
+                pause()
+                continue
+            stem = Path(filename_base).stem
+            outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
+            if not outputs:
+                pause()
+                continue
+            devices_data = _parse_outputs(outputs)
+            excel_dir = Path(EXCEL_DIR).resolve()
+            excel_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+            for hostname, data in devices_data.items():
+                outpath = str(excel_dir / f"{stem}-{hostname}-{ts}.xlsx")
+                ok, msg = write_excel({hostname: data}, outpath)
+                print(f"  {msg}")
+            pause()
+
+        elif choice == "2":
+            print()
+            filename = _prompt_filename()
+            if not filename:
+                print("  Cancelled.")
+                pause()
+                continue
+            outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
+            if not outputs:
+                pause()
+                continue
+            devices_data = _parse_outputs(outputs)
+            if not devices_data:
+                pause()
+                continue
+            excel_dir = Path(EXCEL_DIR).resolve()
+            excel_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+            stem = Path(filename).stem
+            outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
+            ok, msg = write_excel(devices_data, outpath)
+            print(f"\n  {msg}")
+            pause()
+
+        elif choice == "3":
+            print()
+            filename = _prompt_filename()
+            if not filename:
+                print("  Cancelled.")
+                pause()
+                continue
+            threshold_str = input("  Port usage threshold in days [42]: ").strip()
+            threshold = int(threshold_str) if threshold_str.isdigit() else 42
+            outputs = _run_commands(selected_devices, client, DNAC_COMMANDS)
+            if not outputs:
+                pause()
+                continue
+            devices_data = _parse_outputs(outputs)
+            if not devices_data:
+                pause()
+                continue
+            excel_dir = Path(EXCEL_DIR).resolve()
+            excel_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+            stem = Path(filename).stem
+            outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
+            ok, msg = write_combined_excel(devices_data, threshold, outpath)
+            print(f"\n  {msg}")
+            pause()
+
+        elif choice == "4":
+            print()
+            print("  Enter commands one per line. Blank line when done.")
+            commands = []
+            while True:
+                cmd = input(f"  Command {len(commands)+1}: ").strip()
+                if not cmd:
+                    break
+                commands.append(cmd)
+            if not commands:
+                print("  No commands entered.")
+                pause()
+                continue
+            print(f"\n  Running {len(commands)} command(s) on {len(selected_devices)} device(s)...")
+            _run_commands(selected_devices, client, commands)
+            pause()
+
+        else:
+            print("\n  Invalid selection.")
+            pause()
 
 
 # ============================================================================
