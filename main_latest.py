@@ -472,21 +472,50 @@ def action_mac_search(client):
         return
 
     print(f"\n  Found {len(clients)} client(s)\n")
-    hdr = f"  {'MAC':<19} {'Switch':<30} {'Port':<28} {'VLAN':<6} {'IP':<16} {'Status':<12} {'Name'}"
-    print(hdr)
-    print("  " + "─" * (len(hdr) - 2))
 
-    for c in clients:
-        mac      = c.get("macAddress", "—")
-        nd       = c.get("connectedNetworkDevice") or {}
-        switch   = nd.get("connectedNetworkDeviceName") or "—"
-        port     = nd.get("interfaceName") or "—"
-        conn     = c.get("connection") or {}
-        vlan     = conn.get("vlanId") or "—"
-        ip       = c.get("ipv4Address") or "—"
-        status   = c.get("connectionStatus") or "—"
-        name     = c.get("name") or "—"
-        print(f"  {mac:<19} {switch:<30} {port:<28} {vlan:<6} {ip:<16} {status:<12} {name}")
+    from datetime import datetime, timezone
+
+    total = len(clients)
+    for idx, c in enumerate(clients, 1):
+        nd   = c.get("connectedNetworkDevice") or {}
+        conn = c.get("connection") or {}
+
+        mac     = c.get("macAddress") or "—"
+        ctype   = c.get("type") or "—"
+        vendor  = c.get("vendor") or "—"
+        ip      = c.get("ipv4Address") or "—"
+        status  = c.get("connectionStatus") or "—"
+        name    = c.get("name") or "—"
+        switch  = nd.get("connectedNetworkDeviceName") or "—"
+        port    = nd.get("interfaceName") or "—"
+        vlan    = conn.get("vlanId") or "—"
+        username = c.get("username") or "—"
+
+        raw_ts = c.get("lastUpdatedTime")
+        if raw_ts:
+            try:
+                iso_ts = datetime.fromtimestamp(int(raw_ts) / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                iso_ts = "—"
+        else:
+            raw_ts = "—"
+            iso_ts = "—"
+
+        print(f"  ── {idx} / {total} {'─' * 44}")
+        lw = 22
+        print(f"  {'MAC':<{lw}} {mac}")
+        print(f"  {'Type':<{lw}} {ctype}")
+        print(f"  {'Vendor':<{lw}} {vendor}")
+        print(f"  {'IP Address':<{lw}} {ip}")
+        print(f"  {'Connection Status':<{lw}} {status}")
+        print(f"  {'Last Updated (raw)':<{lw}} {raw_ts}")
+        print(f"  {'Last Updated (UTC)':<{lw}} {iso_ts}")
+        print(f"  {'Switch':<{lw}} {switch}")
+        print(f"  {'Port':<{lw}} {port}")
+        print(f"  {'VLAN':<{lw}} {vlan}")
+        print(f"  {'Name':<{lw}} {name}")
+        print(f"  {'Username':<{lw}} {username}")
+        print()
 
     print()
     entry = input("  Press Enter to return or 'e' to export to Excel: ").strip().lower()
