@@ -138,6 +138,33 @@ class DNACClient:
             print(f"Failed to query devices: {e}")
             return []
 
+    def lookup_client(self, mac: str) -> Optional[Dict]:
+        """Look up a client by exact MAC address via Assurance client-detail.
+
+        Returns the 'detail' dict on success (includes nasIdentifier, nasPortId,
+        vlanId, connectionStatus, ipv4, hostName, deviceType). Returns None if
+        the client is not found or Assurance is unavailable.
+        """
+        if not self.token:
+            print("Not authenticated.")
+            return None
+        try:
+            url = f"{self.base_url}/dna/intent/api/v1/client-detail"
+            headers = {"X-Auth-Token": self.token}
+            response = self.session.get(
+                url,
+                headers=headers,
+                params={"macAddress": mac},
+                timeout=10,
+            )
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.json().get("detail") or None
+        except Exception as e:
+            print(f"  client-detail error: {e}")
+            return None
+
     def enable_slow_mode(self) -> None:
         """Rebuild retry adapter with backoff_factor=2 (doubled from default 1)."""
         retry_strategy = urllib3.Retry(
