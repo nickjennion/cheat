@@ -534,6 +534,90 @@ def action_mac_search(client):
     pause()
 
 
+def action_ip_search(client):
+    """IP address prefix search via /dna/data/api/v1/clients."""
+    print()
+    print("  IP address search  (wildcards supported, e.g. 10.1.2.* or 192.168.1)")
+    print("  A trailing '*' is appended automatically.\n")
+    ip_prefix = input("  IP prefix: ").strip()
+    if not ip_prefix:
+        print("  Cancelled.")
+        pause()
+        return
+
+    device_filter = input("  Switch hostname filter (optional, wildcard ok, e.g. core*): ").strip() or None
+
+    print()
+    clients = client.search_clients_by_ip(ip_prefix, device_name=device_filter)
+
+    if not clients:
+        print("  No matching clients found.")
+        pause()
+        return
+
+    print(f"\n  Found {len(clients)} client(s)\n")
+
+    from datetime import datetime, timezone
+
+    total = len(clients)
+    for idx, c in enumerate(clients, 1):
+        nd   = c.get("connectedNetworkDevice") or {}
+        conn = c.get("connection") or {}
+
+        mac      = c.get("macAddress") or "—"
+        ctype    = c.get("type") or "—"
+        vendor   = c.get("vendor") or "—"
+        ip       = c.get("ipv4Address") or "—"
+        status   = c.get("connectionStatus") or "—"
+        name     = c.get("name") or "—"
+        switch   = nd.get("connectedNetworkDeviceName") or "—"
+        port     = nd.get("interfaceName") or "—"
+        vlan     = conn.get("vlanId") or "—"
+        username = c.get("username") or "—"
+
+        raw_ts = c.get("lastUpdatedTime")
+        if raw_ts:
+            try:
+                iso_ts = datetime.fromtimestamp(int(raw_ts) / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                iso_ts = "—"
+        else:
+            raw_ts = "—"
+            iso_ts = "—"
+
+        print(f"  ── {idx} / {total} {'─' * 44}")
+        lw = 22
+        print(f"  {'MAC':<{lw}} {mac}")
+        print(f"  {'Type':<{lw}} {ctype}")
+        print(f"  {'Vendor':<{lw}} {vendor}")
+        print(f"  {'IP Address':<{lw}} {ip}")
+        print(f"  {'Connection Status':<{lw}} {status}")
+        print(f"  {'Last Updated (raw)':<{lw}} {raw_ts}")
+        print(f"  {'Last Updated (UTC)':<{lw}} {iso_ts}")
+        print(f"  {'Switch':<{lw}} {switch}")
+        print(f"  {'Port':<{lw}} {port}")
+        print(f"  {'VLAN':<{lw}} {vlan}")
+        print(f"  {'Name':<{lw}} {name}")
+        print(f"  {'Username':<{lw}} {username}")
+        print()
+
+    print()
+    entry = input("  Press Enter to return or 'e' to export to Excel: ").strip().lower()
+    if entry == "e":
+        filename = _prompt_filename()
+        if filename:
+            from datetime import datetime
+            from pathlib import Path
+            excel_dir = Path(EXCEL_DIR).resolve()
+            excel_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+            stem = Path(filename).stem
+            outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
+            ok, msg = write_client_search_excel(clients, outpath)
+            print(f"\n  {msg}")
+    pause()
+
+
 def action_mac_lookup(client):
     """Prompt for a MAC address and display client-detail results."""
     print()
@@ -588,12 +672,13 @@ def menu_5(selected_devices, client, host, username):
         print("  4) Custom commands")
         print("  5) MAC address lookup (Assurance client-detail)")
         print("  6) MAC prefix search  (Assurance /clients, wildcard)")
+        print("  7) IP address search  (Assurance /clients, wildcard)")
         print("  s) Toggle slow mode")
-        print("  7) Back")
+        print("  8) Back")
         print()
-        choice = input("  Select [1-7 / s]: ").strip().lower()
+        choice = input("  Select [1-8 / s]: ").strip().lower()
 
-        if choice == "7":
+        if choice == "8":
             return
 
         elif choice == "s":
@@ -649,6 +734,9 @@ def menu_5(selected_devices, client, host, username):
 
         elif choice == "6":
             action_mac_search(client)
+
+        elif choice == "7":
+            action_ip_search(client)
 
         else:
             print("\n  Invalid selection.")

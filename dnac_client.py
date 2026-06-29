@@ -226,6 +226,67 @@ class DNACClient:
             print(f"  client-detail error: {e}")
             return None
 
+    def search_clients_by_ip(
+        self,
+        ip_prefix: str,
+        device_name: Optional[str] = None,
+        limit: int = 500,
+    ) -> list:
+        """Search clients by IP address prefix via /dna/data/api/v1/clients.
+
+        ip_prefix supports wildcards (e.g. '10.1.2.*').
+        A trailing '*' is appended automatically if not already present.
+        device_name filters by connectedNetworkDeviceName (wildcard supported).
+        Returns a flat list of client dicts across all pages.
+        """
+        if not self.token:
+            print("Not authenticated.")
+            return []
+
+        if not ip_prefix.endswith("*"):
+            ip_prefix = ip_prefix + "*"
+
+        all_clients: list = []
+        offset = 1
+        page = 1
+
+        try:
+            while True:
+                params: dict = {
+                    "ipv4Address": ip_prefix,
+                    "limit": limit,
+                    "offset": offset,
+                }
+                if device_name:
+                    if not device_name.endswith("*"):
+                        device_name = device_name + "*"
+                    params["connectedNetworkDeviceName"] = device_name
+
+                print(f"  [Page {page}] querying clients...", end=" ", flush=True)
+                url = f"{self.base_url}/dna/data/api/v1/clients"
+                response = self.session.get(
+                    url,
+                    headers={"X-Auth-Token": self.token},
+                    params=params,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                data = response.json()
+                batch = data.get("response", [])
+                total = data.get("page", {}).get("count", len(batch))
+                print(f"got {len(batch)} (total: {total})", flush=True)
+
+                all_clients.extend(batch)
+                if len(batch) < limit:
+                    break
+                offset += limit
+                page += 1
+
+        except Exception as e:
+            print(f"  IP search error: {e}")
+
+        return all_clients
+
     def enable_slow_mode(self) -> None:
         """Rebuild retry adapter with backoff_factor=2 (doubled from default 1)."""
         retry_strategy = urllib3.Retry(
