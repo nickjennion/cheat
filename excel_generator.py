@@ -284,3 +284,92 @@ def write_combined_excel(
 
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"
+
+
+# ============================================================================
+# Client Search Export
+# ============================================================================
+
+CLIENT_SEARCH_HEADERS = [
+    "MAC Address",
+    "Client Name",
+    "Switch",
+    "Port",
+    "VLAN",
+    "IP Address",
+    "Status",
+    "Type",
+    "Vendor",
+    "OS Type",
+    "Username",
+]
+
+CLIENT_SEARCH_COL_WIDTHS = [20, 28, 32, 28, 8, 18, 14, 10, 20, 18, 24]
+
+CLIENT_STATUS_COLOURS = {
+    "connected": "FFD4EDDA",
+    "inactive": "FFFFF3CD",
+    "disconnected": "FFE2E3E5",
+}
+
+
+def write_client_search_excel(clients: list, outpath: str) -> tuple[bool, str]:
+    """Write MAC prefix search results to a single-sheet Excel workbook."""
+    if not clients:
+        return False, "No client records to export"
+
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Client Search"
+
+        header_font, header_fill, header_align, header_border = get_header_styles()
+        data_font, data_align, data_border = get_data_styles()
+
+        for col, (header, width) in enumerate(
+            zip(CLIENT_SEARCH_HEADERS, CLIENT_SEARCH_COL_WIDTHS), start=1
+        ):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+            cell.border = header_border
+            ws.column_dimensions[get_column_letter(col)].width = width
+
+        ws.row_dimensions[1].height = 30
+        ws.freeze_panes = "A2"
+
+        for row_idx, c in enumerate(clients, start=2):
+            nd   = c.get("connectedNetworkDevice") or {}
+            conn = c.get("connection") or {}
+            values = [
+                c.get("macAddress") or "",
+                c.get("name") or "",
+                nd.get("connectedNetworkDeviceName") or "",
+                nd.get("interfaceName") or "",
+                conn.get("vlanId") or "",
+                c.get("ipv4Address") or "",
+                c.get("connectionStatus") or "",
+                c.get("type") or "",
+                c.get("vendor") or "",
+                c.get("osType") or "",
+                c.get("username") or "",
+            ]
+
+            status_key = (c.get("connectionStatus") or "").lower()
+            row_colour = CLIENT_STATUS_COLOURS.get(status_key, "FFFFFFFF")
+            fill = PatternFill("solid", start_color=row_colour)
+
+            for col, value in enumerate(values, start=1):
+                cell = ws.cell(row=row_idx, column=col, value=value)
+                cell.font = data_font
+                cell.alignment = data_align
+                cell.border = data_border
+                cell.fill = fill
+
+        ws.auto_filter.ref = ws.dimensions
+        wb.save(outpath)
+        return True, f"✓ Saved: {outpath} ({len(clients)} client(s))"
+
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"
