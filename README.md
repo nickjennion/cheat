@@ -1,6 +1,6 @@
-# CHEAT — Cisco Homogeneous Environmental Awareness Tool
+# CHEAT — Cisco Homogenous Environment Awareness Tool
 
-Network port discovery, inventory, and analysis tools for Cisco DNA Center (Catalyst Center).
+Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catalyst Center).
 
 ---
 
@@ -34,10 +34,10 @@ Network port discovery, inventory, and analysis tools for Cisco DNA Center (Cata
 
 | File | Purpose |
 |------|---------|
-| `requirements.txt` | **Python dependencies.** Declares `requests>=2.25.0` (HTTP client for DNAC API) and `openpyxl>=3.0.0` (Excel read/write). |
-| `.gitignore` | **Git exclusion rules.** Excludes Python bytecode, build artifacts, generated outputs (`all_devices.json`, `output/`, `*.xlsx`, `command_output_*.txt`), IDE config (`.vscode/`, `.idea/`), `.DS_Store`, and credential files (`dnac.env`, `token.env`). |
-| `dnac.env` | **Optional credential file.** Not tracked in git. If created by the user with `DNAC_HOST=`, `DNAC_USERNAME=`, `DNAC_PASSWORD=`, the main app loads credentials from it instead of prompting interactively. |
-| `token.env` | **Runtime artifact.** Written by `dnac_client.py` on every successful authentication. Contains the raw bearer token as `DNAC_TOKEN=<value>`. Gitignored but persists across sessions. |
+| `requirements.txt` | **Python dependencies.** Declares `requests>=2.25.0` (HTTP client), `urllib3>=1.26.0` (transport layer), and `openpyxl>=3.0.0` (Excel read/write). |
+| `.gitignore` | **Git exclusion rules.** Excludes Python bytecode, build artifacts, generated outputs (`all_devices.json`, `command_runner_outputs/`, `*.xlsx`, `command_output_*.txt`), IDE config (`.vscode/`, `.idea/`), `.DS_Store`, and all `.env` credential files. Files with `sample` in the filename are exempt from xlsx and env exclusions. |
+| `dnac.env` | **Optional credential file.** Not tracked in git (never commit — contains plaintext credentials). If created with `DNAC_HOST=`, `DNAC_USERNAME=`, `DNAC_PASSWORD=`, the main app loads credentials from it instead of prompting interactively. |
+| `token.env` | **Runtime artifact.** Written by `dnac_client.py` on every successful authentication. Contains the raw bearer token as `DNAC_TOKEN=<value>`. Gitignored but persists across sessions. **Treat as a live credential — grants full DNAC API access until expiry. Delete after use; never copy to shared systems.** |
 
 ### Artifacts Directory (`artifacts/`)
 
@@ -59,7 +59,7 @@ Contains two independent sub-projects plus archived documentation and reference 
 
 | File | Purpose |
 |------|---------|
-| `artifacts/modifications_20260308_154207.md` | Deployment log from 2026-03-08. Records files deployed to the `` web server, nginx configuration changes, OAuth2 collector setup, Caddy allowlist updates, and cron schedules. **Note:** contains internal infrastructure details. |
+| `artifacts/modifications_20260308_154207.md` | Deployment log from 2026-03-08. Records files deployed to the `` web server (Cisco DevNet sandbox), nginx configuration changes, OAuth2 collector setup, Caddy allowlist updates, and cron schedules. |
 | `artifacts/SESSION-2026-03-09.md` | Development session summary from 2026-03-09. Documents the OpenSky route collector build, .com scraper, route data collected (1,264 airports across 19+ countries), and frontend feature additions (scope filters, color-coded map, flight search popups). **Note:** contains server IPs and deployment paths. |
 
 #### C. Archived Documentation & Reference Images
@@ -76,11 +76,13 @@ Contains two independent sub-projects plus archived documentation and reference 
 | File | Purpose |
 |------|---------|
 | `README.md` | **This file.** Master reference for every file in the repository. |
-| `sources.md` | **Data source attribution.** Records all third-party data sources, APIs, and libraries used across both CHEAT UNPLUGGED and the  flight route module. Includes AI tool attribution (Claude, Gemini). |
+| `sources.md` | **Data source attribution.** Records all third-party data sources, APIs, and libraries used in the  flight route module. Includes AI tool attribution (Claude, Gemini). |
 
 ---
 
 ## Quick Start
+
+Requires Python 3.9+.
 
 ```bash
 pip install --user -r requirements.txt
@@ -94,4 +96,5 @@ python main.py
 | `all_devices.json` | `main.py` | Full DNAC device inventory |
 | `command_runner_outputs/command_output_*.txt` | `main.py` | Raw command output per device |
 | `excel_reports/port-information-*.xlsx` | `main.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) |
+| `excel_reports/port_utilisation_summary_*.xlsx` | `port_utilisation.py` | Per-switch port utilisation summary |
 | `token.env` | `dnac_client.py` | Bearer token from last auth |
