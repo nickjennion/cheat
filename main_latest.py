@@ -5,6 +5,7 @@ Two-stage interactive menu launcher.
 """
 
 import getpass
+import json
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from dnac_client import DNACClient
 
 ENV_FILE = Path("dnac.env")
 SAMPLE_FILE = Path("sample_dnac.env")
+ALL_DEVICES_FILE = Path("all_devices.json")
 
 
 # ============================================================================
@@ -139,23 +141,37 @@ def action_get_devices(host, username, password):
     client = _auth(host, username, password)
     if not client:
         pause()
-        return
+        return None
 
     print("\n  Fetching all devices...\n")
-    devices = client.get_devices()
+    devices = client.get_devices()   # paginated; prints progress per page
 
     if not devices:
         print("  No devices returned.")
-    else:
-        print(f"  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
-        print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
-        for i, d in enumerate(devices, 1):
-            hostname = d.get("hostname", "unknown")
-            platform = d.get("platformId", "")
-            ip = d.get("managementIpAddress", "")
-            print(f"  {i:<5} {hostname:<45} {platform:<22} {ip}")
-        print(f"\n  Total: {len(devices)} device(s)")
-    pause()
+        pause()
+        return None
+
+    # Save to all_devices.json
+    try:
+        ALL_DEVICES_FILE.write_text(json.dumps(devices, indent=2))
+        print(f"\n  ✓ Saved {len(devices)} device(s) to {ALL_DEVICES_FILE}")
+    except Exception as e:
+        print(f"\n  Warning: could not write {ALL_DEVICES_FILE}: {e}")
+
+    print(f"\n  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
+    print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
+    for i, d in enumerate(devices, 1):
+        hostname = d.get("hostname", "unknown")
+        platform = d.get("platformId", "")
+        ip = d.get("managementIpAddress", "")
+        print(f"  {i:<5} {hostname:<45} {platform:<22} {ip}")
+    print(f"\n  Total: {len(devices)} device(s)")
+
+    print()
+    nav = input("  Press Enter to continue or 'quit' to return to Menu 2: ").strip().lower()
+    if nav == "quit":
+        return None
+    return devices
 
 
 def action_get_version(host, username, password):
@@ -198,9 +214,33 @@ def menu_2(host, username, password):
         if choice == "0":
             return
         elif choice == "1":
-            action_get_devices(host, username, password)
+            devices = action_get_devices(host, username, password)
+            if devices is not None:
+                menu_3(devices, host, username)
         elif choice == "2":
             action_get_version(host, username, password)
+        else:
+            print("\n  Invalid selection.")
+            pause()
+
+
+# ============================================================================
+# Menu 3 — Device Actions
+# ============================================================================
+
+def menu_3(devices, host, username):
+    """Placeholder — device-level actions on the downloaded inventory."""
+    while True:
+        banner()
+        print(f"  Host: {host}  |  User: {username}  |  Devices loaded: {len(devices)}\n")
+        print("  Menu 3 — Device Actions\n")
+        print("  (coming soon)\n")
+        print("  0) Back to Menu 2")
+        print()
+        choice = input("  Select [0]: ").strip()
+
+        if choice == "0":
+            return
         else:
             print("\n  Invalid selection.")
             pause()
