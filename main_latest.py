@@ -180,7 +180,10 @@ def action_get_devices(host, username, password):
     print(f"\n  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
     print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
     for i, d in enumerate(devices, 1):
-        print(f"  {i:<5} {d.get('hostname','unknown'):<45} {d.get('platformId',''):<22} {d.get('managementIpAddress','')}")
+        h = str(d.get('hostname') or 'unknown')
+        p = str(d.get('platformId') or '')
+        ip = str(d.get('managementIpAddress') or '')
+        print(f"  {i:<5} {h:<45} {p:<22} {ip}")
     print(f"\n  Total: {len(devices)} device(s)")
 
     print()
@@ -265,7 +268,10 @@ def menu_3(devices, client, host, username):
             print(f"  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
             print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
             for i, d in enumerate(devices, 1):
-                print(f"  {i:<5} {d.get('hostname',''):<45} {d.get('platformId',''):<22} {d.get('managementIpAddress','')}")
+                h = str(d.get('hostname') or '')
+                p = str(d.get('platformId') or '')
+                ip = str(d.get('managementIpAddress') or '')
+                print(f"  {i:<5} {h:<45} {p:<22} {ip}")
             print(f"\n  Total: {len(devices)} device(s)")
             pause()
         elif choice == "3":
