@@ -22,17 +22,18 @@ RESET = "\033[0m"
 WIDTH = 120
 INNER = WIDTH - 2
 
-# Full Cisco arch — 9 bars, two peaks (S,M,T,M,S,M,T,M,S), tall bars overhang
-# top and bottom. Aspect ~3.7:1 to match the real logo. Each line is 67 cols.
+# Full Cisco arch — 9 bars, two peaks (S,M,T,M,S,M,T,M,S), heights measured
+# from the clean reference (top% 52/30/0). Half-block glyphs (▄ ▀) give the
+# bars rounded pill caps like the real mark. Aspect ~3.7:1. Each line is 67 cols.
 BARS = [
     "                ███                             ███                ",
     "                ███                             ███                ",
-    "                ███                             ███                ",
+    "        ▄▄▄     ███     ▄▄▄             ▄▄▄     ███     ▄▄▄        ",
     "        ███     ███     ███             ███     ███     ███        ",
-    "        ███     ███     ███             ███     ███     ███        ",
+    "▄▄▄     ███     ███     ███     ▄▄▄     ███     ███     ███     ▄▄▄",
     "███     ███     ███     ███     ███     ███     ███     ███     ███",
     "███     ███     ███     ███     ███     ███     ███     ███     ███",
-    "███     ███     ███     ███     ███     ███     ███     ███     ███",
+    "▀▀▀     ▀▀▀     ███     ▀▀▀     ▀▀▀     ▀▀▀     ███     ▀▀▀     ▀▀▀",
     "                ███                             ███                ",
 ]
 
