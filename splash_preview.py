@@ -6,11 +6,10 @@ Not wired into the app yet — run it to eyeball the layout/colours:
     python splash_preview.py            # white on Cisco DNA Center blue
     python splash_preview.py --plain     # no colour (for pasting into chat/docs)
 
-The Cisco "bridge" logo is derived mathematically from the official
-Cisco_logo.svg (5-bar arch: short·med·TALL·med·short, thick bars, single
-central peak), aspect-corrected for ~2:1 terminal cells and rendered white
-on Cisco DNA Center blue (#014F74) — i.e. the SVG's colours inverted.
-Left branding column is ~50% of the frame.
+Layout: the full 9-bar Cisco "bridge" logo (S·M·T·M·S·M·T·M·S — two tall
+peaks, measured from the real mark) centred at the top with the CISCO / DNA
+CENTER wordmark beneath it, then the title + Menu 1 horizontally centred three
+lines below. White on Cisco DNA Center blue (#014F74).
 """
 
 import os
@@ -20,59 +19,57 @@ FG = "\033[38;2;255;255;255m"   # white
 BG = "\033[48;2;1;79;116m"      # Cisco DNA Center blue #014F74
 RESET = "\033[0m"
 
-# Box geometry (comfortable within a 140-col terminal)
 WIDTH = 120
 INNER = WIDTH - 2
-LEFT_W = 59                      # branding column ~50% of INNER
 
-# Cisco arch — from Cisco_logo.svg geometry (bar width 3.13, pitch 8.61),
-# full vertical range preserved: the centre bar overhangs the others top and
-# bottom exactly as in the mark. Every bar line is exactly 35 cols wide.
+# Full Cisco arch — 9 bars, two peaks (S,M,T,M,S,M,T,M,S), tall bars overhang
+# top and bottom. Aspect ~3.7:1 to match the real logo. Each line is 67 cols.
 BARS = [
-    "                ███                ",
-    "                ███                ",
-    "                ███                ",
-    "                ███                ",
-    "                ███                ",
-    "        ███     ███     ███        ",
-    "        ███     ███     ███        ",
-    "        ███     ███     ███        ",
-    "███     ███     ███     ███     ███",
-    "███     ███     ███     ███     ███",
-    "███     ███     ███     ███     ███",
-    "███     ███     ███     ███     ███",
-    "███     ███     ███     ███     ███",
-    "                ███                ",
-    "                ███                ",
-    "                ███                ",
+    "                ███                             ███                ",
+    "                ███                             ███                ",
+    "                ███                             ███                ",
+    "        ███     ███     ███             ███     ███     ███        ",
+    "        ███     ███     ███             ███     ███     ███        ",
+    "███     ███     ███     ███     ███     ███     ███     ███     ███",
+    "███     ███     ███     ███     ███     ███     ███     ███     ███",
+    "███     ███     ███     ███     ███     ███     ███     ███     ███",
+    "                ███                             ███                ",
 ]
-LOGO = BARS + ["", "C I S C O".center(35), "DNA CENTER".center(35)]
 
-# Right column: two-line title (CHEAT, gap, full name) + Menu 1
-MENU = [
-    "CHEAT",
-    "",
-    "",
-    "Cisco Homogeneous Environment Awareness Tool",
-    "",
-    "Menu 1 · Credentials",
-    "",
-    "  1) Use dnac.env",
-    "  2) Enter manually   · remember",
-    "  3) Enter manually   · forget",
-    "  4) View dnac.env",
-    "  5) Options",
+OPTIONS = [
+    "1) Use dnac.env",
+    "2) Enter manually   · remember",
+    "3) Enter manually   · forget",
+    "4) View dnac.env",
+    "5) Options",
 ]
 
 
 def compose():
-    rows = max(len(LOGO), len(MENU))
-    left = LOGO + [""] * (rows - len(LOGO))
-    right = MENU + [""] * (rows - len(MENU))
+    body = []
+    # Graphic block (centred)
+    for ln in BARS:
+        body.append(ln.center(INNER))
+    body.append(" " * INNER)
+    body.append("C I S C O".center(INNER))
+    body.append("DNA CENTER".center(INNER))
+    # Three-line gap below the graphic
+    body += [" " * INNER] * 3
+    # Title + menu, horizontally centred
+    body.append("CHEAT".center(INNER))
+    body.append(" " * INNER)
+    body.append("Cisco Homogeneous Environment Awareness Tool".center(INNER))
+    body.append(" " * INNER)
+    body.append("Menu 1 · Credentials".center(INNER))
+    body.append(" " * INNER)
+    block_w = max(len(o) for o in OPTIONS)
+    left = (INNER - block_w) // 2
+    for o in OPTIONS:
+        body.append((" " * left + o).ljust(INNER))
+    # Frame
     lines = ["╔" + "═" * INNER + "╗", "║" + " " * INNER + "║"]
-    for lft, rgt in zip(left, right):
-        cell = lft.center(LEFT_W) + rgt
-        lines.append("║" + cell.ljust(INNER)[:INNER] + "║")
+    for b in body:
+        lines.append("║" + b[:INNER].ljust(INNER) + "║")
     lines += ["║" + " " * INNER + "║", "╚" + "═" * INNER + "╝"]
     return lines
 
