@@ -6,6 +6,7 @@ Interactive menu launcher.
 
 import getpass
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +24,60 @@ from excel_generator import write_client_search_excel
 ENV_FILE = Path("dnac.env")
 SAMPLE_FILE = Path("sample_dnac.env")
 ALL_DEVICES_FILE = Path("all_devices.json")
+
+
+# ============================================================================
+# Theme — white text on Cisco DNA Center blue (#014F74 / rgb 1,79,116)
+# ============================================================================
+
+_FG = "\033[38;2;255;255;255m"   # white text
+_BG = "\033[48;2;1;79;116m"      # Cisco DNA Center blue
+_RESET = "\033[0m"
+_COLOR_ON = False
+
+
+def _enable_ansi() -> bool:
+    """Enable ANSI/VT escape processing (needed on legacy Windows consoles)."""
+    if os.name != "nt":
+        return True
+    try:
+        import colorama
+        colorama.just_fix_windows_console()
+        return True
+    except Exception:
+        pass
+    # Fallback: flip ENABLE_VIRTUAL_TERMINAL_PROCESSING on the console via Win32.
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+        return True
+    except Exception:
+        return False
+
+
+def theme_init():
+    """Turn on white-on-blue and paint the whole screen. No-op if unsupported."""
+    global _COLOR_ON
+    if os.environ.get("NO_COLOR") or not sys.stdout.isatty():
+        return
+    if not _enable_ansi():
+        return
+    _COLOR_ON = True
+    # Set colours, then clear screen + scrollback so the blue fills everything.
+    sys.stdout.write(_FG + _BG + "\033[2J\033[3J\033[H")
+    sys.stdout.flush()
+
+
+def theme_reset():
+    """Restore the terminal's default colours (call on exit)."""
+    if not _COLOR_ON:
+        return
+    sys.stdout.write(_RESET + "\n")
+    sys.stdout.flush()
 
 
 # ============================================================================
@@ -767,6 +822,7 @@ def menu_5(selected_devices, client, host, username):
 # ============================================================================
 
 def main():
+    theme_init()
     try:
         while True:
             creds = menu_1()
@@ -774,7 +830,9 @@ def main():
             menu_2(host, username, password)
     except KeyboardInterrupt:
         print("\n\nExiting.")
-        sys.exit(0)
+    finally:
+        theme_reset()
+    sys.exit(0)
 
 
 if __name__ == "__main__":

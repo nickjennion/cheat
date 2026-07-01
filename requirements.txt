@@ -1,3 +1,4 @@
 requests>=2.25.0
 urllib3>=1.26.0
 openpyxl>=3.0.0
+colorama>=0.4.6  # enables ANSI colour on legacy Windows consoles
