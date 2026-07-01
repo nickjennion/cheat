@@ -107,14 +107,6 @@ def show_splash(menu_header, options):
 # Helpers
 # ============================================================================
 
-def banner():
-    print()
-    print("=" * 55)
-    print("  CHEAT — Cisco Homogenous Environment Awareness Tool")
-    print("=" * 55)
-    print()
-
-
 def pause():
     input("\nPress Enter to continue...")
 
@@ -310,17 +302,18 @@ def menu_options():
     """Options / preferences menu. Reads and writes prefs.env (scaffold)."""
     prefs = load_prefs()
     while True:
-        show_splash("Options · Preferences", [
-            f"A) Slow mode            [{prefs['SLOW_MODE']}]",
-            f"B) Filenames & paths    [{prefs['OUTPUT_DIR']}/  {prefs['FILENAME_PREFIX']}*]",
-            f"C) Auto consolidation   [{prefs['AUTO_CONSOLIDATION']}]",
-            f"D) Colours              [{prefs['COLOURS']}]",
-            f"E) Email output         [{prefs['EMAIL_OUTPUT']}]",
-            f"F) AI settings          [{prefs['AI_ENABLED']}]",
-            f"G) Logging              [{prefs['LOGGING']}]",
-            "",
-            "0) Back",
-        ])
+        theme_clear()
+        print("\n  Options · Preferences\n")
+        print(f"  A) Slow mode            [{prefs['SLOW_MODE']}]")
+        print(f"  B) Filenames & paths    [{prefs['OUTPUT_DIR']}/  {prefs['FILENAME_PREFIX']}*]")
+        print(f"  C) Auto consolidation   [{prefs['AUTO_CONSOLIDATION']}]")
+        print(f"  D) Colours              [{prefs['COLOURS']}]")
+        print(f"  E) Email output         [{prefs['EMAIL_OUTPUT']}]")
+        print(f"  F) AI settings          [{prefs['AI_ENABLED']}]")
+        print(f"  G) Logging              [{prefs['LOGGING']}]")
+        print()
+        print("  0) Back")
+        print()
         choice = input("  Select [A-G, 0]: ").strip().upper()
 
         if choice == "0":
@@ -445,7 +438,7 @@ def action_get_version(host, username, password):
 def menu_2(host, username, password):
     """Action menu. Returns when user selects Back."""
     while True:
-        banner()
+        theme_clear()
         print(f"  Host: {host}  |  User: {username}\n")
         print("  Menu 2 — Actions\n")
         print("  1) Auth & Get Devices (All)")
@@ -474,7 +467,7 @@ def menu_2(host, username, password):
 def menu_3(devices, client, host, username):
     """Device actions menu — operates on the loaded inventory."""
     while True:
-        banner()
+        theme_clear()
         print(f"  Host: {host}  |  User: {username}  |  Devices loaded: {len(devices)}\n")
         print("  Menu 3 — Device Actions\n")
         print("  1) Select switches")
@@ -488,7 +481,7 @@ def menu_3(devices, client, host, username):
             if selected:
                 menu_5(selected, client, host, username)
         elif choice == "2":
-            banner()
+            theme_clear()
             print(f"  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
             print(f"  {'-'*5} {'-'*45} {'-'*22} {'-'*15}")
             for i, d in enumerate(devices, 1):
@@ -554,7 +547,7 @@ def menu_4(devices, client, host, username):
     while True:
         switches = [d for d in devices if _matches_filters(d, filter_terms)] if filter_terms else []
 
-        banner()
+        theme_clear()
         print(f"  Host: {host}\n")
         print(f"  Menu 4 — Select Switches\n")
         print(f"  Filters: {_filter_label(filter_terms)}\n")
@@ -619,7 +612,7 @@ def menu_4(devices, client, host, username):
 def menu_6(selected_devices, commands):
     """Confirmation screen — shows commands and target hosts before execution.
     Returns True to proceed, False to go back."""
-    banner()
+    theme_clear()
     print("  Menu 6 — Confirm Execution\n")
     print("  Commands:\n")
     for cmd in commands:
@@ -905,7 +898,7 @@ def menu_5(selected_devices, client, host, username):
     slow_mode = False
 
     while True:
-        banner()
+        theme_clear()
         slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
         print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}\n")
         print("  Menu 5 — Commands\n")
