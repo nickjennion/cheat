@@ -142,6 +142,33 @@ def load_credentials_from_env():
     return None
 
 
+def save_credentials_to_env(host, username, password):
+    """Write credentials to dnac.env (overwrites existing). Returns success."""
+    try:
+        ENV_FILE.write_text(
+            f"DNAC_HOST={host}\n"
+            f"DNAC_USERNAME={username}\n"
+            f"DNAC_PASSWORD={password}\n"
+        )
+        return True
+    except Exception as e:
+        print(f"\n  ✗ Could not write {ENV_FILE}: {e}")
+        return False
+
+
+def _prompt_manual_credentials():
+    """Prompt for DNAC credentials. Returns (host, user, pass) or None."""
+    print()
+    host = input("    DNAC host (FQDN or IP, no https://): ").strip()
+    username = input("    Username: ").strip()
+    password = getpass.getpass("    Password: ")
+    if host and username and password:
+        return host, username, password
+    print("\n  ✗ All fields required.")
+    pause()
+    return None
+
+
 def _prompt_filename(label="Filename"):
     """Prompt for an Excel filename; append .xlsx if omitted. Returns None if blank."""
     name = input(f"  {label}: ").strip()
@@ -161,10 +188,12 @@ def menu_1():
     while True:
         show_splash("Menu 1 · Credentials", [
             "1) Use dnac.env",
-            "2) Enter manually",
-            "3) View dnac.env",
+            "2) Enter manually   · remember",
+            "3) Enter manually   · forget",
+            "4) View dnac.env",
+            "5) Options",
         ])
-        choice = input("  Select [1-3]: ").strip()
+        choice = input("  Select [1-5]: ").strip()
 
         if choice == "1":
             result = load_credentials_from_env()
@@ -182,17 +211,20 @@ def menu_1():
                     print(f"    Create dnac.env with DNAC_HOST=, DNAC_USERNAME=, DNAC_PASSWORD=")
                 pause()
 
-        elif choice == "2":
-            print()
-            host = input("    DNAC host (FQDN or IP, no https://): ").strip()
-            username = input("    Username: ").strip()
-            password = getpass.getpass("    Password: ")
-            if host and username and password:
-                return host, username, password
-            print("\n  ✗ All fields required.")
-            pause()
+        elif choice == "2":  # Enter manually · remember (persist to dnac.env)
+            creds = _prompt_manual_credentials()
+            if creds:
+                if save_credentials_to_env(*creds):
+                    print(f"\n  ✓ Saved to {ENV_FILE}")
+                pause()
+                return creds
 
-        elif choice == "3":
+        elif choice == "3":  # Enter manually · forget (session only, never written)
+            creds = _prompt_manual_credentials()
+            if creds:
+                return creds
+
+        elif choice == "4":  # View dnac.env
             print()
             if ENV_FILE.exists():
                 print(f"  --- {ENV_FILE} ---")
@@ -212,9 +244,124 @@ def menu_1():
                     print(f"  Copy {SAMPLE_FILE} to dnac.env and fill in your values.")
             pause()
 
+        elif choice == "5":  # Options / preferences
+            menu_options()
+
         else:
             print("\n  Invalid selection.")
             pause()
+
+
+# ============================================================================
+# Options / Preferences  (Menu 1 → 5, writes prefs.env)
+# ============================================================================
+#
+# SCAFFOLD: settings are persisted to prefs.env but not yet wired into app
+# behaviour. Hooking each toggle up to the tool is a follow-up per item.
+
+PREFS_FILE = Path("prefs.env")
+
+DEFAULT_PREFS = {
+    "SLOW_MODE": "off",
+    "OUTPUT_DIR": "excel_reports",
+    "FILENAME_PREFIX": "cheat",
+    "AUTO_CONSOLIDATION": "off",
+    "COLOURS": "on",
+    "EMAIL_OUTPUT": "off",
+    "EMAIL_ADDRESS": "",
+    "AI_ENABLED": "off",
+    "AI_MODEL": "claude-opus-4-8",
+    "LOGGING": "off",
+    "LOG_LEVEL": "info",
+}
+
+
+def load_prefs():
+    """Load preferences from prefs.env, merged over defaults."""
+    prefs = dict(DEFAULT_PREFS)
+    if PREFS_FILE.exists():
+        try:
+            for line in PREFS_FILE.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                prefs[k.strip()] = v.strip()
+        except Exception as e:
+            print(f"  Warning: could not read {PREFS_FILE}: {e}")
+    return prefs
+
+
+def save_prefs(prefs):
+    """Write preferences to prefs.env. Returns success."""
+    try:
+        PREFS_FILE.write_text("".join(f"{k}={v}\n" for k, v in prefs.items()))
+        return True
+    except Exception as e:
+        print(f"\n  ✗ Could not write {PREFS_FILE}: {e}")
+        return False
+
+
+def _toggle(value):
+    return "off" if str(value).lower() == "on" else "on"
+
+
+def menu_options():
+    """Options / preferences menu. Reads and writes prefs.env (scaffold)."""
+    prefs = load_prefs()
+    while True:
+        show_splash("Options · Preferences", [
+            f"A) Slow mode            [{prefs['SLOW_MODE']}]",
+            f"B) Filenames & paths    [{prefs['OUTPUT_DIR']}/  {prefs['FILENAME_PREFIX']}*]",
+            f"C) Auto consolidation   [{prefs['AUTO_CONSOLIDATION']}]",
+            f"D) Colours              [{prefs['COLOURS']}]",
+            f"E) Email output         [{prefs['EMAIL_OUTPUT']}]",
+            f"F) AI settings          [{prefs['AI_ENABLED']}]",
+            f"G) Logging              [{prefs['LOGGING']}]",
+            "",
+            "0) Back",
+        ])
+        choice = input("  Select [A-G, 0]: ").strip().upper()
+
+        if choice == "0":
+            save_prefs(prefs)
+            return
+        elif choice == "A":
+            prefs["SLOW_MODE"] = _toggle(prefs["SLOW_MODE"])
+        elif choice == "B":
+            print()
+            d = input(f"    Output directory [{prefs['OUTPUT_DIR']}]: ").strip()
+            p = input(f"    Filename prefix  [{prefs['FILENAME_PREFIX']}]: ").strip()
+            if d:
+                prefs["OUTPUT_DIR"] = d
+            if p:
+                prefs["FILENAME_PREFIX"] = p
+        elif choice == "C":
+            prefs["AUTO_CONSOLIDATION"] = _toggle(prefs["AUTO_CONSOLIDATION"])
+        elif choice == "D":
+            prefs["COLOURS"] = _toggle(prefs["COLOURS"])
+        elif choice == "E":
+            prefs["EMAIL_OUTPUT"] = _toggle(prefs["EMAIL_OUTPUT"])
+            if prefs["EMAIL_OUTPUT"] == "on":
+                print()
+                addr = input(f"    Send reports to [{prefs['EMAIL_ADDRESS']}]: ").strip()
+                if addr:
+                    prefs["EMAIL_ADDRESS"] = addr
+        elif choice == "F":
+            prefs["AI_ENABLED"] = _toggle(prefs["AI_ENABLED"])
+            if prefs["AI_ENABLED"] == "on":
+                print()
+                model = input(f"    AI model [{prefs['AI_MODEL']}]: ").strip()
+                if model:
+                    prefs["AI_MODEL"] = model
+        elif choice == "G":
+            prefs["LOGGING"] = _toggle(prefs["LOGGING"])
+        else:
+            print("\n  Invalid selection.")
+            pause()
+            continue
+
+        save_prefs(prefs)
 
 
 # ============================================================================
