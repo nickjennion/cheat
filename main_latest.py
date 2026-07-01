@@ -19,6 +19,7 @@ from cheat_core import (
     generate_excel,
 )
 from excel_generator import write_client_search_excel
+import splash
 
 
 ENV_FILE = Path("dnac.env")
@@ -80,6 +81,28 @@ def theme_reset():
     sys.stdout.flush()
 
 
+def theme_clear():
+    """Home the cursor and clear the screen, keeping the blue background."""
+    if _COLOR_ON:
+        sys.stdout.write(_FG + _BG + "\033[2J\033[H")
+        sys.stdout.flush()
+    else:
+        print()
+
+
+# Splash branding text (shared logo/layout lives in splash.py)
+SPLASH_TITLE = "CHEAT"
+SPLASH_SUBTITLE = "Cisco Homogeneous Environment Awareness Tool"
+
+
+def show_splash(menu_header, options):
+    """Clear the screen and draw the branded Cisco splash with a menu."""
+    theme_clear()
+    for line in splash.build_lines(SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options):
+        print("  " + line)
+    print()
+
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -136,12 +159,11 @@ def _prompt_filename(label="Filename"):
 def menu_1():
     """Returns (host, username, password) once credentials are confirmed."""
     while True:
-        banner()
-        print("  Menu 1 — Credentials\n")
-        print("  1) Use dnac.env")
-        print("  2) Enter manually")
-        print("  3) View dnac.env")
-        print()
+        show_splash("Menu 1 · Credentials", [
+            "1) Use dnac.env",
+            "2) Enter manually",
+            "3) View dnac.env",
+        ])
         choice = input("  Select [1-3]: ").strip()
 
         if choice == "1":
