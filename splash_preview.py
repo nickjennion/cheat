@@ -43,7 +43,10 @@ LOGO = [
 
 # Right column: title on one line + Menu 1 (5 options from the sketch)
 MENU = [
-    "CHEAT — Cisco Homogeneous Environment Awareness Tool",
+    "CHEAT",
+    "",
+    "",
+    "Cisco Homogeneous Environment Awareness Tool",
     "",
     "",
     "Menu 1 · Credentials",
