@@ -6,10 +6,11 @@ Not wired into the app yet — run it to eyeball the layout/colours:
     python splash_preview.py            # white on Cisco DNA Center blue
     python splash_preview.py --plain     # no colour (for pasting into chat/docs)
 
-Layout mirrors the hand sketch: Cisco "bridge" logo on the left, title on one
-line (top-aligned with the tallest bar) + Menu 1 on the right. The logo bar
-pattern (short·med·TALL·med·short·med·TALL·med·short, tall bars dipping below
-the baseline) is measured from the real Cisco DNA Center mark.
+The Cisco "bridge" logo is derived mathematically from the official
+Cisco_logo.svg (5-bar arch: short·med·TALL·med·short, thick bars, single
+central peak), aspect-corrected for ~2:1 terminal cells and rendered white
+on Cisco DNA Center blue (#014F74) — i.e. the SVG's colours inverted.
+Left branding column is ~50% of the frame.
 """
 
 import os
@@ -20,34 +21,31 @@ BG = "\033[48;2;1;79;116m"      # Cisco DNA Center blue #014F74
 RESET = "\033[0m"
 
 # Box geometry (comfortable within a 140-col terminal)
-WIDTH = 100
+WIDTH = 120
 INNER = WIDTH - 2
-PAD = 2                          # interior left padding
-LOGO_W = 25                      # authentic logo is 25 cols wide
-GAP = 5                          # space between logo and text columns
+LEFT_W = 59                      # branding column ~50% of INNER
 
-# Left column: authentic Cisco bridge bars + wordmark
-LOGO = [
-    "      █           █      ",
-    "      █           █      ",
-    "   █  █  █     █  █  █   ",
-    "   █  █  █     █  █  █   ",
-    "█  █  █  █  █  █  █  █  █",
-    "█  █  █  █  █  █  █  █  █",
-    "█  █  █  █  █  █  █  █  █",
-    "      █           █      ",
-    "",
-    "C I S C O".center(LOGO_W),
-    "DNA CENTER".center(LOGO_W),
+# Cisco arch — from Cisco_logo.svg geometry (bar width 3.13, pitch 8.61),
+# aspect-corrected. Every bar line is exactly 35 cols wide.
+BARS = [
+    "                ███                ",
+    "                ███                ",
+    "                ███                ",
+    "        ███     ███     ███        ",
+    "        ███     ███     ███        ",
+    "███     ███     ███     ███     ███",
+    "███     ███     ███     ███     ███",
+    "███     ███     ███     ███     ███",
+    "███     ███     ███     ███     ███",
 ]
+LOGO = BARS + ["", "C I S C O".center(35), "DNA CENTER".center(35)]
 
-# Right column: title on one line + Menu 1 (5 options from the sketch)
+# Right column: two-line title (CHEAT, gap, full name) + Menu 1
 MENU = [
     "CHEAT",
     "",
     "",
     "Cisco Homogeneous Environment Awareness Tool",
-    "",
     "",
     "Menu 1 · Credentials",
     "",
@@ -65,7 +63,7 @@ def compose():
     right = MENU + [""] * (rows - len(MENU))
     lines = ["╔" + "═" * INNER + "╗", "║" + " " * INNER + "║"]
     for lft, rgt in zip(left, right):
-        cell = " " * PAD + lft.ljust(LOGO_W) + " " * GAP + rgt
+        cell = lft.center(LEFT_W) + rgt
         lines.append("║" + cell.ljust(INNER)[:INNER] + "║")
     lines += ["║" + " " * INNER + "║", "╚" + "═" * INNER + "╝"]
     return lines
