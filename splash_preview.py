@@ -26,17 +26,25 @@ INNER = WIDTH - 2
 LEFT_W = 59                      # branding column ~50% of INNER
 
 # Cisco arch — from Cisco_logo.svg geometry (bar width 3.13, pitch 8.61),
-# aspect-corrected. Every bar line is exactly 35 cols wide.
+# full vertical range preserved: the centre bar overhangs the others top and
+# bottom exactly as in the mark. Every bar line is exactly 35 cols wide.
 BARS = [
     "                ███                ",
     "                ███                ",
     "                ███                ",
+    "                ███                ",
+    "                ███                ",
     "        ███     ███     ███        ",
     "        ███     ███     ███        ",
+    "        ███     ███     ███        ",
     "███     ███     ███     ███     ███",
     "███     ███     ███     ███     ███",
     "███     ███     ███     ███     ███",
     "███     ███     ███     ███     ███",
+    "███     ███     ███     ███     ███",
+    "                ███                ",
+    "                ███                ",
+    "                ███                ",
 ]
 LOGO = BARS + ["", "C I S C O".center(35), "DNA CENTER".center(35)]
 
