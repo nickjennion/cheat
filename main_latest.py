@@ -19,6 +19,7 @@ from cheat_core import (
     generate_excel,
 )
 from excel_generator import write_client_search_excel
+from drawio_generator import generate_drawio
 import splash
 
 
@@ -410,6 +411,191 @@ def action_get_devices(host, username, password):
     return devices, client
 
 
+def action_get_sites(host, username, password):
+    """Authenticate, fetch all sites. Returns (sites, client) or (None, None)."""
+    client = _auth(host, username, password)
+    if not client:
+        pause()
+        return None, None
+
+    print("\n  Fetching site hierarchy...")
+    sites = client.get_sites()
+
+    if not sites:
+        print("  No sites returned.")
+        pause()
+        return None, None
+
+    print(f"\n  ✓ {len(sites)} site(s) loaded")
+    pause()
+    return sites, client
+
+
+def _site_type(site: dict) -> str:
+    for info in (site.get("additionalInfo") or []):
+        t = (info.get("attributes") or {}).get("type", "")
+        if t:
+            return t
+    return "unknown"
+
+
+def _site_attrs(site: dict) -> dict:
+    attrs = {}
+    for info in (site.get("additionalInfo") or []):
+        attrs.update(info.get("attributes") or {})
+    return attrs
+
+
+def _matches_site_filters(site: dict, filter_terms: list[str]) -> bool:
+    text = (site.get("siteNameHierarchy") or site.get("name") or "").lower()
+    for term in filter_terms:
+        alternatives = [a.strip() for a in term.split("|") if a.strip()]
+        if not any(alt in text for alt in alternatives):
+            return False
+    return True
+
+
+def menu_sites(sites: list, client, host: str, username: str):
+    """Site browse menu (Menu 2 equivalent for sites)."""
+    while True:
+        theme_clear()
+        print(f"  Host: {host}  |  User: {username}  |  Sites loaded: {len(sites)}\n")
+        print("  Sites — Browse\n")
+        print("  1) Select & filter sites")
+        print("  2) List all sites")
+        print("  3) Back")
+        print()
+        choice = input("  Select [1-3]: ").strip()
+
+        if choice == "3":
+            return
+        elif choice == "1":
+            selected = menu_sites_select(sites, host, username)
+            if selected:
+                menu_sites_actions(selected, client, host, username)
+        elif choice == "2":
+            theme_clear()
+            print(f"  All Sites ({len(sites)} total)\n")
+            print(f"  {'#':<5} {'Name':<35} {'Type':<12} {'Hierarchy'}")
+            print(f"  {'-'*5} {'-'*35} {'-'*12} {'-'*50}")
+            for i, s in enumerate(sites, 1):
+                name  = s.get("name", "?")[:34]
+                stype = _site_type(s)
+                hier  = s.get("siteNameHierarchy", "")[:60]
+                print(f"  {i:<5} {name:<35} {stype:<12} {hier}")
+            pause()
+        else:
+            print("\n  Invalid selection.")
+            pause()
+
+
+def menu_sites_select(sites: list, host: str, username: str) -> list:
+    """Site filter + select screen. Returns list of selected site dicts."""
+    filter_terms: list[str] = []
+    selected: set[int] = set()
+
+    while True:
+        filtered = [s for s in sites if _matches_site_filters(s, filter_terms)] if filter_terms else []
+
+        theme_clear()
+        print(f"  Host: {host}\n")
+        print("  Sites — Select\n")
+        if filter_terms:
+            label = "  AND  ".join(f"[{t}]" for t in filter_terms)
+            print(f"  Filters: {label}\n")
+        else:
+            print("  Filters: none\n")
+
+        if not filter_terms:
+            print("  Add a filter to show matching sites.")
+            print("  Use '|' for OR within a term  (e.g. f building|area)")
+            print("  Stack multiple filters with 'f' again  (each adds an AND clause)")
+        elif not filtered:
+            print("  No sites matched — try 'fc' to clear filters and start over")
+        else:
+            print(f"  {'#':<5} {'':3} {'Name':<35} {'Type':<12} {'Hierarchy'}")
+            print(f"  {'-'*5} {'-'*3} {'-'*35} {'-'*12} {'-'*45}")
+            for i, s in enumerate(filtered, 1):
+                check = "[X]" if i in selected else "[ ]"
+                name  = s.get("name", "?")[:34]
+                stype = _site_type(s)
+                hier  = s.get("siteNameHierarchy", "")[:45]
+                print(f"  {i:<5} {check} {name:<35} {stype:<12} {hier}")
+            print(f"\n  Selected: {len(selected)} site(s)")
+
+        print()
+        print("  'f <term>'  add filter  |  'fc' clear filters")
+        print("  number(s)   toggle selection (e.g. 1  or  1,3-5)  |  'a' select all")
+        print("  'p' Proceed  |  'b' Back")
+        print()
+        entry = input("  > ").strip()
+
+        if entry.lower() == "b":
+            return []
+        elif entry.lower() in ("p", ""):
+            if not selected:
+                print("\n  No sites selected — pick at least one.")
+                pause()
+            else:
+                return [filtered[i - 1] for i in sorted(selected) if i <= len(filtered)]
+        elif entry.lower() == "a":
+            selected = set(range(1, len(filtered) + 1))
+        elif entry.lower() == "fc":
+            filter_terms.clear()
+            selected.clear()
+        elif entry.lower().startswith("f "):
+            term = entry[2:].strip().lower()
+            if term:
+                filter_terms.append(term)
+                selected.clear()
+        else:
+            toggled = _parse_numbers(entry, len(filtered))
+            if not toggled:
+                print("\n  Unrecognised input.")
+                pause()
+            else:
+                for idx in toggled:
+                    if idx in selected:
+                        selected.discard(idx)
+                    else:
+                        selected.add(idx)
+
+
+def menu_sites_actions(selected_sites: list, client, host: str, username: str):
+    """Actions menu for selected sites."""
+    while True:
+        theme_clear()
+        print(f"  Host: {host}  |  Selected: {len(selected_sites)} site(s)\n")
+        print("  Sites — Actions\n")
+        print("  1) Export draw.io diagram")
+        print("  2) Back")
+        print()
+        choice = input("  Select [1-2]: ").strip()
+
+        if choice == "2":
+            return
+        elif choice == "1":
+            filename = _prompt_filename("draw.io filename (no extension needed)")
+            if not filename:
+                print("  Cancelled.")
+                pause()
+                continue
+            # Override .xlsx suffix — we want .drawio
+            stem = Path(filename).stem
+            outpath = Path("drawio_exports") / f"{stem}.drawio"
+            outpath.parent.mkdir(exist_ok=True)
+            xml = generate_drawio(selected_sites, title=stem)
+            if xml:
+                outpath.write_text(xml, encoding="utf-8")
+                print(f"\n  ✓ Saved: {outpath}  ({len(selected_sites)} site(s))")
+            else:
+                print("  ✗ Failed to generate diagram.")
+            pause()
+        else:
+            print("\n  Invalid selection.")
+            pause()
+
+
 def action_get_version(host, username, password):
     client = _auth(host, username, password)
     if not client:
@@ -443,9 +629,10 @@ def menu_2(host, username, password):
         print("  Menu 2 — Actions\n")
         print("  1) Auth & Get Devices (All)")
         print("  2) Auth & Get DNAC Version")
+        print("  3) Auth & Get Sites")
         print("  0) Back")
         print()
-        choice = input("  Select [0-2]: ").strip()
+        choice = input("  Select [0-3]: ").strip()
 
         if choice == "0":
             return
@@ -455,6 +642,10 @@ def menu_2(host, username, password):
                 menu_3(devices, client, host, username)
         elif choice == "2":
             action_get_version(host, username, password)
+        elif choice == "3":
+            sites, client = action_get_sites(host, username, password)
+            if sites is not None:
+                menu_sites(sites, client, host, username)
         else:
             print("\n  Invalid selection.")
             pause()
