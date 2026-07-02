@@ -287,6 +287,23 @@ class DNACClient:
 
         return all_clients
 
+    def get_sites(self) -> List[Dict]:
+        """Get all sites from DNAC site hierarchy."""
+        if not self.token:
+            print("Not authenticated.")
+            return []
+        try:
+            r = self.session.get(
+                f"{self.base_url}/dna/intent/api/v1/site",
+                headers={"X-Auth-Token": self.token},
+                timeout=30,
+            )
+            r.raise_for_status()
+            return r.json().get("response", [])
+        except Exception as e:
+            print(f"Failed to get sites: {e}")
+            return []
+
     def enable_slow_mode(self) -> None:
         """Rebuild retry adapter with backoff_factor=2 (doubled from default 1)."""
         retry_strategy = urllib3.Retry(
