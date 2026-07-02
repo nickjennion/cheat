@@ -9,7 +9,7 @@ from the real mark: heights top% 52/30/0, baseline 84%, peaks to 100%. Half-bloc
 glyphs (▄ ▀) give the bars rounded pill caps. Aspect ~3.7:1; logo line is 67 cols.
 """
 
-WIDTH = 120
+WIDTH = 112
 
 BARS = [
     "                ███                             ███                ",
@@ -23,14 +23,14 @@ BARS = [
     "                ███                             ███                ",
 ]
 
-WORDMARK = ["C I S C O", "DNA CENTER"]
+WORDMARK = "CISCO  ·  DNA CENTER"
 
 
 def build_lines(title, subtitle, menu_header, options, width=WIDTH):
     """Return the framed splash as a list of lines (all exactly `width` wide).
 
-    Layout: Cisco logo + wordmark centred at top, then a three-line gap, then
-    title / subtitle / menu header centred, then the options as a centred block.
+    Layout: Cisco logo + wordmark centred at top, three-line gap, combined
+    title/subtitle on one line, menu header, then the options as a centred block.
     """
     inner = width - 2
     body = []
@@ -38,14 +38,12 @@ def build_lines(title, subtitle, menu_header, options, width=WIDTH):
     for ln in BARS:
         body.append(ln.center(inner))
     body.append(" " * inner)
-    for w in WORDMARK:
-        body.append(w.center(inner))
+    body.append(WORDMARK.center(inner))
 
     body += [" " * inner] * 3
 
-    body.append(title.center(inner))
-    body.append(" " * inner)
-    body.append(subtitle.center(inner))
+    combined = f"{title}  ·  {subtitle}"
+    body.append(combined.center(inner))
     body.append(" " * inner)
     body.append(menu_header.center(inner))
     body.append(" " * inner)
