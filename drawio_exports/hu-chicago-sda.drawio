@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="CHEAT" version="21.0.0">
+  <diagram name="Site Hierarchy">
+    <mxGraphModel grid="1" gridSize="10" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="Floor 1 - Lobby &amp; Retail&#10;110 N. Carpenter St, Chicago, IL 60607, USA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;fontColor=#1b5e20;strokeColor=#2d8a4e;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="0" y="360" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="Floor 2 - Hamburger University&#10;110 N. Carpenter St, Chicago, IL 60607, USA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;fontColor=#1b5e20;strokeColor=#2d8a4e;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="180" y="360" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="Floor 3 - Office&#10;110 N. Carpenter St, Chicago, IL 60607, USA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;fontColor=#1b5e20;strokeColor=#2d8a4e;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="360" y="360" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="HU Chicago&#10;110 N. Carpenter St, Chicago, IL 60607, USA&#10;41.8849, -87.6522" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d8a4e;fontColor=#ffffff;strokeColor=#2d8a4e;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="240" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="North America" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1e6091;fontColor=#ffffff;strokeColor=#1e6091;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="120" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="Global" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#999999;fontColor=#ffffff;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="0" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="7" target="6" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="6" target="5" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="5" target="2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="5" target="3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="5" target="4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="HU Chicago — Topology">
+    <mxGraphModel grid="1" gridSize="10" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="HU Chicago — SDA Fabric Topology" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="200" y="10" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-border" value="Border Node(s)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="70" width="96" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="hu-chi-border-01&#10;C9500-48Y4C&#10;10.10.1.1" style="shape=mxgraph.cisco.routers.router;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-control-plane" value="Control Plane" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="70" width="96" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="hu-chi-cp-01&#10;C9500-48Y4C&#10;10.10.1.2" style="shape=mxgraph.cisco.servers.standard_server;html=1;pointerEvents=1;dashed=0;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="350" y="100" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-wlc" value="Wireless Controller(s)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="580" y="70" width="96" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="hu-chi-wlc-01&#10;C9800-L-F-K9&#10;10.10.1.5" style="shape=mxgraph.cisco.wireless.wireless_lan_controller;html=1;pointerEvents=1;dashed=0;fillColor=#f8cecc;strokeColor=#b85450;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="600" y="100" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="floor-lbl-0" value="Floor: 00000031" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="70" y="256" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="hu-chi-f1-edge-01&#10;C9300-48U&#10;10.10.1.11" style="shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="80" y="280" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="hu-chi-f1-edge-02&#10;C9300-48U&#10;10.10.1.12" style="shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="160" y="280" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="floor-lbl-1" value="Floor: 00000032" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="330" y="256" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="hu-chi-f2-edge-01&#10;C9300-48U&#10;10.10.1.21" style="shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="340" y="280" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="hu-chi-f2-edge-02&#10;C9300-48UX&#10;10.10.1.22" style="shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="420" y="280" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="floor-lbl-2" value="Floor: 00000033" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="590" y="256" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="hu-chi-f3-edge-01&#10;C9300-48U&#10;10.10.1.31" style="shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="600" y="280" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="2" target="3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="2" target="4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="3" target="5" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="3" target="6" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="3" target="7" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="3" target="8" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="3" target="9" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Floor 1 - Lobby &amp; Retail">
+    <mxGraphModel grid="1" gridSize="10" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Floor 1 - Lobby &amp; Retail" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="10" y="10" width="600" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="info" value="Dimensions: 200ft × 180ft × 18ft ceiling  |  RF: Cubes And Walled Offices  |  6 APs" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="10" y="40" width="800" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="floor-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#d6b656;strokeWidth=2;fontStyle=1;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="10" y="80" width="600" height="540" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="hu-chi-f1-ap-01&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="80" y="180" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="hu-chi-f1-ap-02&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="290" y="180" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="hu-chi-f1-ap-03&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="500" y="180" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="hu-chi-f1-ap-04&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="80" y="450" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="hu-chi-f1-ap-05&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="290" y="450" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="hu-chi-f1-ap-06&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="500" y="450" width="40" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Floor 2 - Hamburger University">
+    <mxGraphModel grid="1" gridSize="10" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Floor 2 - Hamburger University" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="10" y="10" width="600" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="info" value="Dimensions: 200ft × 180ft × 14ft ceiling  |  RF: Cubes And Walled Offices  |  6 APs" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="10" y="40" width="800" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="floor-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#d6b656;strokeWidth=2;fontStyle=1;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="10" y="80" width="600" height="540" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="hu-chi-f2-ap-01&#10;C9130AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="110" y="195" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="hu-chi-f2-ap-02&#10;C9130AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="290" y="195" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="hu-chi-f2-ap-03&#10;C9130AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="470" y="195" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="hu-chi-f2-ap-04&#10;C9130AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="110" y="420" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="hu-chi-f2-ap-05&#10;C9130AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="290" y="420" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="hu-chi-f2-ap-06&#10;C9130AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="470" y="420" width="40" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Floor 3 - Office">
+    <mxGraphModel grid="1" gridSize="10" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Floor 3 - Office" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="10" y="10" width="600" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="info" value="Dimensions: 200ft × 180ft × 14ft ceiling  |  RF: Cubes And Walled Offices  |  4 APs" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="10" y="40" width="800" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="floor-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#d6b656;strokeWidth=2;fontStyle=1;fontSize=11;verticalAlign=top;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="10" y="80" width="600" height="540" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="hu-chi-f3-ap-01&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="140" y="240" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="hu-chi-f3-ap-02&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="440" y="240" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="hu-chi-f3-ap-03&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="140" y="420" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="hu-chi-f3-ap-04&#10;C9120AXI-B" style="shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="440" y="420" width="40" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

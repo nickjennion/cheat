@@ -1,0 +1,214 @@
+{
+  "_comment": "Synthetic SDA site fixture — Hamburger University Chicago campus. Represents a clean DNAC site hierarchy response. Device UUIDs and AP positions are plausible but invented.",
+  "sites": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "Global",
+      "siteNameHierarchy": "Global",
+      "siteHierarchy": "00000000-0000-0000-0000-000000000001",
+      "additionalInfo": []
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000010",
+      "name": "North America",
+      "parentId": "00000000-0000-0000-0000-000000000001",
+      "siteNameHierarchy": "Global/North America",
+      "siteHierarchy": "00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000010",
+      "additionalInfo": [
+        {
+          "nameSpace": "Location",
+          "attributes": { "type": "area" }
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000020",
+      "name": "HU Chicago",
+      "parentId": "00000000-0000-0000-0000-000000000010",
+      "siteNameHierarchy": "Global/North America/HU Chicago",
+      "siteHierarchy": "00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000010/00000000-0000-0000-0000-000000000020",
+      "additionalInfo": [
+        {
+          "nameSpace": "Location",
+          "attributes": {
+            "type": "building",
+            "address": "110 N. Carpenter St, Chicago, IL 60607, USA",
+            "country": "United States",
+            "latitude": "41.88488",
+            "longitude": "-87.65217"
+          }
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000031",
+      "name": "Floor 1 - Lobby & Retail",
+      "parentId": "00000000-0000-0000-0000-000000000020",
+      "siteNameHierarchy": "Global/North America/HU Chicago/Floor 1 - Lobby & Retail",
+      "siteHierarchy": "00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000010/00000000-0000-0000-0000-000000000020/00000000-0000-0000-0000-000000000031",
+      "additionalInfo": [
+        {
+          "nameSpace": "Location",
+          "attributes": { "type": "floor", "address": "110 N. Carpenter St, Chicago, IL 60607, USA" }
+        },
+        {
+          "nameSpace": "mapsSummary",
+          "attributes": { "rfModel": "Cubes And Walled Offices", "floorIndex": "1" }
+        },
+        {
+          "nameSpace": "mapGeometry",
+          "attributes": { "offsetX": "0.0", "offsetY": "0.0", "length": "200.0", "width": "180.0", "height": "18.0" }
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000032",
+      "name": "Floor 2 - Hamburger University",
+      "parentId": "00000000-0000-0000-0000-000000000020",
+      "siteNameHierarchy": "Global/North America/HU Chicago/Floor 2 - Hamburger University",
+      "siteHierarchy": "00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000010/00000000-0000-0000-0000-000000000020/00000000-0000-0000-0000-000000000032",
+      "additionalInfo": [
+        {
+          "nameSpace": "Location",
+          "attributes": { "type": "floor", "address": "110 N. Carpenter St, Chicago, IL 60607, USA" }
+        },
+        {
+          "nameSpace": "mapsSummary",
+          "attributes": { "rfModel": "Cubes And Walled Offices", "floorIndex": "2" }
+        },
+        {
+          "nameSpace": "mapGeometry",
+          "attributes": { "offsetX": "0.0", "offsetY": "0.0", "length": "200.0", "width": "180.0", "height": "14.0" }
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000033",
+      "name": "Floor 3 - Office",
+      "parentId": "00000000-0000-0000-0000-000000000020",
+      "siteNameHierarchy": "Global/North America/HU Chicago/Floor 3 - Office",
+      "siteHierarchy": "00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000010/00000000-0000-0000-0000-000000000020/00000000-0000-0000-0000-000000000033",
+      "additionalInfo": [
+        {
+          "nameSpace": "Location",
+          "attributes": { "type": "floor", "address": "110 N. Carpenter St, Chicago, IL 60607, USA" }
+        },
+        {
+          "nameSpace": "mapsSummary",
+          "attributes": { "rfModel": "Cubes And Walled Offices", "floorIndex": "3" }
+        },
+        {
+          "nameSpace": "mapGeometry",
+          "attributes": { "offsetX": "0.0", "offsetY": "0.0", "length": "200.0", "width": "180.0", "height": "14.0" }
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "dev-border-01",
+      "hostname": "hu-chi-border-01",
+      "platformId": "C9500-48Y4C",
+      "managementIpAddress": "10.10.1.1",
+      "role": "BORDER ROUTER",
+      "siteId": "00000000-0000-0000-0000-000000000020",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "border"
+    },
+    {
+      "id": "dev-cp-01",
+      "hostname": "hu-chi-cp-01",
+      "platformId": "C9500-48Y4C",
+      "managementIpAddress": "10.10.1.2",
+      "role": "CORE",
+      "siteId": "00000000-0000-0000-0000-000000000020",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "control-plane"
+    },
+    {
+      "id": "dev-edge-f1-01",
+      "hostname": "hu-chi-f1-edge-01",
+      "platformId": "C9300-48U",
+      "managementIpAddress": "10.10.1.11",
+      "role": "ACCESS",
+      "siteId": "00000000-0000-0000-0000-000000000031",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "edge"
+    },
+    {
+      "id": "dev-edge-f1-02",
+      "hostname": "hu-chi-f1-edge-02",
+      "platformId": "C9300-48U",
+      "managementIpAddress": "10.10.1.12",
+      "role": "ACCESS",
+      "siteId": "00000000-0000-0000-0000-000000000031",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "edge"
+    },
+    {
+      "id": "dev-edge-f2-01",
+      "hostname": "hu-chi-f2-edge-01",
+      "platformId": "C9300-48U",
+      "managementIpAddress": "10.10.1.21",
+      "role": "ACCESS",
+      "siteId": "00000000-0000-0000-0000-000000000032",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "edge"
+    },
+    {
+      "id": "dev-edge-f2-02",
+      "hostname": "hu-chi-f2-edge-02",
+      "platformId": "C9300-48UX",
+      "managementIpAddress": "10.10.1.22",
+      "role": "ACCESS",
+      "siteId": "00000000-0000-0000-0000-000000000032",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "edge"
+    },
+    {
+      "id": "dev-edge-f3-01",
+      "hostname": "hu-chi-f3-edge-01",
+      "platformId": "C9300-48U",
+      "managementIpAddress": "10.10.1.31",
+      "role": "ACCESS",
+      "siteId": "00000000-0000-0000-0000-000000000033",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "edge"
+    },
+    {
+      "id": "dev-wlc-01",
+      "hostname": "hu-chi-wlc-01",
+      "platformId": "C9800-L-F-K9",
+      "managementIpAddress": "10.10.1.5",
+      "role": "WIRELESS CONTROLLER",
+      "siteId": "00000000-0000-0000-0000-000000000020",
+      "softwareVersion": "17.9.4",
+      "fabricRole": "wlc"
+    }
+  ],
+  "access_points": [
+    { "id": "ap-f1-01", "name": "hu-chi-f1-ap-01", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000031", "x": 30.0, "y": 40.0, "macAddress": "00:11:22:33:44:01" },
+    { "id": "ap-f1-02", "name": "hu-chi-f1-ap-02", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000031", "x": 100.0, "y": 40.0, "macAddress": "00:11:22:33:44:02" },
+    { "id": "ap-f1-03", "name": "hu-chi-f1-ap-03", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000031", "x": 170.0, "y": 40.0, "macAddress": "00:11:22:33:44:03" },
+    { "id": "ap-f1-04", "name": "hu-chi-f1-ap-04", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000031", "x": 30.0, "y": 130.0, "macAddress": "00:11:22:33:44:04" },
+    { "id": "ap-f1-05", "name": "hu-chi-f1-ap-05", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000031", "x": 100.0, "y": 130.0, "macAddress": "00:11:22:33:44:05" },
+    { "id": "ap-f1-06", "name": "hu-chi-f1-ap-06", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000031", "x": 170.0, "y": 130.0, "macAddress": "00:11:22:33:44:06" },
+    { "id": "ap-f2-01", "name": "hu-chi-f2-ap-01", "model": "C9130AXI-B", "siteId": "00000000-0000-0000-0000-000000000032", "x": 40.0, "y": 45.0, "macAddress": "00:11:22:33:55:01" },
+    { "id": "ap-f2-02", "name": "hu-chi-f2-ap-02", "model": "C9130AXI-B", "siteId": "00000000-0000-0000-0000-000000000032", "x": 100.0, "y": 45.0, "macAddress": "00:11:22:33:55:02" },
+    { "id": "ap-f2-03", "name": "hu-chi-f2-ap-03", "model": "C9130AXI-B", "siteId": "00000000-0000-0000-0000-000000000032", "x": 160.0, "y": 45.0, "macAddress": "00:11:22:33:55:03" },
+    { "id": "ap-f2-04", "name": "hu-chi-f2-ap-04", "model": "C9130AXI-B", "siteId": "00000000-0000-0000-0000-000000000032", "x": 40.0, "y": 120.0, "macAddress": "00:11:22:33:55:04" },
+    { "id": "ap-f2-05", "name": "hu-chi-f2-ap-05", "model": "C9130AXI-B", "siteId": "00000000-0000-0000-0000-000000000032", "x": 100.0, "y": 120.0, "macAddress": "00:11:22:33:55:05" },
+    { "id": "ap-f2-06", "name": "hu-chi-f2-ap-06", "model": "C9130AXI-B", "siteId": "00000000-0000-0000-0000-000000000032", "x": 160.0, "y": 120.0, "macAddress": "00:11:22:33:55:06" },
+    { "id": "ap-f3-01", "name": "hu-chi-f3-ap-01", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000033", "x": 50.0, "y": 60.0, "macAddress": "00:11:22:33:66:01" },
+    { "id": "ap-f3-02", "name": "hu-chi-f3-ap-02", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000033", "x": 150.0, "y": 60.0, "macAddress": "00:11:22:33:66:02" },
+    { "id": "ap-f3-03", "name": "hu-chi-f3-ap-03", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000033", "x": 50.0, "y": 120.0, "macAddress": "00:11:22:33:66:03" },
+    { "id": "ap-f3-04", "name": "hu-chi-f3-ap-04", "model": "C9120AXI-B", "siteId": "00000000-0000-0000-0000-000000000033", "x": 150.0, "y": 120.0, "macAddress": "00:11:22:33:66:04" }
+  ],
+  "fabric": {
+    "virtualNetworks": ["Corp", "Guest", "IoT", "Voice"],
+    "transitNetwork": "INFRA_VN",
+    "borderUplinks": [
+      { "device": "hu-chi-border-01", "interface": "TenGigabitEthernet1/1/1", "peer": "WAN-RTR-01", "type": "external" }
+    ]
+  }
+}
