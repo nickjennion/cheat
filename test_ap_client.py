@@ -136,7 +136,41 @@ def test_get_ap_events_none_when_no_events(client):
 
 
 def test_get_ap_events_returns_error_flag_on_exception(client):
-    client.session.get = MagicMock(side_effect=Exception("500"))
+    # Auth failure still returns error flag
+    client.token = None
     result, error = client.get_ap_events(["ap-1"], hours=24)
     assert error is True
     assert result == {}
+
+
+def test_get_ap_events_partial_failure_continues(client):
+    """A failed request for one AP must not discard results for other APs."""
+    good_resp = MagicMock()
+    good_resp.status_code = 200
+    good_resp.json.return_value = {
+        "response": [
+            {
+                "deviceId": "ap-2",
+                "timestamp": 1000,
+                "details": {
+                    "previousNeighborHostname": "SW-GOOD",
+                    "previousNeighborPort": "GigabitEthernet1/0/1",
+                },
+            }
+        ]
+    }
+    good_resp.raise_for_status = MagicMock()
+
+    def side_effect(*args, **kwargs):
+        params = kwargs.get("params", {})
+        if params.get("deviceId") == "ap-1":
+            raise Exception("timeout")
+        return good_resp
+
+    client.session.get = MagicMock(side_effect=side_effect)
+
+    result, error = client.get_ap_events(["ap-1", "ap-2"], hours=24)
+
+    assert error is False
+    assert result["ap-1"] is None        # failed AP → no data, not error
+    assert result["ap-2"] == "SW-GOOD (GigabitEthernet1/0/1)"  # succeeded

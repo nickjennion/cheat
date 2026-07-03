@@ -393,6 +393,7 @@ class DNACClient:
 
         Returns ({ap_id: "switch (port)" | None}, error_bool).
         None means no relevant events were found in the window.
+        error_bool is True only if authentication is missing.
         """
         if not self.token:
             return {}, True
@@ -402,8 +403,8 @@ class DNACClient:
         start_ms = end_ms - (hours * 3600 * 1000)
         result: dict[str, str | None] = {ap_id: None for ap_id in ap_ids}
 
-        try:
-            for ap_id in ap_ids:
+        for ap_id in ap_ids:
+            try:
                 r = self.session.get(
                     f"{self.base_url}/dna/data/api/v1/assuranceEvents",
                     headers={"X-Auth-Token": self.token},
@@ -431,11 +432,11 @@ class DNACClient:
                         result[ap_id] = f"{host} ({port})" if port else host
                         break
 
-            return result, False
+            except Exception as e:
+                print(f"  Events fetch error for {ap_id}: {e}")
+                # result[ap_id] remains None → renders as "— (no data)"
 
-        except Exception as e:
-            print(f"  Events fetch error: {e}")
-            return {}, True
+        return result, False
 
     def enable_slow_mode(self) -> None:
         """Rebuild retry adapter with backoff_factor=2 (doubled from default 1)."""
