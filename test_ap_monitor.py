@@ -112,3 +112,17 @@ def test_parse_numbers_range():
 def test_parse_numbers_out_of_bounds():
     from ap_monitor import _parse_numbers
     assert _parse_numbers("15", 10) == []
+
+
+# --- _filter_label ---
+
+def test_filter_label_include_and_exclude():
+    from ap_monitor import _filter_label
+    label = _filter_label(["bldg-a"], ["oob"])
+    assert "bldg-a" in label
+    assert "oob" in label
+    assert "NOT" in label
+
+def test_filter_label_empty():
+    from ap_monitor import _filter_label
+    assert _filter_label([], []) == "(none)"
