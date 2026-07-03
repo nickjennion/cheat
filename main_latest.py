@@ -21,6 +21,7 @@ from cheat_core import (
 from excel_generator import write_client_search_excel
 from port_utilisation import is_copper_port
 from drawio_generator import generate_drawio
+import ap_monitor
 import splash
 
 
@@ -432,6 +433,25 @@ def action_get_sites(host, username, password):
     return sites, client
 
 
+def action_ap_monitor(host, username, password):
+    """Authenticate, fetch Unified APs, launch AP movement monitor."""
+    client = _auth(host, username, password)
+    if not client:
+        pause()
+        return
+
+    print("\n  Fetching Unified AP inventory...\n")
+    aps = client.get_ap_devices()
+
+    if not aps:
+        print("  No Unified APs found in DNAC inventory.")
+        pause()
+        return
+
+    print(f"\n  ✓ {len(aps)} AP(s) loaded.")
+    ap_monitor.run(client, aps)
+
+
 def _site_type(site: dict) -> str:
     for info in (site.get("additionalInfo") or []):
         t = (info.get("attributes") or {}).get("type", "")
@@ -631,9 +651,10 @@ def menu_2(host, username, password):
         print("  1) Auth & Get Devices (All)")
         print("  2) Auth & Get DNAC Version")
         print("  3) Auth & Get Sites")
+        print("  4) Access Point — Monitor Physical Movements")
         print("  0) Back")
         print()
-        choice = input("  Select [0-3]: ").strip()
+        choice = input("  Select [0-4]: ").strip()
 
         if choice == "0":
             return
@@ -647,6 +668,8 @@ def menu_2(host, username, password):
             sites, client = action_get_sites(host, username, password)
             if sites is not None:
                 menu_sites(sites, client, host, username)
+        elif choice == "4":
+            action_ap_monitor(host, username, password)
         else:
             print("\n  Invalid selection.")
             pause()
