@@ -5,15 +5,7 @@ Filter/select Unified APs, then display a live-refreshed table comparing
 previous upstream (Assurance events, 24h) vs current upstream (physical topology).
 """
 
-import re
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 from typing import Optional
-
-import openpyxl
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
 
 # Sentinel display strings
 _NO_CHANGE = "N/A — No Change"
@@ -21,10 +13,7 @@ _OFFLINE   = "— (offline)"
 _NO_DATA   = "— (no data)"
 _ERROR     = "— (error)"
 
-# Column display widths
-_W_HOST = 42
-_W_UP   = 20
-_W_CDP  = 38
+_SENTINELS = (_OFFLINE, _ERROR, _NO_DATA, _NO_CHANGE)
 
 
 # ============================================================================
@@ -61,9 +50,8 @@ def build_table_rows(
             previous = val if val is not None else _NO_DATA
 
         # No change: both valid, same value
-        _sentinels = (_OFFLINE, _ERROR, _NO_DATA, _NO_CHANGE)
-        if (current not in _sentinels
-                and previous not in _sentinels
+        if (current not in _SENTINELS
+                and previous not in _SENTINELS
                 and current == previous):
             current = _NO_CHANGE
             previous = _NO_CHANGE
