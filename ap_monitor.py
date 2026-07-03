@@ -112,3 +112,94 @@ def _parse_numbers(entry: str, max_idx: int) -> list[int]:
         elif part.isdigit():
             result.add(int(part))
     return sorted(i for i in result if 1 <= i <= max_idx)
+
+
+# ============================================================================
+# UI Helpers
+# ============================================================================
+
+def _clear() -> None:
+    import os
+    os.system("clear" if os.name != "nt" else "cls")
+
+
+def _pause() -> None:
+    input("\n  Press Enter to continue...")
+
+
+# ============================================================================
+# Filter / Select Screen
+# ============================================================================
+
+def filter_select_screen(aps: list[dict]) -> list[dict]:
+    """Filter and select APs. Returns selected dicts, or [] if user pressed b."""
+    filter_terms: list[str] = []
+    exclude_terms: list[str] = []
+    selected: set[int] = set()
+
+    while True:
+        filtered = [
+            ap for ap in aps
+            if _ap_matches(ap, filter_terms, exclude_terms)
+        ] if (filter_terms or exclude_terms) else []
+
+        _clear()
+        print("  Access Point — Monitor Physical Movements\n")
+        print(f"  Filters: {_filter_label(filter_terms, exclude_terms)}\n")
+
+        if not filter_terms and not exclude_terms:
+            print("  Add at least one filter to show matching APs.")
+            print("  Use '|' for OR within a term  (e.g. f bldg-a|bldg-b)")
+        elif not filtered:
+            print("  No APs matched — try 'fc' to clear filters and start over.")
+        else:
+            print(f"  {'#':<5} {'':3} {'AP Hostname':<42} {'Model':<22} {'IP Address'}")
+            print(f"  {'-'*5} {'-'*3} {'-'*42} {'-'*22} {'-'*15}")
+            for i, ap in enumerate(filtered, 1):
+                check = "[X]" if i in selected else "[ ]"
+                h = str(ap.get("hostname") or "unknown")
+                p = str(ap.get("platformId") or "")
+                ip = str(ap.get("managementIpAddress") or "")
+                print(f"  {i:<5} {check} {h:<42} {p:<22} {ip}")
+            print(f"\n  Selected: {len(selected)} AP(s)")
+
+        print()
+        print("  'f <term>'  add filter (| = OR)  |  'r <term>'  exclude  |  'fc'  clear all")
+        print("  number(s)   toggle selection (e.g. 1  or  1,3-5)")
+        print("  'p'  Proceed    |    'b'  Back")
+        print()
+        entry = input("  > ").strip()
+
+        if entry.lower() == "b":
+            return []
+        elif entry.lower() in ("p", ""):
+            if not selected:
+                print("\n  Select at least one AP first.")
+                _pause()
+            else:
+                return [filtered[i - 1] for i in sorted(selected) if i <= len(filtered)]
+        elif entry.lower() == "fc":
+            filter_terms.clear()
+            exclude_terms.clear()
+            selected.clear()
+        elif entry.lower().startswith("f "):
+            term = entry[2:].strip().lower()
+            if term:
+                filter_terms.append(term)
+                selected.clear()
+        elif entry.lower().startswith("r "):
+            term = entry[2:].strip().lower()
+            if term:
+                exclude_terms.append(term)
+                selected.clear()
+        else:
+            indices = _parse_numbers(entry, len(filtered))
+            if not indices:
+                print("\n  Unrecognised input.")
+                _pause()
+            else:
+                for idx in indices:
+                    if idx in selected:
+                        selected.discard(idx)
+                    else:
+                        selected.add(idx)
