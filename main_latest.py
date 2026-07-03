@@ -710,8 +710,8 @@ def _parse_numbers(entry: str, max_idx: int) -> list[int]:
     return sorted(i for i in result if 1 <= i <= max_idx)
 
 
-def _matches_filters(device, filter_terms: list[str]) -> bool:
-    """Return True if device matches ALL filter terms (AND logic).
+def _matches_filters(device, filter_terms: list[str], exclude_terms: list[str] = []) -> bool:
+    """Return True if device matches ALL filter terms and NO exclude terms.
     Within each term, '|' separates alternatives (OR logic).
     Matches against hostname and platformId."""
     text = (
@@ -721,30 +721,41 @@ def _matches_filters(device, filter_terms: list[str]) -> bool:
         alternatives = [a.strip() for a in term.split("|") if a.strip()]
         if not any(alt in text for alt in alternatives):
             return False
+    for term in exclude_terms:
+        alternatives = [a.strip() for a in term.split("|") if a.strip()]
+        if any(alt in text for alt in alternatives):
+            return False
     return True
 
 
-def _filter_label(filter_terms: list[str]) -> str:
+def _filter_label(filter_terms: list[str], exclude_terms: list[str] = []) -> str:
     """Human-readable representation of the active filter stack."""
-    if not filter_terms:
-        return "(none)"
-    return "  AND  ".join(f"[{t}]" for t in filter_terms)
+    parts = []
+    if filter_terms:
+        parts.append("  AND  ".join(f"[{t}]" for t in filter_terms))
+    if exclude_terms:
+        parts.append("NOT " + "  NOT ".join(f"[{t}]" for t in exclude_terms))
+    return "  ".join(parts) if parts else "(none)"
 
 
 def menu_4(devices, client, host, username):
     """Switch selection screen. Returns list of selected device dicts, or []."""
     filter_terms: list[str] = []
+    exclude_terms: list[str] = []
     selected = set()
 
     while True:
-        switches = [d for d in devices if _matches_filters(d, filter_terms)] if filter_terms else []
+        switches = [
+            d for d in devices
+            if _matches_filters(d, filter_terms, exclude_terms)
+        ] if (filter_terms or exclude_terms) else []
 
         theme_clear()
         print(f"  Host: {host}\n")
         print(f"  Menu 4 — Select Switches\n")
-        print(f"  Filters: {_filter_label(filter_terms)}\n")
+        print(f"  Filters: {_filter_label(filter_terms, exclude_terms)}\n")
 
-        if not filter_terms:
+        if not filter_terms and not exclude_terms:
             print("  Add a filter to show matching devices.")
             print("  Use '|' for OR within a term  (e.g. f 3850|9300)")
             print("  Stack multiple filters with 'f' again  (each adds an AND clause)")
@@ -763,6 +774,7 @@ def menu_4(devices, client, host, username):
 
         print()
         print("  'f <term>'  add filter (| = OR, e.g. f 3850|9300)  |  'fc' clear all filters")
+        print("  'r <term>'  exclude (| = OR, e.g. r oob|mgmt)")
         print("  number(s)   toggle selection (e.g. 1  or  1,3-5)")
         print("  'p'         Proceed    |    'b'  Back")
         print()
@@ -778,11 +790,17 @@ def menu_4(devices, client, host, username):
                 return [switches[i - 1] for i in sorted(selected) if i <= len(switches)]
         elif entry.lower() == "fc":
             filter_terms.clear()
+            exclude_terms.clear()
             selected.clear()
         elif entry.lower().startswith("f "):
             term = entry[2:].strip().lower()
             if term:
                 filter_terms.append(term)
+                selected.clear()
+        elif entry.lower().startswith("r "):
+            term = entry[2:].strip().lower()
+            if term:
+                exclude_terms.append(term)
                 selected.clear()
         else:
             toggled = _parse_numbers(entry, len(switches))
