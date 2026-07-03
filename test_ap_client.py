@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for DNACClient AP methods."""
 
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 
 from dnac_client import DNACClient
@@ -99,10 +98,18 @@ def test_get_ap_events_extracts_previous_upstream(client):
                 "deviceId": "ap-1",
                 "timestamp": 1000,
                 "details": {
+                    "previousNeighborHostname": "OLD-SWITCH-STALE",
+                    "previousNeighborPort": "GigabitEthernet3/0/1",
+                },
+            },
+            {
+                "deviceId": "ap-1",
+                "timestamp": 2000,
+                "details": {
                     "previousNeighborHostname": "OLD-SWITCH",
                     "previousNeighborPort": "GigabitEthernet2/0/3",
                 },
-            }
+            },
         ]
     }
     mock_resp.raise_for_status = MagicMock()
@@ -111,6 +118,7 @@ def test_get_ap_events_extracts_previous_upstream(client):
     result, error = client.get_ap_events(["ap-1"], hours=24)
 
     assert error is False
+    # Must return the most recent event (timestamp=2000), not the oldest (timestamp=1000)
     assert result["ap-1"] == "OLD-SWITCH (GigabitEthernet2/0/3)"
 
 
