@@ -5,7 +5,13 @@ Filter/select Unified APs, then display a live-refreshed table comparing
 previous upstream (Assurance events, 24h) vs current upstream (physical topology).
 """
 
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
+
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 # Sentinel display strings
 _NO_CHANGE = "N/A — No Change"
@@ -14,6 +20,11 @@ _NO_DATA   = "— (no data)"
 _ERROR     = "— (error)"
 
 _SENTINELS = (_OFFLINE, _ERROR, _NO_DATA, _NO_CHANGE)
+
+# Column widths for the results table
+_W_HOST = 42
+_W_UP   = 20
+_W_CDP  = 38
 
 
 # ============================================================================
@@ -203,3 +214,151 @@ def filter_select_screen(aps: list[dict]) -> list[dict]:
                         selected.discard(idx)
                     else:
                         selected.add(idx)
+
+
+# ============================================================================
+# Results Table
+# ============================================================================
+
+def _print_table(rows: list[dict]) -> None:
+    header = (
+        f"  {'AP Hostname':<{_W_HOST}} {'Uptime':<{_W_UP}} "
+        f"{'Previous Upstream (24h)':<{_W_CDP}} {'Current Upstream':<{_W_CDP}}"
+    )
+    sep = f"  {'-'*_W_HOST} {'-'*_W_UP} {'-'*_W_CDP} {'-'*_W_CDP}"
+    print(header)
+    print(sep)
+    for row in rows:
+        moved = (
+            row["previous"] not in (_NO_CHANGE, _NO_DATA, _ERROR, _OFFLINE)
+            and row["current"] not in (_NO_CHANGE, _ERROR, _OFFLINE)
+            and row["previous"] != row["current"]
+        )
+        marker = " *" if moved else "  "
+        print(
+            f"{marker} {row['hostname']:<{_W_HOST}} {row['uptime']:<{_W_UP}} "
+            f"{row['previous']:<{_W_CDP}} {row['current']:<{_W_CDP}}"
+        )
+
+
+def _export_excel(rows: list[dict], stem: str) -> None:
+    """Write AP movement table to Excel in excel_reports/."""
+    excel_dir = Path("excel_reports").resolve()
+    excel_dir.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
+
+    headers = ["AP Hostname", "Uptime", "Previous Upstream (24h)", "Current Upstream"]
+    col_widths = [_W_HOST, _W_UP, _W_CDP, _W_CDP]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "AP Movements"
+
+    hdr_font = Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+    hdr_fill = PatternFill("solid", start_color="FF2B579A")
+    hdr_align = Alignment(horizontal="center", vertical="center")
+    thin = Border(
+        bottom=Side(style="thin", color="FFB0B0B0"),
+        right=Side(style="thin", color="FFB0B0B0"),
+    )
+    dat_font = Font(name="Arial", size=10)
+    dat_align = Alignment(vertical="center")
+    moved_fill = PatternFill("solid", start_color="FFFFF3CD")   # amber — AP moved
+    same_fill  = PatternFill("solid", start_color="FFD4EDDA")   # green  — no change
+    other_fill = PatternFill("solid", start_color="FFFFFFFF")   # white  — error/offline/no-data
+
+    for col, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = hdr_font
+        cell.fill = hdr_fill
+        cell.alignment = hdr_align
+        cell.border = thin
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    ws.row_dimensions[1].height = 30
+    ws.freeze_panes = "A2"
+
+    for row_idx, row in enumerate(rows, start=2):
+        if row["current"] == _NO_CHANGE:
+            fill = same_fill
+        elif (
+            row["current"] not in (_ERROR, _OFFLINE)
+            and row["previous"] not in (_NO_DATA, _ERROR, _NO_CHANGE)
+        ):
+            fill = moved_fill
+        else:
+            fill = other_fill
+
+        for col, val in enumerate(
+            [row["hostname"], row["uptime"], row["previous"], row["current"]], start=1
+        ):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            cell.font = dat_font
+            cell.alignment = dat_align
+            cell.border = thin
+            cell.fill = fill
+
+    ws.auto_filter.ref = ws.dimensions
+    wb.save(outpath)
+    print(f"\n  ✓ Saved: {outpath}")
+
+
+# ============================================================================
+# Results Screen
+# ============================================================================
+
+def results_screen(client, selected_aps: list[dict]) -> None:
+    """Show AP movement table. Keys: r=refresh, e=export, b=back."""
+    ap_ids = [ap["id"] for ap in selected_aps]
+    stem = "ap-monitor"
+
+    while True:
+        print("\n  Fetching current topology...", flush=True)
+        topology, topology_error = client.get_ap_topology(ap_ids)
+
+        print("  Fetching Assurance events (24h)...", flush=True)
+        events, events_error = client.get_ap_events(ap_ids, hours=24)
+
+        rows = build_table_rows(selected_aps, topology, events, topology_error, events_error)
+
+        _clear()
+        print("  Access Point — Monitor Physical Movements\n")
+        print(f"  APs monitored: {len(selected_aps)}   * = upstream changed\n")
+        _print_table(rows)
+        print()
+        if topology_error:
+            print("  ⚠ Topology fetch failed — current upstream unavailable.")
+        if events_error:
+            print("  ⚠ Events fetch failed — previous upstream unavailable.")
+        print()
+        print("  'r' Refresh   'e' Export to Excel   'b' Back")
+        print()
+        key = input("  > ").strip().lower()
+
+        if key == "b":
+            return
+        elif key == "r":
+            _clear()
+            print("  Refreshing...\n")
+        elif key == "e":
+            _export_excel(rows, stem)
+            _pause()
+
+
+# ============================================================================
+# Entry Point
+# ============================================================================
+
+def run(client, aps: list[dict]) -> None:
+    """Entry point: filter/select screen → results screen loop."""
+    if not aps:
+        print("\n  No Unified APs found in DNAC inventory.")
+        _pause()
+        return
+
+    while True:
+        selected = filter_select_screen(aps)
+        if not selected:
+            return
+        results_screen(client, selected)
