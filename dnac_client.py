@@ -419,7 +419,7 @@ class DNACClient:
                 r.raise_for_status()
                 events = r.json().get("response", [])
 
-                for event in sorted(events, key=lambda e: e.get("timestamp", 0)):
+                for event in sorted(events, key=lambda e: e.get("timestamp", 0), reverse=True):
                     details = event.get("details") or {}
                     host = (details.get("previousNeighborHostname")
                             or details.get("neighborHostname")
