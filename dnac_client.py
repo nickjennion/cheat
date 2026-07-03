@@ -304,6 +304,139 @@ class DNACClient:
             print(f"Failed to get sites: {e}")
             return []
 
+    def get_ap_devices(self) -> list[dict]:
+        """Get all Unified AP devices from DNAC inventory (paginated)."""
+        if not self.token:
+            print("Not authenticated.")
+            return []
+
+        all_aps = []
+        offset = 1
+        limit = 500
+        page = 1
+
+        try:
+            while True:
+                print(f"  [Page {page}] fetching APs {offset}-{offset + limit - 1}...", end=" ", flush=True)
+                r = self.session.get(
+                    f"{self.base_url}/dna/intent/api/v1/network-device",
+                    headers={"X-Auth-Token": self.token},
+                    params={"family": "Unified AP", "offset": offset, "limit": limit},
+                    timeout=30,
+                )
+                r.raise_for_status()
+                batch = r.json().get("response", [])
+                print(f"got {len(batch)} (total: {len(all_aps) + len(batch)})", flush=True)
+                if not batch:
+                    break
+                all_aps.extend(batch)
+                if len(batch) < limit:
+                    break
+                offset += limit
+                page += 1
+        except Exception as e:
+            print(f"Failed to get AP devices: {e}")
+            return []
+
+        return all_aps
+
+    def get_ap_topology(self, ap_ids: list[str]) -> tuple[dict[str, str | None], bool]:
+        """Get current upstream switch+port for each AP via physical topology.
+
+        Returns ({ap_id: "switch (port)" | None}, error_bool).
+        None means the AP has no link (offline/unmanaged).
+        error_bool is True if the API call itself failed.
+        """
+        if not self.token:
+            return {}, True
+
+        try:
+            r = self.session.get(
+                f"{self.base_url}/dna/intent/api/v1/topology/physical-topology",
+                headers={"X-Auth-Token": self.token},
+                timeout=30,
+            )
+            r.raise_for_status()
+            data = r.json().get("response", {})
+            nodes = {n["id"]: n.get("label") or n.get("id", "") for n in data.get("nodes", [])}
+            ap_set = set(ap_ids)
+            result: dict[str, str | None] = {ap_id: None for ap_id in ap_ids}
+
+            for link in data.get("links", []):
+                src = link.get("source", "")
+                tgt = link.get("target", "")
+                if tgt in ap_set:
+                    sw = nodes.get(src, src)
+                    port = link.get("startPortName", "")
+                    result[tgt] = f"{sw} ({port})" if port else sw
+                elif src in ap_set:
+                    sw = nodes.get(tgt, tgt)
+                    port = link.get("endPortName", "")
+                    result[src] = f"{sw} ({port})" if port else sw
+
+            return result, False
+
+        except Exception as e:
+            print(f"  Topology fetch error: {e}")
+            return {}, True
+
+    def get_ap_events(self, ap_ids: list[str], hours: int = 24) -> tuple[dict[str, str | None], bool]:
+        """Get last-known upstream before current connection via Assurance events.
+
+        Queries /dna/data/api/v1/assuranceEvents for each AP over the last `hours`
+        hours. Looks for connectivity events that include previous neighbor info.
+
+        NOTE: Exact event field names (previousNeighborHostname, previousNeighborPort,
+        neighborHostname, neighborPort) should be validated against the target DNAC
+        environment. The fallback snapshot approach is documented in the design spec
+        if this endpoint proves unreliable.
+
+        Returns ({ap_id: "switch (port)" | None}, error_bool).
+        None means no relevant events were found in the window.
+        """
+        if not self.token:
+            return {}, True
+
+        import time as _time
+        end_ms = int(_time.time() * 1000)
+        start_ms = end_ms - (hours * 3600 * 1000)
+        result: dict[str, str | None] = {ap_id: None for ap_id in ap_ids}
+
+        try:
+            for ap_id in ap_ids:
+                r = self.session.get(
+                    f"{self.base_url}/dna/data/api/v1/assuranceEvents",
+                    headers={"X-Auth-Token": self.token},
+                    params={
+                        "deviceId": ap_id,
+                        "startTime": start_ms,
+                        "endTime": end_ms,
+                    },
+                    timeout=30,
+                )
+                if r.status_code == 404:
+                    continue
+                r.raise_for_status()
+                events = r.json().get("response", [])
+
+                for event in sorted(events, key=lambda e: e.get("timestamp", 0)):
+                    details = event.get("details") or {}
+                    host = (details.get("previousNeighborHostname")
+                            or details.get("neighborHostname")
+                            or "")
+                    port = (details.get("previousNeighborPort")
+                            or details.get("neighborPort")
+                            or "")
+                    if host:
+                        result[ap_id] = f"{host} ({port})" if port else host
+                        break
+
+            return result, False
+
+        except Exception as e:
+            print(f"  Events fetch error: {e}")
+            return {}, True
+
     def enable_slow_mode(self) -> None:
         """Rebuild retry adapter with backoff_factor=2 (doubled from default 1)."""
         retry_strategy = urllib3.Retry(
