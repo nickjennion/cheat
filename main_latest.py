@@ -19,6 +19,7 @@ from cheat_core import (
     generate_excel,
 )
 from excel_generator import write_client_search_excel
+from port_utilisation import is_copper_port
 from drawio_generator import generate_drawio
 import splash
 
@@ -820,7 +821,7 @@ def menu_6(selected_devices, commands):
 # Menu 5 — Commands
 # ============================================================================
 
-def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42, slow_mode=False):
+def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42, slow_mode=False, copper_only=False):
     """Run commands → parse → generate Excel. Used by menu_5 options 1-3."""
     if slow_mode:
         client.enable_slow_mode()
@@ -834,6 +835,17 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
         return
     devices_data = parse_outputs(outputs)
     if not devices_data:
+        pause()
+        return
+    if copper_only:
+        print("  [Copper only: non-copper interfaces excluded]")
+        devices_data = {
+            h: ([r for r in recs if is_copper_port(r.iface)], sm)
+            for h, (recs, sm) in devices_data.items()
+            if any(is_copper_port(r.iface) for r in recs)
+        }
+    if not devices_data:
+        print("  ✗ No copper ports found after filtering.")
         pause()
         return
     stem = Path(filename).stem
@@ -1087,29 +1099,35 @@ def action_mac_lookup(client):
 def menu_5(selected_devices, client, host, username):
     """Command execution menu for selected devices."""
     slow_mode = False
+    copper_only = False
 
     while True:
         theme_clear()
         slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
-        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}\n")
+        copper_label = "ON" if copper_only else "off"
+        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}  |  Copper only: {copper_label}\n")
         print("  Menu 5 — Commands\n")
-        print("  1) Get port info (separate Excel per device)")
-        print("  2) Get port info (one workbook, one sheet per device)")
-        print("  3) Get port info + port usage tab")
+        print("  1) Port report — one file per device")
+        print("  2) Port report — one file, one tab per device")
+        print("  3) Port report — consolidated (All Ports + utilisation + per-device tabs)")
         print("  4) Custom commands")
         print("  5) MAC address lookup (Assurance client-detail)")
         print("  6) MAC prefix search  (Assurance /clients, wildcard)")
         print("  7) IP address search  (Assurance /clients, wildcard)")
         print("  s) Toggle slow mode")
+        print("  p) Toggle copper only")
         print("  8) Back")
         print()
-        choice = input("  Select [1-8 / s]: ").strip().lower()
+        choice = input("  Select [1-8 / s / p]: ").strip().lower()
 
         if choice == "8":
             return
 
         elif choice == "s":
             slow_mode = not slow_mode
+
+        elif choice == "p":
+            copper_only = not copper_only
 
         elif choice in ("1", "2"):
             print()
@@ -1122,7 +1140,7 @@ def menu_5(selected_devices, client, host, username):
             if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
             _exec_and_report(selected_devices, client, DNAC_COMMANDS, int(choice), filename,
-                             slow_mode=slow_mode)
+                             slow_mode=slow_mode, copper_only=copper_only)
 
         elif choice == "3":
             print()
@@ -1136,7 +1154,7 @@ def menu_5(selected_devices, client, host, username):
             if not menu_6(selected_devices, DNAC_COMMANDS):
                 continue
             _exec_and_report(selected_devices, client, DNAC_COMMANDS, 3, filename, threshold,
-                             slow_mode=slow_mode)
+                             slow_mode=slow_mode, copper_only=copper_only)
 
         elif choice == "4":
             print()
