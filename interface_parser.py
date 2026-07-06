@@ -48,6 +48,7 @@ class InterfaceRecord:
     counters_in: str = ""
     suspect: str = ""
     cdp_neighbors: str = ""
+    last_link_change: str = ""
 
 
 # ============================================================================
@@ -137,6 +138,15 @@ def site_location(hostname: str) -> tuple[str, str]:
     site = parts[0] if len(parts) >= 1 else ""
     location = parts[1] if len(parts) >= 2 else ""
     return site, location
+
+
+def is_physical_iface(iface: str) -> bool:
+    """True for physical Ethernet ports (slot/port notation), e.g. Gi1/0/5, Fa0/1.
+
+    Logical interfaces (Vlan, Port-channel, Loopback, Tunnel) have no slot/port
+    and return False.
+    """
+    return bool(re.match(r'^[A-Za-z]{2,}\d+/\d+', iface or ""))
 
 
 def member_from_iface(iface: str) -> str:
