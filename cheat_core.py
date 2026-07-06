@@ -26,6 +26,14 @@ DNAC_COMMANDS = [
     "show cdp neighbors",
 ]
 
+LINK_STATE_COMMANDS = ["show logging", "show clock"]
+
+
+def build_command_list(link_state: bool) -> list:
+    """Base report commands, plus link-state commands when enabled."""
+    return DNAC_COMMANDS + LINK_STATE_COMMANDS if link_state else list(DNAC_COMMANDS)
+
+
 COMMAND_RUNNER_DIR = "command_runner_outputs"
 EXCEL_DIR = "excel_reports"
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
