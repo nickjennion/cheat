@@ -94,8 +94,12 @@ def write_excel_sheet(ws, records: list[InterfaceRecord], stack_members: dict[in
     header_font, header_fill, header_align, header_border = get_header_styles()
     data_font, data_align, data_border = get_data_styles()
 
+    include_link_state = any(r.last_link_change for r in records)
+    headers = HEADERS + (["Last Link Change"] if include_link_state else [])
+    col_widths = COL_WIDTHS + ([18] if include_link_state else [])
+
     # Write headers
-    for col, (header, width) in enumerate(zip(HEADERS, COL_WIDTHS), start=1):
+    for col, (header, width) in enumerate(zip(headers, col_widths), start=1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
         cell.fill = header_fill
@@ -130,6 +134,9 @@ def write_excel_sheet(ws, records: list[InterfaceRecord], stack_members: dict[in
             rec.suspect,
             rec.cdp_neighbors,
         ]
+
+        if include_link_state:
+            values = values + [rec.last_link_change]
 
         state_key = rec.state.lower() if rec.state else ""
         row_colour = STATE_COLOURS.get(state_key, "FFFFFFFF")
