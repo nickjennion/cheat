@@ -1148,7 +1148,7 @@ def menu_5(selected_devices, client, host, username):
         theme_clear()
         slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
         copper_label = "ON" if copper_only else "off"
-        link_label = "on" if link_state else "off"
+        link_label = "ON" if link_state else "off"
         print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}  |  Copper only: {copper_label}  |  Link-state: {link_label}\n")
         print("  Menu 5 — Commands\n")
         print("  1) Port report — one file per device")
