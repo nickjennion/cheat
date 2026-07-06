@@ -90,6 +90,10 @@ RE_HOSTNAME_UPTIME = re.compile(r'^\S+\s+uptime\s+is\s+(.+)', re.IGNORECASE)
 RE_MODEL_NUMBER = re.compile(r'Model Number\s*:\s*(\S+)', re.IGNORECASE)
 RE_SHOW_HW_TRIGGER = re.compile(r'show\s+(hardware|version)', re.IGNORECASE)
 
+# Physical Ethernet port: an alpha type followed by slot/port (Gi1/0/5, Fa0/1).
+# Logical interfaces (Vlan10, Po1, Lo0, Tunnel1) lack the slot/port and miss.
+RE_PHYSICAL_IFACE = re.compile(r'^[A-Za-z]{2,}\d+/\d+')
+
 # CDP local interface: abbreviated type ("Ten", "Gig", "Fas"...) + space + slot/port.
 # Matches both multi-part (Ten 2/1/4) and single digit (Gig 0) port formats.
 # The local interface is always the first such match on a data line.
@@ -146,7 +150,7 @@ def is_physical_iface(iface: str) -> bool:
     Logical interfaces (Vlan, Port-channel, Loopback, Tunnel) have no slot/port
     and return False.
     """
-    return bool(re.match(r'^[A-Za-z]{2,}\d+/\d+', iface or ""))
+    return bool(RE_PHYSICAL_IFACE.match(iface or ""))
 
 
 def member_from_iface(iface: str) -> str:
