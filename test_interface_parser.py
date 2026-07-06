@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 
@@ -50,9 +52,6 @@ def test_is_physical_iface_false_for_logical():
 def test_interface_record_has_last_link_change_default():
     from interface_parser import InterfaceRecord
     assert InterfaceRecord().last_link_change == ""
-
-
-from datetime import datetime
 
 
 def test_parse_clock_reads_device_time():
