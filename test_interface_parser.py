@@ -144,3 +144,12 @@ def test_compute_link_changes_empty_without_logging():
     from interface_parser import compute_link_changes
     out = compute_link_changes(CLOCK_LINE, ["Gi1/0/5"])
     assert out == {}
+
+
+def test_compute_link_changes_unknown_when_no_timestamped_lines():
+    from interface_parser import compute_link_changes
+    # Logging block present and clock resolves, but no timestamped syslog lines
+    # and no UPDOWN event -> horizon is None -> unknown floor.
+    text = "\n".join([CLOCK_LINE, "Log Buffer (16384 bytes):"])
+    out = compute_link_changes(text, ["Gi1/0/6"])
+    assert out["Gi1/0/6"] == "unknown"
