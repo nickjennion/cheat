@@ -99,7 +99,7 @@ RE_CLOCK = re.compile(
 RE_UPDOWN = re.compile(
     r'(?P<ts>\w{3}\s+\d{1,2}\s+(?:\d{4}\s+)?\d{2}:\d{2}:\d{2}(?:\.\d+)?)'
     r'.*?%(?:LINK|LINEPROTO)-\d-UPDOWN:.*?'
-    r'Interface\s+(?P<iface>[A-Za-z0-9/.\-]+),\s+changed state to (?:up|down)'
+    r'Interface\s+(?P<iface>[A-Za-z0-9/.-]+),\s+changed state to (?:up|down)'
 )
 
 RE_SYSLOG_TS = re.compile(
@@ -281,7 +281,8 @@ def compute_link_changes(text: str, physical_ifaces: list) -> dict:
     Empty dict when no logging block is present (feature not collected). Otherwise
     each physical iface gets a relative age, a 'stable ≥Xd' floor, or 'unknown'.
     """
-    logging_present = bool(re.search(r'%[A-Z]+-\d-[A-Z]+:', text) or "Log Buffer" in text)
+    # Underscore mnemonics (e.g. %SYS-5-CONFIG_I) need [A-Z_] to be detected.
+    logging_present = bool(re.search(r'%[A-Z]+-\d-[A-Z_]+:', text) or "Log Buffer" in text)
     if not logging_present:
         return {}
 
