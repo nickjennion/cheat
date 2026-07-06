@@ -58,7 +58,7 @@ class InterfaceRecord:
 
 RE_IFACE_HEADER = re.compile(
     r'^((?:GigabitEthernet|TenGigabitEthernet|FastEthernet|'
-    r'FortyGigabitEthernet|HundredGigE)\S+)\s+is\s+(\S+(?:\s+\S+)?),\s*'
+    r'FortyGigabitEthernet|HundredGigE|Vlan)\S+)\s+is\s+(\S+(?:\s+\S+)?),\s*'
     r'line protocol is\s+(\S+)',
     re.IGNORECASE
 )
@@ -596,6 +596,9 @@ def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[
 
     cdp_neighbors = parse_cdp_neighbors(text)
 
+    physical = [rec.iface for rec in int_data.values() if is_physical_iface(rec.iface)]
+    link_changes = compute_link_changes(text, physical)
+
     for rec in int_data.values():
         member_str = member_from_iface(rec.iface)
         rec.stack_member = member_str
@@ -615,6 +618,9 @@ def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[
 
         if rec.iface in cdp_neighbors:
             rec.cdp_neighbors = cdp_neighbors[rec.iface]
+
+        if rec.iface in link_changes:
+            rec.last_link_change = link_changes[rec.iface]
 
     def sort_key(rec):
         parts = re.findall(r'\d+', rec.iface)
