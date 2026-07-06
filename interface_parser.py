@@ -96,6 +96,16 @@ RE_CLOCK = re.compile(
     r'(\w{3})\s+(\d{1,2})\s+(\d{4})'
 )
 
+RE_UPDOWN = re.compile(
+    r'(?P<ts>\w{3}\s+\d{1,2}\s+(?:\d{4}\s+)?\d{2}:\d{2}:\d{2}(?:\.\d+)?)'
+    r'.*?%(?:LINK|LINEPROTO)-\d-UPDOWN:.*?'
+    r'Interface\s+(?P<iface>[A-Za-z0-9/.\-]+),\s+changed state to (?:up|down)'
+)
+
+RE_SYSLOG_TS = re.compile(
+    r'(?<![\d:])(\w{3}\s+\d{1,2}\s+(?:\d{4}\s+)?\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s*:'
+)
+
 _MONTHS = {
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
     "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
@@ -228,6 +238,67 @@ def format_age(seconds: float) -> str:
         return f"{hours}h{rem_m}m" if rem_m else f"{hours}h"
     days, rem_h = divmod(hours, 24)
     return f"{days}d{rem_h}h" if rem_h else f"{days}d"
+
+
+def parse_updown_events(text: str, ref_year: int, now: datetime) -> dict:
+    """Map short-form interface name -> datetime of its most recent UPDOWN event.
+
+    Events parsed with no explicit year that land in the future relative to `now`
+    are rolled back one year (log buffer spanning a year boundary).
+    """
+    events: dict[str, datetime] = {}
+    for m in RE_UPDOWN.finditer(text):
+        ts = parse_log_timestamp(m.group("ts"), ref_year)
+        if ts is None:
+            continue
+        if ts > now:
+            ts = ts.replace(year=ts.year - 1)
+        iface = shorten_iface(m.group("iface"))
+        if iface not in events or ts > events[iface]:
+            events[iface] = ts
+    return events
+
+
+def _buffer_horizon(text: str, ref_year: int, now: datetime) -> Optional[str]:
+    """Relative age of the oldest timestamped syslog line, for the stable floor."""
+    oldest: Optional[datetime] = None
+    for m in RE_SYSLOG_TS.finditer(text):
+        ts = parse_log_timestamp(m.group(1), ref_year)
+        if ts is None:
+            continue
+        if ts > now:
+            ts = ts.replace(year=ts.year - 1)
+        if oldest is None or ts < oldest:
+            oldest = ts
+    if oldest is None:
+        return None
+    return format_age((now - oldest).total_seconds())
+
+
+def compute_link_changes(text: str, physical_ifaces: list) -> dict:
+    """Return {short-iface: display string} for the given physical interfaces.
+
+    Empty dict when no logging block is present (feature not collected). Otherwise
+    each physical iface gets a relative age, a 'stable ≥Xd' floor, or 'unknown'.
+    """
+    logging_present = bool(re.search(r'%[A-Z]+-\d-[A-Z]+:', text) or "Log Buffer" in text)
+    if not logging_present:
+        return {}
+
+    now = parse_clock(text)
+    out: dict[str, str] = {}
+    if now is None:
+        return {iface: "unknown" for iface in physical_ifaces}
+
+    events = parse_updown_events(text, now.year, now)
+    horizon = _buffer_horizon(text, now.year, now)
+    for iface in physical_ifaces:
+        if iface in events:
+            delta = (now - events[iface]).total_seconds()
+            out[iface] = format_age(delta) if delta >= 0 else "unknown"
+        else:
+            out[iface] = f"stable ≥{horizon}" if horizon else "unknown"
+    return out
 
 
 def extract_neighbor_port(stripped_line: str) -> str:
