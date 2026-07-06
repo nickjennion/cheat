@@ -126,6 +126,19 @@ def shorten_iface(name: str) -> str:
     return name
 
 
+def site_location(hostname: str) -> tuple[str, str]:
+    """Split a hostname into (site, location) codes.
+
+    Site is the text before the first hyphen; location is the text between the
+    first and second hyphens. Both are "" when the segment is absent.
+    Example: "hu-chi-f1-edge-01" -> ("hu", "chi").
+    """
+    parts = hostname.split("-")
+    site = parts[0] if len(parts) >= 1 else ""
+    location = parts[1] if len(parts) >= 2 else ""
+    return site, location
+
+
 def member_from_iface(iface: str) -> str:
     """Extract stack member number from interface name (e.g., Gi1/0/5 -> '1')."""
     m = re.match(r'[A-Za-z]+(\d+)/', iface)

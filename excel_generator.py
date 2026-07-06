@@ -10,7 +10,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from interface_parser import InterfaceRecord, StackMember, uptime_days
+from interface_parser import InterfaceRecord, StackMember, uptime_days, site_location
 from port_utilisation import is_copper_port, write_utilisation_sheet
 from time_utils import parse_duration_days
 
@@ -21,6 +21,8 @@ from time_utils import parse_duration_days
 
 HEADERS = [
     "Switch",
+    "Site",
+    "Location",
     "Stack Member",
     "Model",
     "SW Version",
@@ -38,7 +40,7 @@ HEADERS = [
     "CDP Neighbors",
 ]
 
-COL_WIDTHS = [28, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26, 30]
+COL_WIDTHS = [28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26, 30]
 
 STATE_COLOURS = {
     "connected": "FFD4EDDA",
@@ -107,8 +109,11 @@ def write_excel_sheet(ws, records: list[InterfaceRecord], stack_members: dict[in
     # Write data rows
     for row_idx, rec in enumerate(records, start=2):
         days = uptime_days(rec.uptime)
+        site, location = site_location(rec.switch)
         values = [
             rec.switch,
+            site,
+            location,
             rec.stack_member,
             rec.model,
             rec.sw_version,
@@ -136,12 +141,12 @@ def write_excel_sheet(ws, records: list[InterfaceRecord], stack_members: dict[in
             cell.alignment = data_align
             cell.border = data_border
 
-            # Highlight suspect interfaces (gold) — col 15 after Speed+Type insertion
-            if col == 15 and value == "YES":
+            # Highlight suspect interfaces (gold) — col 17 after Site+Location insertion
+            if col == 17 and value == "YES":
                 cell.fill = PatternFill("solid", start_color=SUSPECT_COLOUR)
                 cell.font = Font(name="Arial", size=10, bold=True)
-            # Highlight short uptime (orange)
-            elif col == 5 and short_up:
+            # Highlight short uptime (orange) — col 7 after Site+Location insertion
+            elif col == 7 and short_up:
                 cell.fill = PatternFill("solid", start_color=UPTIME_COLOUR)
                 cell.font = Font(name="Arial", size=10, bold=True)
             else:
