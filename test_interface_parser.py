@@ -133,6 +133,20 @@ def test_compute_link_changes_stable_floor_for_no_event():
     assert out["Gi1/0/6"] == "stable ≥6d"
 
 
+def test_compute_link_changes_stable_floor_with_tz_suffix():
+    from interface_parser import compute_link_changes
+    # `service timestamps log datetime ... show-timezone` adds a TZ token (AEST)
+    # before the colon; the buffer floor must still resolve.
+    text = "\n".join([
+        CLOCK_LINE,
+        "Log Buffer (16384 bytes):",
+        "*Jun 30 12:00:00.000 AEST: %SYS-5-CONFIG_I: Configured from console",
+        "*Jul  6 09:47:00.000 AEST: %LINK-3-UPDOWN: Interface GigabitEthernet1/0/5, changed state to up",
+    ])
+    out = compute_link_changes(text, ["Gi1/0/6"])
+    assert out["Gi1/0/6"] == "stable ≥6d"
+
+
 def test_compute_link_changes_unknown_without_clock():
     from interface_parser import compute_link_changes
     text = "Log Buffer (16384 bytes):\n*Jul  6 09:47:00.000: %LINK-3-UPDOWN: Interface GigabitEthernet1/0/5, changed state to up"

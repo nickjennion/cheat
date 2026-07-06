@@ -103,7 +103,8 @@ RE_UPDOWN = re.compile(
 )
 
 RE_SYSLOG_TS = re.compile(
-    r'(?<![\d:])(\w{3}\s+\d{1,2}\s+(?:\d{4}\s+)?\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s*:'
+    r'(?<![\d:])(\w{3}\s+\d{1,2}\s+(?:\d{4}\s+)?\d{2}:\d{2}:\d{2}(?:\.\d+)?)'
+    r'(?:\s+\w+)?\s*:'   # optional timezone token (AEST, UTC, ...) from show-timezone
 )
 
 _MONTHS = {

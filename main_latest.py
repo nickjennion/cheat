@@ -12,7 +12,6 @@ from pathlib import Path
 
 from dnac_client import DNACClient
 from cheat_core import (
-    DNAC_COMMANDS,
     EXCEL_DIR,
     build_command_list,
     run_commands,
