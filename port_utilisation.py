@@ -23,8 +23,45 @@ from pathlib import Path
 from typing import Optional
 
 import openpyxl
+from openpyxl.utils import get_column_letter
 
 from time_utils import parse_duration_days
+
+
+# Hardware breakdown columns appended to the utilisation table (column G onwards).
+HARDWARE_START_COL = 7
+HARDWARE_MEMBER_COUNT = 6
+HARDWARE_END_COL = HARDWARE_START_COL + HARDWARE_MEMBER_COUNT - 1  # column L
+HARDWARE_HEADERS = [f"Stack Member {i}" for i in range(1, HARDWARE_MEMBER_COUNT + 1)]
+
+
+def _member_to_int(value) -> Optional[int]:
+    """Coerce a stack-member cell value ('1', 1, ' 2 ') to int, else None."""
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _write_hardware_headers(ws, header_font, header_fill, header_align) -> None:
+    """Write the six 'Stack Member N' headers starting at column G."""
+    for i, header in enumerate(HARDWARE_HEADERS):
+        col = HARDWARE_START_COL + i
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        ws.column_dimensions[get_column_letter(col)].width = 18
+
+
+def _write_hardware_row(ws, row: int, member_models: dict) -> None:
+    """Write per-member models across columns G..L for one data row.
+
+    member_models maps member number (int) -> model string.
+    """
+    for i in range(HARDWARE_MEMBER_COUNT):
+        col = HARDWARE_START_COL + i
+        ws.cell(row=row, column=col, value=member_models.get(i + 1, ""))
 
 
 def parse_last_input_days(last_input_str: str) -> Optional[float]:
@@ -56,19 +93,21 @@ def analyse_workbook(
     """Analyse port utilisation from Excel workbook.
 
     Only counts base copper ports (GiX/0/X and TeX/0/X).
-    Returns (success: bool, message: str, results: dict[switch, (in_use, idle)])
+    Returns (success, message, results: dict[switch, (in_use, idle)],
+             hardware: dict[switch, dict[member_num, model]])
     """
     in_path = Path(wb_path).resolve()
     if not in_path.is_file():
-        return False, f"✗ File not found: {wb_path}", {}
+        return False, f"✗ File not found: {wb_path}", {}, {}
 
     print(f"Loading '{wb_path}'...")
     try:
         wb = openpyxl.load_workbook(in_path, data_only=True)
     except Exception as e:
-        return False, f"✗ Failed to open: {e}", {}
+        return False, f"✗ Failed to open: {e}", {}, {}
 
     results: dict[str, tuple[int, int]] = {}  # switch → (in_use, idle)
+    hardware: dict[str, dict[int, str]] = {}  # switch → {member_num: model}
 
     # Known summary sheets produced by write_combined_excel — skip to avoid
     # double-counting ("All Ports" has the same Switch/Interface/Last Input
@@ -96,6 +135,10 @@ def analyse_workbook(
             print(f"✗ missing column ({e})")
             continue
 
+        # Stack Member / Model columns drive the hardware breakdown (optional).
+        member_col = headers.index("Stack Member") + 1 if "Stack Member" in headers else None
+        model_col = headers.index("Model") + 1 if "Model" in headers else None
+
         # Tally ports per switch
         switch_stats: dict[str, tuple[int, int]] = {}
         row_count = 0
@@ -109,13 +152,21 @@ def analyse_workbook(
             if not switch:
                 continue
 
+            switch_str = str(switch).strip()
+
+            # Record member -> model for the hardware breakdown (any port type).
+            if member_col and model_col:
+                member = _member_to_int(ws.cell(row=row, column=member_col).value)
+                model = ws.cell(row=row, column=model_col).value
+                if member is not None and model:
+                    hardware.setdefault(switch_str, {}).setdefault(member, str(model).strip())
+
             # Only count base copper ports (Gi*/0/* and Te*/0/*)
             if not is_copper_port(iface):
                 skipped += 1
                 continue
 
             row_count += 1
-            switch_str = str(switch).strip()
 
             # Classify port as in-use or idle
             days_since_traffic = parse_last_input_days(last_input)
@@ -145,9 +196,9 @@ def analyse_workbook(
     wb.close()
 
     if not results:
-        return False, "✗ No copper port data found", {}
+        return False, "✗ No copper port data found", {}, {}
 
-    return True, f"✓ Analysed {sum(in_use + idle for in_use, idle in results.values())} copper ports", results
+    return True, f"✓ Analysed {sum(in_use + idle for in_use, idle in results.values())} copper ports", results, hardware
 
 
 def print_summary(results: dict[str, tuple[int, int]], threshold_days: int) -> None:
@@ -185,12 +236,17 @@ def print_summary(results: dict[str, tuple[int, int]], threshold_days: int) -> N
 
 
 def write_summary_excel(
-    results: dict[str, tuple[int, int]], threshold_days: int, output_path: str | None = None
+    results: dict[str, tuple[int, int]], threshold_days: int, output_path: str | None = None,
+    hardware: dict | None = None
 ) -> tuple[bool, str]:
     """Write port utilisation summary to an Excel file.
 
+    hardware (optional) maps switch -> {member_num: model}; when supplied it
+    populates the six 'Stack Member N' columns (G..L) at the row level.
+
     Returns (success: bool, message: str with file path if successful)
     """
+    hardware = hardware or {}
     if output_path is None:
         stamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
         excel_dir = Path("excel_reports").resolve()
@@ -205,12 +261,15 @@ def write_summary_excel(
         ws.title = "Summary"
 
         # Headers
+        header_font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+        header_fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
+        header_align = openpyxl.styles.Alignment(horizontal="center", vertical="center")
         headers = ["Switch/Stack", "In Use", "Idle", "Total", "% In Use", "Threshold (days)"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=col, value=header)
-            cell.font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
-            cell.fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
-            cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
 
         ws.column_dimensions["A"].width = 40
         ws.column_dimensions["B"].width = 12
@@ -218,6 +277,8 @@ def write_summary_excel(
         ws.column_dimensions["D"].width = 12
         ws.column_dimensions["E"].width = 14
         ws.column_dimensions["F"].width = 16
+
+        _write_hardware_headers(ws, header_font, header_fill, header_align)
 
         # Data rows
         grand_in_use = 0
@@ -240,6 +301,8 @@ def write_summary_excel(
 
             # Format percentage column
             ws.cell(row=row, column=5).number_format = "0.0%"
+
+            _write_hardware_row(ws, row, hardware.get(switch, {}))
 
             row += 1
 
@@ -268,7 +331,7 @@ def write_summary_excel(
             right=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
         )
         for r in range(1, row + 1):
-            for c in range(1, 7):
+            for c in range(1, HARDWARE_END_COL + 1):
                 ws.cell(row=r, column=c).border = thin_border
 
         ws.freeze_panes = "A2"
@@ -279,18 +342,29 @@ def write_summary_excel(
         return False, f"✗ Failed to write Excel: {e}"
 
 
-def write_utilisation_sheet(ws, results: dict, threshold_days: int) -> None:
-    """Write port utilisation summary to an existing openpyxl worksheet."""
+def write_utilisation_sheet(ws, results: dict, threshold_days: int, hardware: dict | None = None) -> None:
+    """Write port utilisation summary to an existing openpyxl worksheet.
+
+    hardware (optional) maps switch -> {member_num: model}; when supplied it
+    populates the six 'Stack Member N' columns (G..L) at the row level.
+    """
+    hardware = hardware or {}
+    header_font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+    header_fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
+    header_align = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+
     headers = ["Switch/Stack", "In Use", "Idle", "Total", "% In Use", "Threshold (days)"]
     for col, header in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col, value=header)
-        cell.font = openpyxl.styles.Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
-        cell.fill = openpyxl.styles.PatternFill("solid", start_color="FF2B579A")
-        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
 
     col_widths = {"A": 40, "B": 12, "C": 12, "D": 12, "E": 14, "F": 16}
     for col_letter, width in col_widths.items():
         ws.column_dimensions[col_letter].width = width
+
+    _write_hardware_headers(ws, header_font, header_fill, header_align)
 
     grand_in_use = 0
     grand_idle = 0
@@ -310,6 +384,7 @@ def write_utilisation_sheet(ws, results: dict, threshold_days: int) -> None:
         pct_cell = ws.cell(row=row, column=5, value=pct)
         pct_cell.number_format = "0.0%"
         ws.cell(row=row, column=6, value=threshold_days)
+        _write_hardware_row(ws, row, hardware.get(switch, {}))
         row += 1
 
     grand_total = grand_in_use + grand_idle
@@ -329,7 +404,7 @@ def write_utilisation_sheet(ws, results: dict, threshold_days: int) -> None:
         right=openpyxl.styles.Side(style="thin", color="FFB0B0B0"),
     )
     for r in range(1, row + 1):
-        for c in range(1, 7):
+        for c in range(1, HARDWARE_END_COL + 1):
             ws.cell(row=r, column=c).border = thin_border
 
     ws.freeze_panes = "A2"
@@ -343,12 +418,12 @@ def main(argv: list[str]) -> int:
     wb_path = argv[1]
     threshold_days = int(argv[2]) if len(argv) > 2 else 42
 
-    success, message, results = analyse_workbook(wb_path, threshold_days)
+    success, message, results, hardware = analyse_workbook(wb_path, threshold_days)
     print(f"{message}\n")
 
     if success:
         print_summary(results, threshold_days)
-        success, excel_msg = write_summary_excel(results, threshold_days)
+        success, excel_msg = write_summary_excel(results, threshold_days, hardware=hardware)
         print(excel_msg)
     return 0 if success else 1
 

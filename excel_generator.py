@@ -232,6 +232,20 @@ def _compute_utilisation(
     return results
 
 
+def _compute_hardware(devices_data: dict) -> dict[str, dict[int, str]]:
+    """Map each host to its stack members' models: {hostname: {member_num: model}}."""
+    hardware: dict[str, dict[int, str]] = {}
+    for hostname, (_, stack_members) in devices_data.items():
+        members = {
+            sm.member_num: sm.model
+            for sm in stack_members.values()
+            if sm.model
+        }
+        if members:
+            hardware[hostname] = members
+    return hardware
+
+
 def write_combined_excel(
     devices_data: dict[str, tuple[list[InterfaceRecord], dict[int, StackMember]]],
     threshold_days: int,
@@ -258,9 +272,10 @@ def write_combined_excel(
 
         # Sheet 2: Port Utilisation
         util_results = _compute_utilisation(devices_data, threshold_days)
+        util_hardware = _compute_hardware(devices_data)
         ws_util = wb.create_sheet(title="Port Utilisation")
         if util_results:
-            write_utilisation_sheet(ws_util, util_results, threshold_days)
+            write_utilisation_sheet(ws_util, util_results, threshold_days, hardware=util_hardware)
         else:
             ws_util.cell(row=1, column=1, value="No copper port data found")
 
