@@ -58,7 +58,7 @@ class InterfaceRecord:
 
 RE_IFACE_HEADER = re.compile(
     r'^((?:GigabitEthernet|TenGigabitEthernet|FastEthernet|'
-    r'FortyGigabitEthernet|HundredGigE|Vlan)\S+)\s+is\s+(\S+(?:\s+\S+)?),\s*'
+    r'FortyGigabitEthernet|HundredGigE)\S+)\s+is\s+(\S+(?:\s+\S+)?),\s*'
     r'line protocol is\s+(\S+)',
     re.IGNORECASE
 )

@@ -160,7 +160,7 @@ def test_parse_output_populates_last_link_change():
     text = "\n".join([
         "GigabitEthernet1/0/5 is up, line protocol is up (connected)",
         "  Last input 00:00:01, output 00:00:00, output hang never",
-        "Vlan10 is up, line protocol is up",
+        "GigabitEthernet1/0/6 is up, line protocol is up (connected)",
         "  Last input 00:00:02, output 00:00:00, output hang never",
         "*12:00:00.000 AEST Sun Jul 6 2026",
         "Log Buffer (16384 bytes):",
@@ -169,7 +169,8 @@ def test_parse_output_populates_last_link_change():
     records, _ = parse_output(text, "sw-a")
     by_iface = {r.iface: r for r in records}
     assert by_iface["Gi1/0/5"].last_link_change == "2h13m"
-    assert by_iface["Vlan10"].last_link_change == ""  # logical, left blank
+    # Physical port with no UPDOWN event gets the stable floor, not blank.
+    assert by_iface["Gi1/0/6"].last_link_change == "stable ≥2h13m"
 
 
 def test_parse_output_no_logging_leaves_blank():
