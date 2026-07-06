@@ -50,3 +50,37 @@ def test_is_physical_iface_false_for_logical():
 def test_interface_record_has_last_link_change_default():
     from interface_parser import InterfaceRecord
     assert InterfaceRecord().last_link_change == ""
+
+
+from datetime import datetime
+
+
+def test_parse_clock_reads_device_time():
+    from interface_parser import parse_clock
+    text = "some banner\n*12:34:56.789 AEST Sun Jul 6 2026\nmore"
+    assert parse_clock(text) == datetime(2026, 7, 6, 12, 34, 56)
+
+
+def test_parse_clock_returns_none_when_absent():
+    from interface_parser import parse_clock
+    assert parse_clock("no clock line here") is None
+
+
+def test_parse_log_timestamp_without_year_uses_ref():
+    from interface_parser import parse_log_timestamp
+    assert parse_log_timestamp("Jul  6 12:34:56.789", 2026) == datetime(2026, 7, 6, 12, 34, 56)
+
+
+def test_parse_log_timestamp_with_explicit_year():
+    from interface_parser import parse_log_timestamp
+    assert parse_log_timestamp("Jul  6 2025 12:34:56", 2026) == datetime(2025, 7, 6, 12, 34, 56)
+
+
+def test_format_age_ranges():
+    from interface_parser import format_age
+    assert format_age(30) == "<1m"
+    assert format_age(14 * 60) == "14m"
+    assert format_age(2 * 3600 + 13 * 60) == "2h13m"
+    assert format_age(2 * 3600) == "2h"
+    assert format_age(3 * 86400 + 4 * 3600) == "3d4h"
+    assert format_age(3 * 86400) == "3d"

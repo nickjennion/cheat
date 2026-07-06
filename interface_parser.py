@@ -12,6 +12,7 @@ Returns structured InterfaceRecord and StackMember data.
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from time_utils import parse_duration_days
@@ -90,6 +91,16 @@ RE_HOSTNAME_UPTIME = re.compile(r'^\S+\s+uptime\s+is\s+(.+)', re.IGNORECASE)
 RE_MODEL_NUMBER = re.compile(r'Model Number\s*:\s*(\S+)', re.IGNORECASE)
 RE_SHOW_HW_TRIGGER = re.compile(r'show\s+(hardware|version)', re.IGNORECASE)
 
+RE_CLOCK = re.compile(
+    r'[*.]?(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?\s+\w+\s+\w{3}\s+'
+    r'(\w{3})\s+(\d{1,2})\s+(\d{4})'
+)
+
+_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
 # Physical Ethernet port: an alpha type followed by slot/port (Gi1/0/5, Fa0/1).
 # Logical interfaces (Vlan10, Po1, Lo0, Tunnel1) lack the slot/port and miss.
 RE_PHYSICAL_IFACE = re.compile(r'^[A-Za-z]{2,}\d+/\d+')
@@ -162,6 +173,61 @@ def member_from_iface(iface: str) -> str:
 def uptime_days(uptime_str: str) -> Optional[float]:
     """Convert uptime string to approximate days for highlighting."""
     return parse_duration_days(uptime_str)
+
+
+def parse_clock(text: str) -> Optional[datetime]:
+    """Parse the device time from `show clock` output. None if not present."""
+    m = RE_CLOCK.search(text)
+    if not m:
+        return None
+    hh, mm, ss, mon, day, year = m.groups()
+    month = _MONTHS.get(mon.lower())
+    if not month:
+        return None
+    try:
+        return datetime(int(year), month, int(day), int(hh), int(mm), int(ss))
+    except ValueError:
+        return None
+
+
+def parse_log_timestamp(ts: str, ref_year: int) -> Optional[datetime]:
+    """Parse a syslog datetime like 'Jul  6 12:34:56.789' or 'Jul 6 2025 12:34:56'.
+
+    Uses ref_year when the timestamp carries no explicit year.
+    """
+    parts = ts.split()
+    if len(parts) < 3:
+        return None
+    month = _MONTHS.get(parts[0].lower())
+    if not month:
+        return None
+    try:
+        day = int(parts[1])
+        # Explicit year present when the 3rd token is a 4-digit number.
+        if len(parts) >= 4 and parts[2].isdigit() and len(parts[2]) == 4:
+            year = int(parts[2])
+            clock = parts[3]
+        else:
+            year = ref_year
+            clock = parts[2]
+        hh, mm, ss = clock.split(".")[0].split(":")
+        return datetime(year, month, day, int(hh), int(mm), int(ss))
+    except (ValueError, IndexError):
+        return None
+
+
+def format_age(seconds: float) -> str:
+    """Relative age as at most two units: '<1m', '14m', '2h13m', '3d4h'."""
+    if seconds < 60:
+        return "<1m"
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, rem_m = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h{rem_m}m" if rem_m else f"{hours}h"
+    days, rem_h = divmod(hours, 24)
+    return f"{days}d{rem_h}h" if rem_h else f"{days}d"
 
 
 def extract_neighbor_port(stripped_line: str) -> str:
