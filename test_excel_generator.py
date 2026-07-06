@@ -38,6 +38,7 @@ def test_end_to_end_link_change_flows_to_combined_workbook(tmp_path):
         "*Jul  6 09:47:00.000: %LINK-3-UPDOWN: Interface GigabitEthernet1/0/5, changed state to up",
     ])
     records, stack = parse_output(text, "hu-chi-f1-edge-01")
+    assert len(records) == 1  # fail loudly here if parsing regresses
     devices = {"hu-chi-f1-edge-01": (records, stack)}
 
     out = tmp_path / "report.xlsx"
