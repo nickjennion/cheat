@@ -9,6 +9,17 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
+
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from interface_parser import parse_output
 from excel_generator import write_excel, write_combined_excel
@@ -44,6 +55,78 @@ COMMAND_POLLING_INTERVAL_SECONDS = 1
 # Command Execution
 # ============================================================================
 
+def _run_device_commands(
+    device: dict,
+    client,
+    commands: list,
+    cmd_dir: Path,
+    timestamp: str,
+    poll_timeout: int,
+    poll_interval: int,
+    submit_timeout: int,
+) -> tuple[str, Optional[str], list]:
+    """Submit commands to one device, poll for completion, fetch and save output.
+
+    UI-agnostic: returns (hostname, output_text_or_None, messages). output_text is
+    None on any failure; messages are human-readable status lines for the caller
+    to display however it likes.
+    """
+    hostname = device.get("hostname", "unknown")
+    device_id = device.get("id")
+    msgs: list = []
+
+    task_id = client.execute_commands(device_id, commands, timeout=submit_timeout)
+    if not task_id:
+        msgs.append(f"✗ {hostname}: failed to start command execution")
+        return hostname, None, msgs
+
+    result = None
+    for _ in range(poll_timeout):
+        time.sleep(poll_interval)
+        task_result = client.get_task_result(task_id)
+        if task_result and task_result.get("endTime"):
+            result = task_result
+            break
+
+    if not result:
+        msgs.append(f"✗ {hostname}: timed out after {poll_timeout}s")
+        return hostname, None, msgs
+
+    output_text = None
+    try:
+        progress_json = json.loads(result.get("progress", "{}"))
+        file_id = progress_json.get("fileId")
+        if file_id:
+            output_text = client.get_file_output(file_id)
+    except Exception as e:
+        msgs.append(f"✗ {hostname}: could not extract file ID: {e}")
+
+    if not output_text:
+        msgs.append(f"✗ {hostname}: no output received")
+        return hostname, None, msgs
+
+    # Unwrap commandResponses JSON envelope if present
+    try:
+        response_data = json.loads(output_text)
+        if isinstance(response_data, list) and response_data:
+            cmd_responses = (
+                response_data[0].get("commandResponses", {}).get("SUCCESS", {})
+            )
+            if cmd_responses:
+                output_text = "\n\n".join(cmd_responses.values())
+    except (json.JSONDecodeError, TypeError, KeyError):
+        pass
+
+    out_file = cmd_dir / f"command_output_{hostname}_{timestamp}.txt"
+    try:
+        out_file.write_text(output_text)
+        msgs.append(f"✓ {hostname}: saved {out_file.name}")
+        return hostname, output_text, msgs
+    except IOError as e:
+        msgs.append(f"✗ {hostname}: could not save output: {e}")
+        return hostname, None, msgs
+
+
 def run_commands(
     selected_devices: list,
     client,
@@ -54,8 +137,10 @@ def run_commands(
 ) -> dict:
     """Execute commands on devices via an authenticated DNACClient.
 
-    Saves raw output to COMMAND_RUNNER_DIR/<hostname>_<timestamp>.txt.
-    Returns {hostname: output_text} for every device that succeeded.
+    Shows a live Rich progress bar (one step per device) with a spinner and
+    elapsed timer that animate through each device's poll wait. Saves raw output
+    to COMMAND_RUNNER_DIR/<hostname>_<timestamp>.txt and returns
+    {hostname: output_text} for every device that succeeded.
     """
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
@@ -63,79 +148,38 @@ def run_commands(
     outputs = {}
     failed = []
 
-    for device in selected_devices:
-        hostname = device.get("hostname", "unknown")
-        device_id = device.get("id")
+    console = Console()
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(
+            f"Running {len(commands)} command(s)", total=len(selected_devices)
+        )
+        for device in selected_devices:
+            hostname = device.get("hostname", "unknown")
+            progress.update(task, description=hostname)
 
-        print(f"\n{'='*55}")
-        print(f"  Device: {hostname}")
-        print(f"{'='*55}")
-        print(f"  Executing {len(commands)} command(s)...")
+            host, output_text, msgs = _run_device_commands(
+                device, client, commands, cmd_dir, timestamp,
+                poll_timeout, poll_interval, submit_timeout,
+            )
+            for msg in msgs:
+                colour = "green" if msg.startswith("✓") else "red"
+                progress.console.print(f"  [{colour}]{msg}[/{colour}]", highlight=False)
 
-        task_id = client.execute_commands(device_id, commands, timeout=submit_timeout)
-        if not task_id:
-            print(f"  ✗ Failed to start command execution")
-            failed.append(hostname)
-            continue
-
-        print(f"  Task ID: {task_id}")
-        print(f"  Polling ({poll_timeout}s timeout, {poll_interval}s interval)...")
-
-        result = None
-        for i in range(poll_timeout):
-            time.sleep(poll_interval)
-            task_result = client.get_task_result(task_id)
-            if task_result and task_result.get("endTime"):
-                result = task_result
-                print(f"  ✓ Complete")
-                break
-            remaining = poll_timeout - (i + 1)
-            if remaining > 0 and remaining % 5 == 0:
-                print(f"  [{remaining}s remaining...]")
-
-        if not result:
-            print(f"  ✗ Timed out")
-            failed.append(hostname)
-            continue
-
-        output_text = None
-        try:
-            progress_json = json.loads(result.get("progress", "{}"))
-            file_id = progress_json.get("fileId")
-            if file_id:
-                print(f"  Fetching output file {file_id}...")
-                output_text = client.get_file_output(file_id)
-        except Exception as e:
-            print(f"  ✗ Could not extract file ID: {e}")
-
-        if not output_text:
-            print(f"  ✗ No output received")
-            failed.append(hostname)
-            continue
-
-        # Unwrap commandResponses JSON envelope if present
-        try:
-            response_data = json.loads(output_text)
-            if isinstance(response_data, list) and response_data:
-                cmd_responses = (
-                    response_data[0].get("commandResponses", {}).get("SUCCESS", {})
-                )
-                if cmd_responses:
-                    output_text = "\n\n".join(cmd_responses.values())
-        except (json.JSONDecodeError, TypeError, KeyError):
-            pass
-
-        out_file = cmd_dir / f"command_output_{hostname}_{timestamp}.txt"
-        try:
-            out_file.write_text(output_text)
-            print(f"  ✓ Saved: {out_file.name}")
-            outputs[hostname] = output_text
-        except IOError as e:
-            print(f"  ✗ Could not save output: {e}")
-            failed.append(hostname)
+            if output_text is not None:
+                outputs[host] = output_text
+            else:
+                failed.append(host)
+            progress.advance(task)
 
     if failed:
-        print(f"\n  ⚠ Failed on: {', '.join(failed)}")
+        console.print(f"\n  [yellow]⚠ Failed on: {', '.join(failed)}[/yellow]")
     return outputs
 
 
