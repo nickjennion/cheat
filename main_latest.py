@@ -98,9 +98,32 @@ SPLASH_TITLE = "CHEAT"
 SPLASH_SUBTITLE = "Cisco Homogeneous Environment Awareness Tool"
 
 
+def _show_splash_rich(menu_header, options) -> bool:
+    """Draw the Rich splash over the blue theme. Returns False if unavailable."""
+    try:
+        import splash_rich
+        from rich.console import Console
+    except Exception:
+        return False
+    try:
+        splash_rich.render(Console(), SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options)
+    except Exception:
+        return False
+    # Rich resets SGR at the end of its output; re-assert the blue theme so the
+    # menu prompt printed after us stays white-on-blue.
+    if _COLOR_ON:
+        sys.stdout.write(_FG + _BG)
+        sys.stdout.flush()
+    return True
+
+
 def show_splash(menu_header, options):
     """Clear the screen and draw the branded Cisco splash with a menu."""
     theme_clear()
+    # Rich splash only when interactive and selected; always fall back to classic.
+    if _COLOR_ON and load_prefs().get("SPLASH_STYLE", "rich") == "rich":
+        if _show_splash_rich(menu_header, options):
+            return
     for line in splash.build_lines(SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options):
         print("  " + line)
     print()
@@ -268,6 +291,7 @@ DEFAULT_PREFS = {
     "AI_MODEL": "claude-opus-4-8",
     "LOGGING": "off",
     "LOG_LEVEL": "info",
+    "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
 }
 
 
@@ -314,10 +338,11 @@ def menu_options():
         print(f"  E) Email output         [{prefs['EMAIL_OUTPUT']}]")
         print(f"  F) AI settings          [{prefs['AI_ENABLED']}]")
         print(f"  G) Logging              [{prefs['LOGGING']}]")
+        print(f"  H) Splash style         [{prefs['SPLASH_STYLE']}]")
         print()
         print("  0) Back")
         print()
-        choice = input("  Select [A-G, 0]: ").strip().upper()
+        choice = input("  Select [A-H, 0]: ").strip().upper()
 
         if choice == "0":
             save_prefs(prefs)
@@ -352,6 +377,8 @@ def menu_options():
                     prefs["AI_MODEL"] = model
         elif choice == "G":
             prefs["LOGGING"] = _toggle(prefs["LOGGING"])
+        elif choice == "H":
+            prefs["SPLASH_STYLE"] = "classic" if prefs["SPLASH_STYLE"] == "rich" else "rich"
         else:
             print("\n  Invalid selection.")
             pause()
