@@ -13,6 +13,7 @@ from pathlib import Path
 from dnac_client import DNACClient
 from cheat_core import (
     EXCEL_DIR,
+    COMMAND_RUNNER_DIR,
     build_command_list,
     run_commands,
     parse_outputs,
@@ -132,6 +133,34 @@ def show_splash(menu_header, options):
 # ============================================================================
 # Helpers
 # ============================================================================
+
+def display_command_outputs(outputs: dict) -> None:
+    """Print captured command output to screen, one headed section per device.
+
+    Output is also saved to files by run_commands; this just saves the file hunt
+    for quick ad-hoc commands (e.g. 'show mac address-table').
+    """
+    if not outputs:
+        return
+    try:
+        from rich.console import Console
+        from rich.rule import Rule
+        console = Console()
+        for hostname, text in outputs.items():
+            console.print(Rule(f"[bold]{hostname}[/]", style="rgb(34,211,238)"))
+            # markup/highlight off: command output is literal, not Rich markup.
+            console.print(text, markup=False, highlight=False)
+        console.print(Rule(style="rgb(34,211,238)"))
+    except Exception:
+        for hostname, text in outputs.items():
+            print(f"\n{'='*55}\n  {hostname}\n{'='*55}")
+            print(text)
+    # Rich resets SGR; re-assert the blue theme for the prompt that follows.
+    if _COLOR_ON:
+        sys.stdout.write(_FG + _BG)
+        sys.stdout.flush()
+    print(f"\n  (Full output also saved under {COMMAND_RUNNER_DIR}/)")
+
 
 def pause():
     input("\nPress Enter to continue...")
@@ -1245,7 +1274,8 @@ def menu_5(selected_devices, client, host, username):
                 continue
             if not menu_6(selected_devices, commands):
                 continue
-            run_commands(selected_devices, client, commands)
+            outputs = run_commands(selected_devices, client, commands)
+            display_command_outputs(outputs)
             pause()
 
         elif choice == "5":
