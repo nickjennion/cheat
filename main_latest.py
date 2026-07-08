@@ -143,14 +143,26 @@ def display_command_outputs(outputs: dict) -> None:
     if not outputs:
         return
     try:
-        from rich.console import Console
+        from rich.console import Console, Group
         from rich.rule import Rule
+        from rich.text import Text
         console = Console()
+        cyan = "rgb(34,211,238)"
+        blocks = []
         for hostname, text in outputs.items():
-            console.print(Rule(f"[bold]{hostname}[/]", style="rgb(34,211,238)"))
-            # markup/highlight off: command output is literal, not Rich markup.
-            console.print(text, markup=False, highlight=False)
-        console.print(Rule(style="rgb(34,211,238)"))
+            blocks.append(Rule(f"[bold]{hostname}[/]", style=cyan))
+            blocks.append(Text(text))  # Text = literal; no markup/number highlighting
+        blocks.append(Rule(style=cyan))
+        group = Group(*blocks)
+
+        # Page (less-style) only when the output won't fit on screen; otherwise
+        # print inline so a quick 'show clock' doesn't force a pager.
+        est_lines = sum(t.count("\n") + 1 for t in outputs.values()) + len(outputs) + 1
+        if est_lines > console.size.height - 2:
+            with console.pager(styles=True):
+                console.print(group)
+        else:
+            console.print(group)
     except Exception:
         for hostname, text in outputs.items():
             print(f"\n{'='*55}\n  {hostname}\n{'='*55}")
