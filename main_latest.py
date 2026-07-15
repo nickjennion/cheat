@@ -19,6 +19,8 @@ from cheat_core import (
     parse_outputs,
     generate_excel,
     generate_cdp_topology,
+    next_concurrency,
+    DEFAULT_CONCURRENCY,
 )
 from excel_generator import write_client_search_excel
 from port_utilisation import is_copper_port
@@ -931,15 +933,17 @@ def menu_6(selected_devices, commands):
 # Menu 5 — Commands
 # ============================================================================
 
-def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42, slow_mode=False, copper_only=False):
+def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42, slow_mode=False, copper_only=False, concurrency=DEFAULT_CONCURRENCY):
     """Run commands → parse → generate Excel. Used by menu_5 options 1-3."""
     if slow_mode:
         client.enable_slow_mode()
         print("  [Slow mode: poll 60s / 3s interval, submit 20s, backoff×2]")
         outputs = run_commands(selected_devices, client, commands,
-                               poll_timeout=60, poll_interval=3, submit_timeout=20)
+                               poll_timeout=60, poll_interval=3, submit_timeout=20,
+                               concurrency=concurrency)
     else:
-        outputs = run_commands(selected_devices, client, commands)
+        outputs = run_commands(selected_devices, client, commands,
+                               concurrency=concurrency)
     if not outputs:
         pause()
         return
@@ -1214,13 +1218,14 @@ def menu_5(selected_devices, client, host, username):
     slow_mode = False
     copper_only = False
     link_state = False
+    concurrency = DEFAULT_CONCURRENCY
 
     while True:
         theme_clear()
         slow_label = "ON  (poll 60s/3s, submit 20s, backoff×2)" if slow_mode else "off"
         copper_label = "ON" if copper_only else "off"
         link_label = "ON" if link_state else "off"
-        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}  |  Copper only: {copper_label}  |  Link-state: {link_label}\n")
+        print(f"  Host: {host}  |  User: {username}  |  Selected: {len(selected_devices)} device(s)  |  Slow mode: {slow_label}  |  Copper only: {copper_label}  |  Link-state: {link_label}  |  Concurrency: {concurrency}×\n")
         print("  Menu 5 — Commands\n")
         print("  1) Port report — one file per device")
         print("  2) Port report — one file, one tab per device")
@@ -1232,9 +1237,10 @@ def menu_5(selected_devices, client, host, username):
         print("  s) Toggle slow mode")
         print("  p) Toggle copper only")
         print("  l) Toggle link-state column")
+        print("  c) Concurrency (1-5)")
         print("  8) Back")
         print()
-        choice = input("  Select [1-8 / s / p / l]: ").strip().lower()
+        choice = input("  Select [1-8 / s / p / l / c]: ").strip().lower()
 
         if choice == "8":
             return
@@ -1248,6 +1254,9 @@ def menu_5(selected_devices, client, host, username):
         elif choice == "l":
             link_state = not link_state
 
+        elif choice == "c":
+            concurrency = next_concurrency(concurrency)
+
         elif choice in ("1", "2"):
             print()
             label = "Filename (stem — one file per device)" if choice == "1" and len(selected_devices) > 1 else "Filename"
@@ -1259,7 +1268,7 @@ def menu_5(selected_devices, client, host, username):
             if not menu_6(selected_devices, build_command_list(link_state)):
                 continue
             _exec_and_report(selected_devices, client, build_command_list(link_state), int(choice), filename,
-                             slow_mode=slow_mode, copper_only=copper_only)
+                             slow_mode=slow_mode, copper_only=copper_only, concurrency=concurrency)
 
         elif choice == "3":
             print()
@@ -1273,7 +1282,7 @@ def menu_5(selected_devices, client, host, username):
             if not menu_6(selected_devices, build_command_list(link_state)):
                 continue
             _exec_and_report(selected_devices, client, build_command_list(link_state), 3, filename, threshold,
-                             slow_mode=slow_mode, copper_only=copper_only)
+                             slow_mode=slow_mode, copper_only=copper_only, concurrency=concurrency)
 
         elif choice == "4":
             print()
@@ -1290,7 +1299,7 @@ def menu_5(selected_devices, client, host, username):
                 continue
             if not menu_6(selected_devices, commands):
                 continue
-            outputs = run_commands(selected_devices, client, commands)
+            outputs = run_commands(selected_devices, client, commands, concurrency=concurrency)
             display_command_outputs(outputs)
             pause()
 
