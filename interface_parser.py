@@ -607,8 +607,14 @@ def parse_output(text: str, hostname: str) -> tuple[list[InterfaceRecord], dict[
         if member_str and stack_members:
             try:
                 mn = int(member_str)
-                if mn in stack_members:
-                    sm = stack_members[mn]
+                sm = stack_members.get(mn)
+                # Fixed (non-stacking) switches — 3560/2960 — number their ports
+                # from slot 0 (Gi0/1 -> member "0") but report the unit as member
+                # 1 in the version stack table. When the derived member isn't in
+                # the table and there is only one member, fall back to it.
+                if sm is None and len(stack_members) == 1:
+                    sm = next(iter(stack_members.values()))
+                if sm is not None:
                     rec.model = sm.model
                     rec.uptime = sm.uptime
                     rec.sw_version = sm.sw_version
