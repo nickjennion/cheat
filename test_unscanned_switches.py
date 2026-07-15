@@ -60,3 +60,25 @@ def test_find_unscanned_switches_dedupes_sightings():
     assert sorted((r.device, r.seen_on) for r in rows) == [
         ("SW4.example.net", "sw1"), ("SW4.example.net", "sw1b")
     ]
+
+
+def test_write_unscanned_switches_block_with_rows():
+    import openpyxl
+    from unscanned_switches import SwitchNeighbour
+    from excel_generator import write_unscanned_switches_block, UNSCANNED_HEADERS
+    ws = openpyxl.Workbook().active
+    rows = [SwitchNeighbour("sw4", "C9KV-UADP", "S I", "Gi0/0", "Gi0/0", "sw1")]
+    write_unscanned_switches_block(ws, 5, rows)
+    assert "Unscanned Cisco Switches" in ws.cell(row=5, column=1).value
+    assert [ws.cell(row=6, column=c).value for c in range(1, 7)] == UNSCANNED_HEADERS
+    assert ws.cell(row=7, column=1).value == "sw4"
+    assert ws.cell(row=7, column=4).value == "sw1"
+    assert ws.cell(row=7, column=5).value == "Gi0/0"
+
+
+def test_write_unscanned_switches_block_empty():
+    import openpyxl
+    from excel_generator import write_unscanned_switches_block
+    ws = openpyxl.Workbook().active
+    write_unscanned_switches_block(ws, 5, [])
+    assert ws.cell(row=6, column=1).value == "None detected"
