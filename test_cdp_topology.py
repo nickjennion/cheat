@@ -66,3 +66,18 @@ def test_layout_stacks_disconnected_components_below():
     # sw1's component occupies the top band; the isolated sw5 lands below all of it.
     first_component_max_y = max(pos[n][1] for n in ("sw1", "sw2", "sw3", "sw4"))
     assert pos["sw5"][1] > first_component_max_y
+
+
+def test_generate_cdp_topology_xml_marks_rogue_and_labels_edges():
+    from cdp_topology import build_topology, layout_topology
+    from drawio_generator import generate_cdp_topology_xml
+    topo = build_topology(_raw(), ["sw1", "sw2", "sw3"])
+    xml = generate_cdp_topology_xml(topo, layout_topology(topo))
+    assert xml.startswith("<?xml")
+    assert "<mxfile" in xml
+    # Rogue node carries the red fill.
+    assert "f8cecc" in xml
+    # An edge label shows both ports with the double-arrow.
+    assert "↔" in xml
+    # The rogue label names the unscanned device.
+    assert "(unscanned)" in xml
