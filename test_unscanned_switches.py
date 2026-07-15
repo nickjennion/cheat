@@ -30,3 +30,33 @@ def test_parse_cdp_switch_neighbors_extracts_fields():
     assert n.platform == "C9KV-UADP"
     assert n.neighbour_port == "Gi0/0"
     assert n.seen_on == ""
+
+
+def _sw1_text():
+    return "\n".join([
+        "Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID",
+        "sw2              Gig 1/0/3         169              S I   C9KV-UADP Gig 1/0/2",
+        "sw3              Gig 1/0/1         156              S I   C9KV-UADP Gig 1/0/2",
+        "SW4.example.net  Gig 0/0           137              S I   C9KV-UADP Gig 0/0",
+        "Total cdp entries displayed : 3",
+    ])
+
+
+def test_find_unscanned_switches_flags_only_unknown():
+    from unscanned_switches import find_unscanned_switches
+    raw = {"sw1": _sw1_text(), "sw2": "", "sw3": ""}
+    rows = find_unscanned_switches(raw, raw.keys())
+    # sw2/sw3 are scanned -> excluded; sw4 (FQDN, different case) -> flagged.
+    assert [r.device for r in rows] == ["SW4.example.net"]
+    assert rows[0].seen_on == "sw1"
+    assert rows[0].local_iface == "Gi0/0"
+
+
+def test_find_unscanned_switches_dedupes_sightings():
+    from unscanned_switches import find_unscanned_switches
+    raw = {"sw1": _sw1_text(), "sw1b": _sw1_text()}  # same sighting text twice, diff hosts
+    rows = find_unscanned_switches(raw, ["sw1", "sw1b", "sw2", "sw3"])
+    # sw2/sw3 scanned-out; sw4 seen on two different hosts -> two sightings.
+    assert sorted((r.device, r.seen_on) for r in rows) == [
+        ("SW4.example.net", "sw1"), ("SW4.example.net", "sw1b")
+    ]
