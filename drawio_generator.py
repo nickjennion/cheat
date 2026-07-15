@@ -30,6 +30,14 @@ DEVICE_STYLES = {
     "ap":              "shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;",
 }
 
+CDP_TOPO_ROGUE_STYLE = (
+    "shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;"
+    "fillColor=#f8cecc;strokeColor=#b85450;verticalLabelPosition=bottom;verticalAlign=top;"
+    "align=center;outlineConnect=0;fontColor=#333333;fontSize=9;"
+)
+CDP_TOPO_EDGE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;fontSize=8;"
+CDP_TOPO_HEADER = 80   # vertical space reserved for title + legend
+
 EDGE_STYLE       = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 FABRIC_EDGE      = "edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 AP_EDGE          = "edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;strokeWidth=1;"
@@ -314,6 +322,54 @@ def _build_floor_page(floor_site, aps):
 
     ET.indent(root, space="  ")
     return root
+
+
+# ============================================================================
+# CDP Topology renderer
+# ============================================================================
+
+def generate_cdp_topology_xml(topology, positions) -> str:
+    """Render a switch topology (nodes + positions) as a single-page .drawio.
+
+    Scanned switches use the grey edge-switch style; rogue (unscanned) switches
+    are red. Edges are labelled with the port at each end.
+    """
+    root, mx_root = _new_root()
+
+    _add_cell(mx_root, "title", "CDP Physical Topology",
+              "text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=14;",
+              10, 10, 600, 30)
+    _add_cell(mx_root, "legend",
+              "Grey = scanned switch   |   Red = unscanned (rogue) switch",
+              "text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;",
+              10, 44, 600, 20)
+
+    id_map = {}
+    cid = 2
+    for node in topology.nodes:
+        x, y = positions.get(node.name, (0, 0))
+        xid = str(cid); cid += 1
+        if node.is_rogue:
+            style = CDP_TOPO_ROGUE_STYLE
+            label = f"{node.name}\n{node.platform}\n(unscanned)"
+        else:
+            style = DEVICE_STYLES["edge"]
+            label = node.name
+        _add_cell(mx_root, xid, label, style, x, y + CDP_TOPO_HEADER, DW, DH)
+        id_map[node.name] = xid
+
+    for edge in topology.edges:
+        if edge.a in id_map and edge.b in id_map:
+            _add_edge(mx_root, str(cid), id_map[edge.a], id_map[edge.b],
+                      style=CDP_TOPO_EDGE_STYLE,
+                      label=f"{edge.a_port} ↔ {edge.b_port}")
+            cid += 1
+
+    doc_root = ET.Element("mxfile", host="CHEAT", version="21.0.0")
+    diagram = ET.SubElement(doc_root, "diagram", name="CDP Topology")
+    diagram.append(root)
+    ET.indent(doc_root, space="  ")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(doc_root, encoding="unicode")
 
 
 # ============================================================================
