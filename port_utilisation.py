@@ -408,6 +408,7 @@ def write_utilisation_sheet(ws, results: dict, threshold_days: int, hardware: di
             ws.cell(row=r, column=c).border = thin_border
 
     ws.freeze_panes = "A2"
+    return row + 1
 
 
 def main(argv: list[str]) -> int:

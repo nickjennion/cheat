@@ -83,3 +83,46 @@ def test_write_unscanned_switches_block_empty():
     ws = openpyxl.Workbook().active
     write_unscanned_switches_block(ws, 5, [])
     assert ws.cell(row=6, column=1).value == "None detected"
+
+
+def _devices_data():
+    from interface_parser import InterfaceRecord
+    rec = InterfaceRecord(switch="sw1", iface="Gi1/0/1", stack_member="1",
+                          last_input="00:00:01")
+    return {"sw1": ([rec], {})}
+
+
+def _find_block_title_row(ws):
+    for r in range(1, ws.max_row + 1):
+        val = ws.cell(row=r, column=1).value
+        if val and "Unscanned Cisco Switches" in str(val):
+            return r
+    return None
+
+
+def test_combined_excel_includes_block_below_total(tmp_path):
+    import openpyxl
+    from excel_generator import write_combined_excel
+    from unscanned_switches import SwitchNeighbour
+    out = tmp_path / "report.xlsx"
+    unscanned = [SwitchNeighbour("sw4", "C9KV-UADP", "S I", "Gi0/0", "Gi0/0", "sw1")]
+    ok, _ = write_combined_excel(_devices_data(), 42, str(out), unscanned=unscanned)
+    assert ok
+    ws = openpyxl.load_workbook(out)["Port Utilisation"]
+    title_row = _find_block_title_row(ws)
+    assert title_row is not None
+    # Block sits below the TOTAL row of the utilisation table.
+    total_row = next(r for r in range(1, ws.max_row + 1)
+                     if ws.cell(row=r, column=1).value == "TOTAL")
+    assert title_row > total_row
+    assert ws.cell(row=title_row + 2, column=1).value == "sw4"
+
+
+def test_combined_excel_omits_block_when_unscanned_none(tmp_path):
+    import openpyxl
+    from excel_generator import write_combined_excel
+    out = tmp_path / "report.xlsx"
+    ok, _ = write_combined_excel(_devices_data(), 42, str(out))  # unscanned defaults None
+    assert ok
+    ws = openpyxl.load_workbook(out)["Port Utilisation"]
+    assert _find_block_title_row(ws) is None

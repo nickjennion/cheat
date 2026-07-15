@@ -297,7 +297,8 @@ def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
 def write_combined_excel(
     devices_data: dict[str, tuple[list[InterfaceRecord], dict[int, StackMember]]],
     threshold_days: int,
-    outpath: str
+    outpath: str,
+    unscanned: list | None = None,
 ) -> tuple[bool, str]:
     """Write single combined workbook: All Ports -> Port Utilisation -> per-stack tabs.
 
@@ -323,9 +324,15 @@ def write_combined_excel(
         util_hardware = _compute_hardware(devices_data)
         ws_util = wb.create_sheet(title="Port Utilisation")
         if util_results:
-            write_utilisation_sheet(ws_util, util_results, threshold_days, hardware=util_hardware)
+            next_row = write_utilisation_sheet(
+                ws_util, util_results, threshold_days, hardware=util_hardware
+            )
         else:
             ws_util.cell(row=1, column=1, value="No copper port data found")
+            next_row = 2
+
+        if unscanned is not None:
+            write_unscanned_switches_block(ws_util, next_row + 1, unscanned)
 
         # Sheets 3-N: per-stack
         total_records = len(all_records)
