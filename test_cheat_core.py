@@ -1,3 +1,5 @@
+import time as _time
+
 from cheat_core import build_command_list, DNAC_COMMANDS
 
 
@@ -98,9 +100,6 @@ def test_next_concurrency_cycles():
     assert next_concurrency(99) == 1
 
 
-import time as _time
-
-
 class _OrderStub:
     """Completes later-selected devices first, to exercise result reordering.
 
@@ -173,7 +172,7 @@ def test_run_commands_concurrency_5_all_outputs(tmp_path, monkeypatch):
     outputs = cheat_core.run_commands(
         _THREE, _StubClient(), ["show clock"], poll_interval=0, concurrency=5,
     )
-    assert set(outputs) == {"sw-1", "sw-2", "sw-3"}
+    assert list(outputs) == ["sw-1", "sw-2", "sw-3"]
 
 
 def test_run_commands_preserves_selection_order(tmp_path, monkeypatch):
