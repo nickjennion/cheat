@@ -103,3 +103,33 @@ def parse_cdp_switch_neighbors(text: str) -> list[SwitchNeighbour]:
         ))
 
     return out
+
+
+def _norm_host(name: str) -> str:
+    """Normalise a hostname for matching: drop domain suffix, case-fold."""
+    return str(name).split(".")[0].strip().casefold()
+
+
+def find_unscanned_switches(raw_outputs: dict[str, str], scanned_hostnames) -> list[SwitchNeighbour]:
+    """Return switch neighbours seen via CDP that were not scanned this session.
+
+    raw_outputs maps hostname -> raw command output. scanned_hostnames is the set
+    of hosts we ran commands on. One SwitchNeighbour per (device, seen_on,
+    local_iface) sighting.
+    """
+    scanned = {_norm_host(h) for h in scanned_hostnames}
+    seen: set = set()
+    rows: list[SwitchNeighbour] = []
+
+    for host, text in raw_outputs.items():
+        for nb in parse_cdp_switch_neighbors(text):
+            if _norm_host(nb.device) in scanned:
+                continue
+            key = (_norm_host(nb.device), _norm_host(host), nb.local_iface)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(replace(nb, seen_on=host))
+
+    rows.sort(key=lambda n: (_norm_host(n.device), _norm_host(n.seen_on), n.local_iface))
+    return rows
