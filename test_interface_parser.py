@@ -187,6 +187,31 @@ def test_parse_output_populates_last_link_change():
     assert by_iface["Gi1/0/6"].last_link_change == "stable ≥2h13m"
 
 
+def test_parse_output_standalone_3560_populates_model():
+    from interface_parser import parse_output
+    # A fixed (non-stacking) 3560CX reports itself as member 1 in the version
+    # stack table, but its ports are slot 0 (Gi0/1). The model must still resolve.
+    text = "\n".join([
+        "show hardware",
+        "Cisco IOS Software, C3560CX Software (C3560CX-UNIVERSALK9-M), Version 15.2(7)E6",
+        "HOSTNAME uptime is 18 weeks, 4 days, 6 hours, 30 minutes",
+        "cisco WS-C3560CX-8PC-S (APM86XXX) processor (revision G0) with 524288K bytes of memory.",
+        "Model number                    : WS-C3560CX-8PC-S",
+        "",
+        "Switch Ports Model                     SW Version            SW Image",
+        "------ ----- -----                     ----------            ----------",
+        "*    1 12    WS-C3560CX-8PC-S          15.2(7)E6             C3560CX-UNIVERSALK9-M",
+        "",
+        "GigabitEthernet0/1 is up, line protocol is up (connected)",
+        "  Last input 00:00:01, output 00:00:00, output hang never",
+    ])
+    records, _ = parse_output(text, "HOSTNAME")
+    rec = {r.iface: r for r in records}["Gi0/1"]
+    assert rec.model == "WS-C3560CX-8PC-S"
+    assert rec.sw_version == "15.2(7)E6"
+    assert rec.uptime == "18 weeks, 4 days, 6 hours, 30 minutes"
+
+
 def test_parse_output_no_logging_leaves_blank():
     from interface_parser import parse_output
     text = "\n".join([
