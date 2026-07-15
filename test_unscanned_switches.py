@@ -126,3 +126,20 @@ def test_combined_excel_omits_block_when_unscanned_none(tmp_path):
     assert ok
     ws = openpyxl.load_workbook(out)["Port Utilisation"]
     assert _find_block_title_row(ws) is None
+
+
+def test_generate_excel_mode3_writes_block(tmp_path, monkeypatch):
+    import openpyxl
+    import cheat_core
+    monkeypatch.chdir(tmp_path)
+    raw = {"sw1": _sw1_text(), "sw2": "", "sw3": ""}
+    results = cheat_core.generate_excel(
+        _devices_data(), 3, "report", threshold=42, raw_outputs=raw
+    )
+    assert results and results[0][0] is True
+    path = results[0][1].split("Saved: ")[1].split(" (")[0]
+    ws = openpyxl.load_workbook(path)["Port Utilisation"]
+    title_row = _find_block_title_row(ws)
+    assert title_row is not None
+    # sw4 from _sw1_text() is the only unscanned switch.
+    assert ws.cell(row=title_row + 2, column=1).value == "SW4.example.net"

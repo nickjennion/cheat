@@ -958,7 +958,7 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
         pause()
         return
     stem = Path(filename).stem
-    results = generate_excel(devices_data, mode, stem, threshold)
+    results = generate_excel(devices_data, mode, stem, threshold, raw_outputs=outputs)
     for _, msg in results:
         print(f"\n  {msg}")
     pause()
