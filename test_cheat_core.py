@@ -75,3 +75,24 @@ def test_build_command_list_on_adds_logging_and_clock():
     cmds = build_command_list(True)
     assert cmds[: len(DNAC_COMMANDS)] == DNAC_COMMANDS
     assert cmds[-2:] == ["show logging", "show clock"]
+
+
+def test_clamp_concurrency_bounds():
+    from cheat_core import clamp_concurrency
+    assert clamp_concurrency(0) == 1
+    assert clamp_concurrency(1) == 1
+    assert clamp_concurrency(3) == 3
+    assert clamp_concurrency(5) == 5
+    assert clamp_concurrency(99) == 5
+
+
+def test_next_concurrency_cycles():
+    from cheat_core import next_concurrency
+    assert next_concurrency(1) == 2
+    assert next_concurrency(2) == 3
+    assert next_concurrency(3) == 4
+    assert next_concurrency(4) == 5
+    assert next_concurrency(5) == 1
+    # A stray out-of-range value is clamped before cycling.
+    assert next_concurrency(0) == 2
+    assert next_concurrency(99) == 1

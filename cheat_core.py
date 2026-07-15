@@ -54,6 +54,19 @@ DRAWIO_DIR = "drawio_exports"
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
 
+DEFAULT_CONCURRENCY = 2
+MAX_CONCURRENCY = 5
+
+
+def clamp_concurrency(n: int) -> int:
+    """Clamp n into [1, MAX_CONCURRENCY]: n < 1 -> 1, n > MAX -> MAX."""
+    return max(1, min(int(n), MAX_CONCURRENCY))
+
+
+def next_concurrency(n: int) -> int:
+    """Cycle 1->2->3->4->5->1 for the menu toggle."""
+    return clamp_concurrency(n) % MAX_CONCURRENCY + 1
+
 
 # ============================================================================
 # Command Execution
