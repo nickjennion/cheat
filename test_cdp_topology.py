@@ -81,3 +81,24 @@ def test_generate_cdp_topology_xml_marks_rogue_and_labels_edges():
     assert "↔" in xml
     # The rogue label names the unscanned device.
     assert "(unscanned)" in xml
+
+
+def test_generate_cdp_topology_writes_file(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.chdir(tmp_path)
+    ok, msg = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "topo")
+    assert ok is True
+    path = msg.split("CDP topology: ")[1].split(" (")[0]
+    from pathlib import Path
+    assert Path(path).is_file()
+    assert Path(path).read_text(encoding="utf-8").lstrip().startswith("<?xml")
+    assert path.endswith("-cdp-topology.drawio")
+
+
+def test_generate_cdp_topology_skips_when_no_scanned(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.chdir(tmp_path)
+    ok, msg = cheat_core.generate_cdp_topology({}, [], "topo")
+    assert ok is False
+    from pathlib import Path
+    assert not list(Path(tmp_path).glob("**/*.drawio"))
