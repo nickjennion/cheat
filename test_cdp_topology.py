@@ -42,3 +42,27 @@ def test_build_topology_dedups_bidirectional_link():
     assert len(topo.edges) == 3
     rogue_edge = [e for e in topo.edges if "sw4" in (e.a, e.b)]
     assert len(rogue_edge) == 1
+
+
+def test_layout_root_is_top_and_highest_degree():
+    from cdp_topology import build_topology, layout_topology
+    topo = build_topology(_raw(), ["sw1", "sw2", "sw3"])
+    pos = layout_topology(topo)
+    assert set(pos) == {"sw1", "sw2", "sw3", "sw4"}
+    # sw1 has degree 3 (sw2, sw3, sw4) -> it is the root, at the top (min y).
+    min_y = min(y for _, y in pos.values())
+    assert pos["sw1"][1] == min_y
+    # A rogue leaf sits one level below its parent.
+    assert pos["sw4"][1] > pos["sw1"][1]
+
+
+def test_layout_stacks_disconnected_components_below():
+    from cdp_topology import build_topology, layout_topology
+    # sw5 is scanned but has no CDP neighbours -> its own component.
+    raw = dict(_raw())
+    raw["sw5"] = ""
+    topo = build_topology(raw, ["sw1", "sw2", "sw3", "sw5"])
+    pos = layout_topology(topo)
+    # sw1's component occupies the top band; the isolated sw5 lands below all of it.
+    first_component_max_y = max(pos[n][1] for n in ("sw1", "sw2", "sw3", "sw4"))
+    assert pos["sw5"][1] > first_component_max_y
