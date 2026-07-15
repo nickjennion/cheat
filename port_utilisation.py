@@ -342,7 +342,7 @@ def write_summary_excel(
         return False, f"✗ Failed to write Excel: {e}"
 
 
-def write_utilisation_sheet(ws, results: dict, threshold_days: int, hardware: dict | None = None) -> None:
+def write_utilisation_sheet(ws, results: dict, threshold_days: int, hardware: dict | None = None) -> int:
     """Write port utilisation summary to an existing openpyxl worksheet.
 
     hardware (optional) maps switch -> {member_num: model}; when supplied it
