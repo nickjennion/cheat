@@ -23,6 +23,7 @@ from rich.progress import (
 
 from interface_parser import parse_output
 from excel_generator import write_excel, write_combined_excel
+from unscanned_switches import find_unscanned_switches
 
 
 # ============================================================================
@@ -216,6 +217,7 @@ def generate_excel(
     mode: int,
     filename_stem: str,
     threshold: int = 42,
+    raw_outputs: dict | None = None,
 ) -> list[tuple[bool, str]]:
     """Write Excel output from parsed device data.
 
@@ -244,7 +246,10 @@ def generate_excel(
 
     elif mode == 3:
         outpath = str(excel_dir / f"{filename_stem}-{ts}.xlsx")
-        ok, msg = write_combined_excel(devices_data, threshold, outpath)
+        unscanned = None
+        if raw_outputs is not None:
+            unscanned = find_unscanned_switches(raw_outputs, raw_outputs.keys())
+        ok, msg = write_combined_excel(devices_data, threshold, outpath, unscanned=unscanned)
         results.append((ok, msg))
 
     else:
