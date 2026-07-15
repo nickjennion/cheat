@@ -18,6 +18,7 @@ from cheat_core import (
     run_commands,
     parse_outputs,
     generate_excel,
+    generate_cdp_topology,
 )
 from excel_generator import write_client_search_excel
 from port_utilisation import is_copper_port
@@ -961,6 +962,9 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
     results = generate_excel(devices_data, mode, stem, threshold, raw_outputs=outputs)
     for _, msg in results:
         print(f"\n  {msg}")
+    if mode == 3:
+        _, topo_msg = generate_cdp_topology(outputs, outputs.keys(), stem)
+        print(f"\n  {topo_msg}")
     pause()
 
 

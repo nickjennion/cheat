@@ -24,6 +24,8 @@ from rich.progress import (
 from interface_parser import parse_output
 from excel_generator import write_excel, write_combined_excel
 from unscanned_switches import find_unscanned_switches
+from cdp_topology import build_topology, layout_topology
+from drawio_generator import generate_cdp_topology_xml
 
 
 # ============================================================================
@@ -48,6 +50,7 @@ def build_command_list(link_state: bool) -> list:
 
 COMMAND_RUNNER_DIR = "command_runner_outputs"
 EXCEL_DIR = "excel_reports"
+DRAWIO_DIR = "drawio_exports"
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
 
@@ -256,3 +259,35 @@ def generate_excel(
         results.append((False, f"Unknown mode: {mode}"))
 
     return results
+
+
+def generate_cdp_topology(
+    raw_outputs: dict, scanned_hostnames, filename_stem: str
+) -> tuple[bool, str]:
+    """Build and write the CDP physical topology .drawio for a scan.
+
+    Returns (success, message). Writes nothing and returns (False, message)
+    when there are no scanned switches to anchor the diagram.
+    """
+    topology = build_topology(raw_outputs, scanned_hostnames)
+    scanned_nodes = [n for n in topology.nodes if not n.is_rogue]
+    if not scanned_nodes:
+        return False, "⚠ CDP topology skipped: no scanned switches"
+
+    positions = layout_topology(topology)
+    xml = generate_cdp_topology_xml(topology, positions)
+
+    out_dir = Path(DRAWIO_DIR).resolve()
+    out_dir.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    outpath = str(out_dir / f"{filename_stem}-{ts}-cdp-topology.drawio")
+    try:
+        Path(outpath).write_text(xml, encoding="utf-8")
+    except IOError as e:
+        return False, f"✗ Failed to write CDP topology: {e}"
+
+    rogue = sum(1 for n in topology.nodes if n.is_rogue)
+    return True, (
+        f"✓ CDP topology: {outpath} "
+        f"({len(scanned_nodes)} switch(es), {rogue} unscanned)"
+    )
