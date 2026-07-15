@@ -118,7 +118,7 @@ def find_unscanned_switches(raw_outputs: dict[str, str], scanned_hostnames) -> l
     local_iface) sighting.
     """
     scanned = {_norm_host(h) for h in scanned_hostnames}
-    seen: set = set()
+    seen: set[tuple[str, str, str]] = set()
     rows: list[SwitchNeighbour] = []
 
     for host, text in raw_outputs.items():
