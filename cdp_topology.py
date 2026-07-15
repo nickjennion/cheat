@@ -59,6 +59,11 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
             bn = ensure_node(nb.device, nb.platform)
             if bn == hn:
                 continue
+            # Order-independent link key: a link seen from both ends collapses
+            # to one edge. Correctness relies on local_iface and neighbour_port
+            # sharing the same abbreviated form (e.g. "Gi1/0/2") that brief
+            # `show cdp neighbors` emits; a full-word CDP format would break the
+            # reciprocal match and double the edge.
             key = frozenset({(hn, nb.local_iface), (bn, nb.neighbour_port)})
             if key not in edges:
                 edges[key] = TopologyEdge(
