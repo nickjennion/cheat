@@ -7,6 +7,7 @@ main_latest.py, test harnesses) without pulling in CLI or menu code.
 
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -151,14 +152,18 @@ def run_commands(
     poll_timeout: int = COMMAND_POLLING_TIMEOUT_SECONDS,
     poll_interval: int = COMMAND_POLLING_INTERVAL_SECONDS,
     submit_timeout: int = 10,
+    concurrency: int = DEFAULT_CONCURRENCY,
 ) -> dict:
     """Execute commands on devices via an authenticated DNACClient.
 
-    Shows a live Rich progress bar (one step per device) with a spinner and
-    elapsed timer that animate through each device's poll wait. Saves raw output
-    to COMMAND_RUNNER_DIR/<hostname>_<timestamp>.txt and returns
-    {hostname: output_text} for every device that succeeded.
+    Runs up to `concurrency` devices at once (clamped to 1..MAX_CONCURRENCY) on a
+    thread pool. A live Rich progress bar advances as each device completes; all
+    progress/print calls happen on this (main) thread. Saves raw output to
+    COMMAND_RUNNER_DIR/command_output_<hostname>_<timestamp>.txt and returns
+    {hostname: output_text} for every device that succeeded, in the same order as
+    `selected_devices`.
     """
+    concurrency = clamp_concurrency(concurrency)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
     cmd_dir.mkdir(exist_ok=True)
@@ -175,29 +180,43 @@ def run_commands(
         console=console,
     ) as progress:
         task = progress.add_task(
-            f"Running {len(commands)} command(s)", total=len(selected_devices)
+            f"Running {len(commands)} command(s) ×{concurrency}",
+            total=len(selected_devices),
         )
-        for device in selected_devices:
-            hostname = device.get("hostname", "unknown")
-            progress.update(task, description=hostname)
-
-            host, output_text, msgs = _run_device_commands(
-                device, client, commands, cmd_dir, timestamp,
-                poll_timeout, poll_interval, submit_timeout,
-            )
-            for msg in msgs:
-                colour = "green" if msg.startswith("✓") else "red"
-                progress.console.print(f"  [{colour}]{msg}[/{colour}]", highlight=False)
-
-            if output_text is not None:
-                outputs[host] = output_text
-            else:
-                failed.append(host)
-            progress.advance(task)
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            future_to_host = {
+                executor.submit(
+                    _run_device_commands,
+                    device, client, commands, cmd_dir, timestamp,
+                    poll_timeout, poll_interval, submit_timeout,
+                ): device.get("hostname", "unknown")
+                for device in selected_devices
+            }
+            for future in as_completed(future_to_host):
+                submitted_host = future_to_host[future]
+                try:
+                    host, output_text, msgs = future.result()
+                except Exception as e:  # worker crashed unexpectedly
+                    host, output_text = submitted_host, None
+                    msgs = [f"✗ {submitted_host}: unexpected error: {e}"]
+                for msg in msgs:
+                    colour = "green" if msg.startswith("✓") else "red"
+                    progress.console.print(f"  [{colour}]{msg}[/{colour}]", highlight=False)
+                if output_text is not None:
+                    outputs[host] = output_text
+                else:
+                    failed.append(host)
+                progress.advance(task)
 
     if failed:
         console.print(f"\n  [yellow]⚠ Failed on: {', '.join(failed)}[/yellow]")
-    return outputs
+
+    # Return in selection order, omitting failures (never a None value).
+    return {
+        h: outputs[h]
+        for h in (d.get("hostname", "unknown") for d in selected_devices)
+        if h in outputs
+    }
 
 
 # ============================================================================

@@ -96,3 +96,128 @@ def test_next_concurrency_cycles():
     # A stray out-of-range value is clamped before cycling.
     assert next_concurrency(0) == 2
     assert next_concurrency(99) == 1
+
+
+import time as _time
+
+
+class _OrderStub:
+    """Completes later-selected devices first, to exercise result reordering.
+
+    task_id == device_id; get_task_result sleeps `delays[device_id]` so a
+    device selected earlier finishes later. get_file_output is per-device.
+    """
+
+    def __init__(self, delays):
+        self._delays = delays
+
+    def execute_commands(self, device_id, commands, timeout=10):
+        return device_id
+
+    def get_task_result(self, task_id):
+        _time.sleep(self._delays.get(task_id, 0))
+        return {"endTime": 1, "progress": '{"fileId": "%s"}' % task_id}
+
+    def get_file_output(self, file_id):
+        return f"OUT-{file_id}"
+
+
+class _FailOneStub(_StubClient):
+    """execute_commands returns None (submit failure) for one device id."""
+
+    def __init__(self, fail_id):
+        super().__init__()
+        self._fail_id = fail_id
+
+    def execute_commands(self, device_id, commands, timeout=10):
+        return None if device_id == self._fail_id else "T1"
+
+
+class _RaiseOneStub:
+    """get_task_result raises for one device id, to exercise the future guard."""
+
+    def __init__(self, raise_id):
+        self._raise_id = raise_id
+
+    def execute_commands(self, device_id, commands, timeout=10):
+        return device_id
+
+    def get_task_result(self, task_id):
+        if task_id == self._raise_id:
+            raise RuntimeError("boom")
+        return {"endTime": 1, "progress": '{"fileId": "%s"}' % task_id}
+
+    def get_file_output(self, file_id):
+        return f"OUT-{file_id}"
+
+
+_THREE = [
+    {"hostname": "sw-1", "id": "D1"},
+    {"hostname": "sw-2", "id": "D2"},
+    {"hostname": "sw-3", "id": "D3"},
+]
+
+
+def test_run_commands_concurrency_1_all_outputs(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.setattr(cheat_core, "COMMAND_RUNNER_DIR", str(tmp_path / "out"))
+    outputs = cheat_core.run_commands(
+        _THREE, _StubClient(), ["show clock"], poll_interval=0, concurrency=1,
+    )
+    assert outputs == {"sw-1": "OUTPUT TEXT", "sw-2": "OUTPUT TEXT", "sw-3": "OUTPUT TEXT"}
+
+
+def test_run_commands_concurrency_5_all_outputs(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.setattr(cheat_core, "COMMAND_RUNNER_DIR", str(tmp_path / "out"))
+    outputs = cheat_core.run_commands(
+        _THREE, _StubClient(), ["show clock"], poll_interval=0, concurrency=5,
+    )
+    assert set(outputs) == {"sw-1", "sw-2", "sw-3"}
+
+
+def test_run_commands_preserves_selection_order(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.setattr(cheat_core, "COMMAND_RUNNER_DIR", str(tmp_path / "out"))
+    # sw-1 finishes last, sw-3 first — completion order is the reverse of selection.
+    stub = _OrderStub({"D1": 0.06, "D2": 0.03, "D3": 0.0})
+    outputs = cheat_core.run_commands(
+        _THREE, stub, ["show clock"], poll_interval=0, concurrency=3,
+    )
+    assert list(outputs.keys()) == ["sw-1", "sw-2", "sw-3"]
+    assert outputs["sw-1"] == "OUT-D1"
+    assert outputs["sw-3"] == "OUT-D3"
+
+
+def test_run_commands_one_failure_others_succeed(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.setattr(cheat_core, "COMMAND_RUNNER_DIR", str(tmp_path / "out"))
+    outputs = cheat_core.run_commands(
+        _THREE, _FailOneStub("D2"), ["show clock"], poll_interval=0, concurrency=3,
+    )
+    assert set(outputs) == {"sw-1", "sw-3"}
+    assert None not in outputs.values()
+
+
+def test_run_commands_worker_exception_does_not_abort(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.setattr(cheat_core, "COMMAND_RUNNER_DIR", str(tmp_path / "out"))
+    outputs = cheat_core.run_commands(
+        _THREE, _RaiseOneStub("D2"), ["show clock"], poll_interval=0, concurrency=3,
+    )
+    # sw-2's worker raised; the run still returns the other two.
+    assert set(outputs) == {"sw-1", "sw-3"}
+
+
+def test_run_device_commands_unwraps_envelope(tmp_path):
+    import json
+    from cheat_core import _run_device_commands
+    envelope = json.dumps([{"commandResponses": {"SUCCESS": {
+        "show clock": "12:00:00", "show ver": "IOS-XE",
+    }}}])
+    host, out, msgs = _run_device_commands(
+        {"hostname": "sw-a", "id": "D1"}, _StubClient(file_output=envelope),
+        ["show clock"], tmp_path, "TS", poll_timeout=3, poll_interval=0, submit_timeout=1,
+    )
+    assert "12:00:00" in out and "IOS-XE" in out
+    assert "commandResponses" not in out
