@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from interface_parser import InterfaceRecord, StackMember, uptime_days, site_location
 from port_utilisation import is_copper_port, write_utilisation_sheet
+from unscanned_switches import find_unscanned_switches, SwitchNeighbour
 from time_utils import parse_duration_days
 
 
@@ -41,6 +42,12 @@ HEADERS = [
 ]
 
 COL_WIDTHS = [28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26, 30]
+
+UNSCANNED_TITLE = "Unscanned Cisco Switches (seen via CDP, not scanned this session)"
+UNSCANNED_HEADERS = [
+    "Unknown Neighbour", "Platform", "Capability",
+    "Seen On", "Local Interface", "Neighbour Port",
+]
 
 STATE_COLOURS = {
     "connected": "FFD4EDDA",
@@ -251,6 +258,40 @@ def _compute_hardware(devices_data: dict) -> dict[str, dict[int, str]]:
         if members:
             hardware[hostname] = members
     return hardware
+
+
+def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
+    """Append the unscanned-switches block to an existing worksheet.
+
+    Writes a bold title at start_row. With no rows, writes 'None detected'
+    below it; otherwise a header row then one row per sighting.
+    """
+    title = ws.cell(row=start_row, column=1, value=UNSCANNED_TITLE)
+    title.font = Font(bold=True, name="Arial", size=10)
+
+    if not rows:
+        ws.cell(row=start_row + 1, column=1, value="None detected")
+        return
+
+    header_font = Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
+    header_fill = PatternFill("solid", start_color="FF2B579A")
+    header_align = Alignment(horizontal="center", vertical="center")
+
+    hdr_row = start_row + 1
+    for col, header in enumerate(UNSCANNED_HEADERS, start=1):
+        c = ws.cell(row=hdr_row, column=col, value=header)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = header_align
+
+    for i, nb in enumerate(rows):
+        r = hdr_row + 1 + i
+        ws.cell(row=r, column=1, value=nb.device)
+        ws.cell(row=r, column=2, value=nb.platform)
+        ws.cell(row=r, column=3, value=nb.capability)
+        ws.cell(row=r, column=4, value=nb.seen_on)
+        ws.cell(row=r, column=5, value=nb.local_iface)
+        ws.cell(row=r, column=6, value=nb.neighbour_port)
 
 
 def write_combined_excel(
