@@ -52,8 +52,14 @@ def _hgradient(s, start, end):
 
 
 def _bars(top, bottom):
-    """The Cisco mark with a top-to-bottom vertical colour gradient."""
-    out = Text(justify="center")
+    """The Cisco mark with a top-to-bottom vertical colour gradient.
+
+    No per-line justify: each BARS row has different left/right padding (top rows
+    hold only the two tall bars, bottom rows span all nine), so centring lines
+    independently makes the bars zig-zag. The caller centres the block as one
+    unit via Align.center, which keeps every bar on a shared column grid.
+    """
+    out = Text()
     n = max(len(BARS) - 1, 1)
     for i, line in enumerate(BARS):
         r, g, b = _lerp(top, bottom, i / n)
