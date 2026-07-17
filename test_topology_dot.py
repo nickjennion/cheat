@@ -54,3 +54,40 @@ def test_parse_plain_nodes_and_edges():
     e0 = [e for e in layout.edges if (e.tail, e.head) == ("n0", "n1")][0]
     assert len(e0.points) == 7                    # 7 route points
     assert e0.points[0] == (1.6651, 1.25)
+
+
+def _star(n_leaves, hub="hub"):
+    # A hub with n_leaves scanned leaves (hub degree = n_leaves).
+    from cdp_topology import Topology, TopologyNode, TopologyEdge
+    nodes = [TopologyNode(hub, is_rogue=False)]
+    edges = []
+    for i in range(n_leaves):
+        leaf = f"leaf{i}"
+        nodes.append(TopologyNode(leaf, is_rogue=False))
+        edges.append(TopologyEdge(hub, f"Gi0/{i}", leaf, "Gi0/0"))
+    return Topology(nodes=nodes, edges=edges)
+
+
+def test_select_aggregations_by_degree():
+    from topology_dot import select_aggregations
+    topo = _star(6)                       # hub degree 6, leaves degree 1
+    assert select_aggregations(topo, threshold=6) == ["hub"]
+    assert select_aggregations(topo, threshold=7) == []   # nothing meets 7
+
+
+def test_build_pages_overview_plus_aggregation():
+    from topology_dot import build_pages
+    pages = build_pages(_star(6), threshold=6)
+    titles = [p.title for p in pages]
+    assert titles[0] == "Overview"
+    assert pages[0].root_name == "hub"    # max-degree node roots the overview
+    assert not pages[0].a3
+    hub_page = [p for p in pages if p.root_name == "hub" and p.a3][0]
+    assert set(hub_page.node_names) == {"hub"} | {f"leaf{i}" for i in range(6)}
+    assert hub_page.a3 is True
+
+
+def test_build_pages_overview_only_when_no_aggregation():
+    from topology_dot import build_pages
+    pages = build_pages(_star(3), threshold=6)   # hub degree 3 < 6
+    assert [p.title for p in pages] == ["Overview"]
