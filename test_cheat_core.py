@@ -220,3 +220,10 @@ def test_run_device_commands_unwraps_envelope(tmp_path):
     )
     assert "12:00:00" in out and "IOS-XE" in out
     assert "commandResponses" not in out
+
+
+def test_dnac_commands_use_cdp_detail():
+    from cheat_core import DNAC_COMMANDS
+    assert "show cdp neighbors detail" in DNAC_COMMANDS
+    assert "show cdp neighbors" not in DNAC_COMMANDS  # brief form replaced
+    assert len(DNAC_COMMANDS) == 5                    # count unchanged

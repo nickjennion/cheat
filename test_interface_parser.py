@@ -220,3 +220,32 @@ def test_parse_output_no_logging_leaves_blank():
     ])
     records, _ = parse_output(text, "sw-a")
     assert records[0].last_link_change == ""
+
+
+_CDP_DETAIL_COL = "\n".join([
+    "show cdp neighbors detail",
+    "-------------------------",
+    "Device ID: dist-4500xv.net.hu.edu",
+    "Entry address(es):",
+    "  IP address: 10.20.1.5",
+    "Platform: cisco WS-C4500X-32,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet1/0/1,  Port ID (outgoing port): TenGigabitEthernet2/1/24",
+    "Management address(es):",
+    "  IP address: 10.99.99.9",
+    "-------------------------",
+    "Device ID: SEP00ecab",
+    "Entry address(es):",
+    "  IP address: 10.20.9.5",
+    "Platform: Cisco IP Phone 6901,  Capabilities: Host Phone",
+    "Interface: GigabitEthernet1/0/1,  Port ID (outgoing port): Port 1",
+    "Total cdp entries displayed : 2",
+])
+
+
+def test_parse_cdp_neighbors_enriched_cell():
+    from interface_parser import parse_cdp_neighbors
+    cell = parse_cdp_neighbors(_CDP_DETAIL_COL)["Gi1/0/1"]
+    # both neighbours on the same local interface, comma-joined, with mgmt IP.
+    assert "dist-4500xv.net.hu.edu (Te2/1/24) 10.99.99.9" in cell
+    assert "SEP00ecab (Port 1) 10.20.9.5" in cell           # phone included
+    assert cell.count(",") == 1                              # exactly two joined

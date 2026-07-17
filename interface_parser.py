@@ -422,86 +422,25 @@ def parse_hardware(lines: list[str]) -> dict[int, StackMember]:
 
 
 def parse_cdp_neighbors(text: str) -> dict[str, str]:
-    """Parse 'show cdp neighbors' output into {interface: "neighbor_device (neighbor_port)"}.
+    """Map local interface -> "device (port) ip" for every CDP neighbour.
 
-    Cisco CDP output puts the local interface in the second column. When the
-    Device ID is long it wraps onto its own line and the interface appears,
-    indented, on the following line:
-
-        Device ID        Local Intrfce     Holdtme  Capability  Platform  Port ID
-        long-device-name.example.net
-                         Ten 2/1/4         163      R S I       WS-C4500X Ten 2/1/9
-        short-dev        Ten 1/0/46        166      R T         AIR-AP380 Gig 0
-
-    Interface types are abbreviated (Ten, Gig, Fas...) and space-separated from
-    the slot/port, so they are normalised to the same short form used elsewhere
-    (Te2/1/4, Gi1/0/46) so they match the interface records.
-
-    The Port ID (last field) is appended in parentheses: "device (port)".
-    For multiple neighbors on one interface: "device1 (port1), device2 (port2)".
+    Built from `show cdp neighbors detail`. Multiple neighbours on one interface
+    are comma-joined. The management IP is appended when known. Imported here
+    (not at module top) to avoid a cdp_detail <-> interface_parser import cycle.
     """
+    from cdp_detail import parse_cdp_detail
+
     neighbors: dict[str, str] = {}
-    in_table = False
-    pending_device: Optional[str] = None
-
-    for raw in text.split('\n'):
-        line = raw.rstrip()
-
-        if not in_table:
-            if 'Device ID' in line and ('Local Intrfce' in line or 'Local Interface' in line):
-                in_table = True
+    for nb in parse_cdp_detail(text):
+        if not nb.local_iface:
             continue
-
-        stripped = line.strip()
-
-        if not stripped:
-            continue
-
-        # End of CDP output: device prompt, next command, or another section header.
-        if (stripped.endswith('#') or stripped.endswith('>')
-                or stripped.lower().startswith('show ')
-                or RE_COUNTERS_HEADER.match(stripped)
-                or RE_STATUS_HEADER.match(stripped)):
-            in_table = False
-            pending_device = None
-            continue
-
-        # A repeated CDP header (rare) — skip it.
-        if 'Device ID' in line and ('Local Intrfce' in line or 'Local Interface' in line):
-            continue
-
-        indented = line[0].isspace()
-        local_match = RE_CDP_LOCAL_IFACE.search(line)
-
-        if local_match:
-            # First two letters of the CDP abbreviation == Cisco short form
-            # (Ten->Te, Gig->Gi, Fas->Fa, Fou->Fo, Hun->Hu, Two->Tw).
-            local_iface = local_match.group(1)[:2].capitalize() + local_match.group(2)
-
-            # Neighbor Port ID is the trailing field; normalise only if Cisco.
-            neighbor_port = extract_neighbor_port(stripped)
-            # Guard against a single-neighbour line where the only interface
-            # token is the local one (no separate Port ID parsed).
-            if neighbor_port == local_iface:
-                neighbor_port = ""
-
-            device = pending_device if indented else stripped.split()[0]
-
-            pending_device = None
-            if device:
-                if neighbor_port:
-                    neighbor_entry = f"{device} ({neighbor_port})"
-                else:
-                    neighbor_entry = device
-                if local_iface in neighbors:
-                    neighbors[local_iface] += f", {neighbor_entry}"
-                else:
-                    neighbors[local_iface] = neighbor_entry
-        elif not indented:
-            # Non-indented line with no interface: a Device ID that wraps to
-            # the next line.
-            pending_device = stripped.split()[0]
-
+        entry = f"{nb.device} ({nb.remote_port})" if nb.remote_port else nb.device
+        if nb.mgmt_ip:
+            entry += f" {nb.mgmt_ip}"
+        if nb.local_iface in neighbors:
+            neighbors[nb.local_iface] += f", {entry}"
+        else:
+            neighbors[nb.local_iface] = entry
     return neighbors
 
 

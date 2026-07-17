@@ -38,7 +38,7 @@ DNAC_COMMANDS = [
     "show interfaces",
     "show interfaces status",
     "show interface counters",
-    "show cdp neighbors",
+    "show cdp neighbors detail",
 ]
 
 LINK_STATE_COMMANDS = ["show logging", "show clock"]
