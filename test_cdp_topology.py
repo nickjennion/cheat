@@ -1,15 +1,30 @@
 SW1_CDP = "\n".join([
-    "Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID",
-    "sw2              Gig 1/0/3         169              S I   C9KV-UADP Gig 1/0/2",
-    "sw3              Gig 1/0/1         156              S I   C9KV-UADP Gig 1/0/2",
-    "sw4              Gig 0/0           137              S I   C9KV-UADP Gig 0/0",
-    "deskphone        Gig 1/0/9         120              H P   IP-Phone  Port 1",
+    "show cdp neighbors detail",
+    "-------------------------",
+    "Device ID: sw2",
+    "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet1/0/3,  Port ID (outgoing port): GigabitEthernet1/0/2",
+    "-------------------------",
+    "Device ID: sw3",
+    "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet1/0/1,  Port ID (outgoing port): GigabitEthernet1/0/2",
+    "-------------------------",
+    "Device ID: sw4",
+    "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet0/0,  Port ID (outgoing port): GigabitEthernet0/0",
+    "-------------------------",
+    "Device ID: deskphone",
+    "Platform: Cisco IP Phone 6901,  Capabilities: Host Phone",
+    "Interface: GigabitEthernet1/0/9,  Port ID (outgoing port): Port 1",
     "Total cdp entries displayed : 4",
 ])
 # sw2 sees sw1 back on the reciprocal ports (tests bidirectional dedup).
 SW2_CDP = "\n".join([
-    "Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID",
-    "sw1              Gig 1/0/2         169              S I   C9KV-UADP Gig 1/0/3",
+    "show cdp neighbors detail",
+    "-------------------------",
+    "Device ID: sw1",
+    "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet1/0/2,  Port ID (outgoing port): GigabitEthernet1/0/3",
     "Total cdp entries displayed : 1",
 ])
 

@@ -1,43 +1,60 @@
-CDP_BRIEF = "\n".join([
-    "show cdp neighbors",
-    "Capability Codes: R - Router, T - Trans Bridge, B - Source Route Bridge",
-    "                  S - Switch, H - Host, I - IGMP, r - Repeater, P - Phone, ",
-    "                  D - Remote, C - CVTA, M - Two-port Mac Relay ",
-    "",
-    "Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID",
-    "sw4              Gig 0/0           137              S I   C9KV-UADP Gig 0/0",
-    "sw2              Gig 1/0/3         169              S I   C9KV-UADP Gig 1/0/2",
-    "deskphone-01     Gig 1/0/5         120              H P   IP-Phone  Port 1",
-    "",
+CDP_DETAIL = "\n".join([
+    "show cdp neighbors detail",
+    "-------------------------",
+    "Device ID: sw2",
+    "Entry address(es):",
+    "  IP address: 10.0.0.2",
+    "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet1/0/3,  Port ID (outgoing port): GigabitEthernet1/0/2",
+    "-------------------------",
+    "Device ID: sw4",
+    "Entry address(es):",
+    "  IP address: 10.0.0.4",
+    "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+    "Interface: GigabitEthernet0/0,  Port ID (outgoing port): GigabitEthernet0/0",
+    "-------------------------",
+    "Device ID: deskphone",
+    "Entry address(es):",
+    "  IP address: 10.0.0.9",
+    "Platform: Cisco IP Phone 6901,  Capabilities: Host Phone",
+    "Interface: GigabitEthernet1/0/5,  Port ID (outgoing port): Port 1",
     "Total cdp entries displayed : 3",
-    "sw1#",
 ])
 
 
 def test_parse_cdp_switch_neighbors_keeps_only_switches():
     from unscanned_switches import parse_cdp_switch_neighbors
-    nbrs = parse_cdp_switch_neighbors(CDP_BRIEF)
-    devices = sorted(n.device for n in nbrs)
+    devices = sorted(n.device for n in parse_cdp_switch_neighbors(CDP_DETAIL))
     assert devices == ["sw2", "sw4"]  # phone excluded
 
 
 def test_parse_cdp_switch_neighbors_extracts_fields():
     from unscanned_switches import parse_cdp_switch_neighbors
-    nbrs = {n.device: n for n in parse_cdp_switch_neighbors(CDP_BRIEF)}
+    nbrs = {n.device: n for n in parse_cdp_switch_neighbors(CDP_DETAIL)}
     n = nbrs["sw4"]
     assert n.local_iface == "Gi0/0"
-    assert n.capability == "S I"
+    assert "switch" in n.capability.lower()
     assert n.platform == "C9KV-UADP"
     assert n.neighbour_port == "Gi0/0"
+    assert n.mgmt_ip == "10.0.0.4"
     assert n.seen_on == ""
 
 
 def _sw1_text():
     return "\n".join([
-        "Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID",
-        "sw2              Gig 1/0/3         169              S I   C9KV-UADP Gig 1/0/2",
-        "sw3              Gig 1/0/1         156              S I   C9KV-UADP Gig 1/0/2",
-        "SW4.example.net  Gig 0/0           137              S I   C9KV-UADP Gig 0/0",
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: sw2",
+        "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet1/0/3,  Port ID (outgoing port): GigabitEthernet1/0/2",
+        "-------------------------",
+        "Device ID: sw3",
+        "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet1/0/1,  Port ID (outgoing port): GigabitEthernet1/0/2",
+        "-------------------------",
+        "Device ID: SW4.example.net",
+        "Platform: cisco C9KV-UADP,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet0/0,  Port ID (outgoing port): GigabitEthernet0/0",
         "Total cdp entries displayed : 3",
     ])
 
