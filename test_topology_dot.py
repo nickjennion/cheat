@@ -167,6 +167,34 @@ def test_generate_cdp_topology_drawio_multipage():
     assert lbl[0].find("mxGeometry").get("x") == "0.75"
 
 
+def test_node_style_plain_vs_stencil():
+    from drawio_generator import _node_style
+    scanned = TopologyNode("s", is_rogue=False)
+    rogue = TopologyNode("r", is_rogue=True)
+    # plain = clean rectangle, no cisco stencil
+    assert "mxgraph.cisco" not in _node_style(scanned, "plain")
+    assert "#f5f5f5" in _node_style(scanned, "plain")
+    assert "#f8cecc" in _node_style(rogue, "plain")
+    # stencil = valid Cisco switch icon, grey scanned / red rogue
+    st = _node_style(scanned, "stencil")
+    assert "shape=mxgraph.cisco.switches.workgroup_switch" in st and "#f5f5f5" in st
+    assert "#f8cecc" in _node_style(rogue, "stencil")
+
+
+def test_generate_cdp_topology_drawio_icons_toggle():
+    from cdp_topology import Topology, TopologyNode as TN, TopologyEdge as TE
+    from topology_dot import ParsedLayout, NodeBox, EdgeRoute
+    from drawio_generator import generate_cdp_topology_drawio
+    topo = Topology(nodes=[TN("dist", is_rogue=False), TN("r", is_rogue=True)],
+                    edges=[TE("dist", "Gi1/0/1", "r", "Gi0/0")])
+    layout = ParsedLayout(width=4.0, height=2.0,
+                          nodes={"n0": NodeBox(1.0, 1.5, 0.8, 0.5), "n1": NodeBox(1.0, 0.5, 0.8, 0.5)},
+                          edges=[EdgeRoute("n0", "n1", [(1.0, 1.25), (1.0, 0.75)])])
+    pages = [("Overview", layout, {"n0": "dist", "n1": "r"})]
+    assert "workgroup_switch" in generate_cdp_topology_drawio(pages, topo, icons="stencil")
+    assert "mxgraph.cisco" not in generate_cdp_topology_drawio(pages, topo, icons="plain")
+
+
 def test_generate_cdp_topology_drawio_no_label_edge_has_no_child_cell():
     # An edge with no port label must not emit an empty edgeLabel child cell.
     import xml.etree.ElementTree as ET
