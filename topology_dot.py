@@ -27,13 +27,19 @@ def node_label(node) -> str:
     return "\n".join(parts)
 
 
-def to_dot(topology, node_names, root_name: str, a3: bool = False):
+def to_dot(topology, node_names, root_name: str, a3: bool = False,
+           spline_mode: str = "spline"):
     """Return (dot_string, {synthetic_id: node_name}) for the given node subset.
 
     Tree edges (from a BFS spanning tree rooted at root_name) are directed
     parent->child so the aggregation ranks to the top; non-tree edges get
     constraint=false so they are drawn without distorting the ranks. Edge labels
     are intentionally omitted (the draw.io emitter labels edges itself).
+
+    spline_mode is the Graphviz `splines` value (default "spline" — smooth and
+    node-avoiding, and reliable at full-site scale; the fragile "curved" mode
+    could crash on large graphs). The draw.io emitter renders the routed path
+    with curved=1 regardless, so the lines look curved either way.
     """
     names = list(node_names)
     nameset = set(names)
@@ -64,7 +70,7 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False):
     lines = [
         "digraph G {",
         "  rankdir=TB;",
-        "  graph [splines=curved, nodesep=0.4, ranksep=0.7];",
+        f"  graph [splines={spline_mode}, nodesep=0.4, ranksep=0.7];",
         "  node [shape=box, style=filled, fontsize=10];",
     ]
     if a3:

@@ -130,6 +130,29 @@ def test_find_dot_none(monkeypatch):
     assert cheat_core._find_dot() is None
 
 
+def test_generate_cdp_topology_falls_back_when_primary_fails(tmp_path, monkeypatch):
+    import shutil
+    if shutil.which("dot") is None:
+        import pytest
+        pytest.skip("graphviz 'dot' not installed")
+    import cheat_core, glob, xml.etree.ElementTree as ET
+    monkeypatch.chdir(tmp_path)
+    real_run_dot = cheat_core._run_dot
+
+    def flaky(dot_str, dot_exe):
+        # simulate the primary (spline) layout failing; ortho fallback still works
+        if "splines=spline" in dot_str:
+            return None
+        return real_run_dot(dot_str, dot_exe)
+
+    monkeypatch.setattr(cheat_core, "_run_dot", flaky)
+    ok, _ = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "fb")
+    assert ok is True   # page still rendered via the spline/ortho fallback
+    root = ET.fromstring(
+        open(glob.glob("drawio_exports/*.drawio")[0], encoding="utf-8").read().split("?>", 1)[1])
+    assert any(d.get("name") == "Overview" for d in root.findall("diagram"))
+
+
 def test_generate_cdp_topology_skips_without_dot(tmp_path, monkeypatch):
     import cheat_core
     monkeypatch.chdir(tmp_path)

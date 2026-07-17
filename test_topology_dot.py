@@ -61,7 +61,9 @@ def test_to_dot_keeps_parallel_edges():
 def test_to_dot_structure():
     from topology_dot import to_dot
     dot, id_to_name = to_dot(_topo(), ["dist", "acc1", "rogue-x"], "dist")
-    assert "rankdir=TB" in dot and "splines=curved" in dot
+    assert "rankdir=TB" in dot and "splines=spline" in dot   # default reliable mode
+    dot_o, _ = to_dot(_topo(), ["dist", "acc1", "rogue-x"], "dist", spline_mode="ortho")
+    assert "splines=ortho" in dot_o                            # mode is selectable
     assert "#f8cecc" in dot                      # rogue fill present
     assert dot.count("->") == 3                  # three edges emitted
     assert "constraint=false" in dot             # the non-tree edge
