@@ -65,3 +65,22 @@ def test_parse_cdp_detail_counts_blocks():
     from cdp_detail import parse_cdp_detail
     assert len(parse_cdp_detail(SWITCH_AND_PHONE)) == 3
     assert parse_cdp_detail("no cdp section here") == []
+
+
+def test_parse_cdp_detail_platform_and_caps_independent():
+    # A malformed Platform line (no inline ", Capabilities:") must still yield
+    # the platform AND the capabilities (parsed from its own line) — the switch
+    # must not silently disappear.
+    from cdp_detail import parse_cdp_detail, is_switch
+    text = "\n".join([
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: oddsw",
+        "Platform: Weird Platform Name",
+        "Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet1/0/1,  Port ID (outgoing port): GigabitEthernet0/1",
+        "Total cdp entries displayed : 1",
+    ])
+    n = parse_cdp_detail(text)[0]
+    assert n.platform == "Weird Platform Name"
+    assert is_switch(n) is True

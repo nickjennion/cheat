@@ -16,7 +16,10 @@ _CDP_ABBR = {"gi": "Gi", "te": "Te", "fa": "Fa", "fo": "Fo",
              "hu": "Hu", "tw": "Tw", "fi": "Fi"}
 
 _RE_DEVICE = re.compile(r"(?im)^\s*Device ID:\s*(\S+)")
-_RE_PLATFORM = re.compile(r"(?im)^\s*Platform:\s*(.+?),\s*Capabilities:\s*(.*)$")
+# Platform and Capabilities are parsed independently so a malformed Platform
+# line degrades to a blank field rather than dropping the whole neighbour.
+_RE_PLATFORM = re.compile(r"(?im)^\s*Platform:\s*(.+?)(?:,\s*Capabilities:.*)?$")
+_RE_CAPS = re.compile(r"(?im)Capabilities:\s*(.*)$")
 _RE_IFACE = re.compile(
     r"(?im)^\s*Interface:\s*(.+?),\s*Port ID \(outgoing port\):\s*(.*)$"
 )
@@ -82,7 +85,9 @@ def _parse_block(block: str) -> "CdpNeighbor | None":
     m_p = _RE_PLATFORM.search(block)
     if m_p:
         platform = _clean_platform(m_p.group(1))
-        capabilities = m_p.group(2).strip()
+    m_c = _RE_CAPS.search(block)
+    if m_c:
+        capabilities = m_c.group(1).strip()
     m_i = _RE_IFACE.search(block)
     if m_i:
         local_iface = shorten_iface(m_i.group(1).strip())
