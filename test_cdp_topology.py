@@ -79,8 +79,27 @@ def test_find_dot_env_override(tmp_path, monkeypatch):
     import cheat_core
     fake = tmp_path / "mydot"
     fake.write_text("")
+    monkeypatch.delenv("GRAPHVIZ_DOT", raising=False)
     monkeypatch.setenv("DOT", str(fake))
     assert cheat_core._find_dot() == str(fake)
+
+
+def test_find_dot_graphviz_dot_env_override(tmp_path, monkeypatch):
+    import cheat_core
+    fake = tmp_path / "mydot"
+    fake.write_text("")
+    monkeypatch.delenv("DOT", raising=False)
+    monkeypatch.setenv("GRAPHVIZ_DOT", str(fake))
+    assert cheat_core._find_dot() == str(fake)
+
+
+def test_find_dot_bad_env_falls_through_to_path(monkeypatch):
+    import cheat_core
+    # A stale/invalid env override must NOT be returned — fall through to PATH.
+    monkeypatch.setenv("DOT", "/nonexistent/dot_does_not_exist")
+    monkeypatch.delenv("GRAPHVIZ_DOT", raising=False)
+    monkeypatch.setattr(cheat_core.shutil, "which", lambda name: "/usr/bin/dot")
+    assert cheat_core._find_dot() == "/usr/bin/dot"
 
 
 def test_find_dot_uses_path(monkeypatch):
