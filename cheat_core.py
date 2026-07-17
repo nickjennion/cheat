@@ -6,6 +6,7 @@ main_latest.py, test harnesses) without pulling in CLI or menu code.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -296,11 +297,45 @@ def generate_excel(
     return results
 
 
-def _run_dot(dot_str: str) -> "str | None":
-    """Run `dot -Tplain`, returning the plain output, or None on failure."""
+def _dot_candidates() -> list:
+    """Common Graphviz `dot` install locations to check when it's not on PATH.
+
+    Covers the Windows case where `winget install Graphviz.Graphviz` installs
+    `dot.exe` but does not add its bin/ folder to PATH.
+    """
+    cands = [
+        r"C:\Program Files\Graphviz\bin\dot.exe",
+        r"C:\Program Files (x86)\Graphviz\bin\dot.exe",
+    ]
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        cands.append(str(Path(local) / "Programs" / "Graphviz" / "bin" / "dot.exe"))
+    return cands
+
+
+_DOT_CANDIDATES = _dot_candidates()
+
+
+def _find_dot() -> "str | None":
+    """Resolve the Graphviz `dot` executable: env override, PATH, common dirs."""
+    for var in ("DOT", "GRAPHVIZ_DOT"):
+        override = os.environ.get(var)
+        if override and Path(override).is_file():
+            return override
+    found = shutil.which("dot")
+    if found:
+        return found
+    for cand in _DOT_CANDIDATES:
+        if Path(cand).is_file():
+            return cand
+    return None
+
+
+def _run_dot(dot_str: str, dot_exe: str) -> "str | None":
+    """Run `<dot_exe> -Tplain`, returning the plain output, or None on failure."""
     try:
         result = subprocess.run(
-            ["dot", "-Tplain"], input=dot_str,
+            [dot_exe, "-Tplain"], input=dot_str,
             capture_output=True, text=True, timeout=60,
         )
     except (OSError, subprocess.SubprocessError):
@@ -317,17 +352,19 @@ def generate_cdp_topology(
     if not scanned_nodes:
         return False, "⚠ CDP topology skipped: no scanned switches"
 
-    if shutil.which("dot") is None:
+    dot_exe = _find_dot()
+    if dot_exe is None:
         return False, (
-            "⚠ CDP topology needs Graphviz — install with "
-            "'apt install graphviz' (Linux) or "
-            "'winget install Graphviz.Graphviz' (Windows)"
+            "⚠ CDP topology needs Graphviz. Install it "
+            "('winget install Graphviz.Graphviz' on Windows / "
+            "'apt install graphviz' on Linux), then ensure 'dot' is on PATH "
+            "or set the DOT env var to dot.exe's full path."
         )
 
     rendered = []
     for page in build_pages(topology):
         dot_str, id_to_name = to_dot(topology, page.node_names, page.root_name, a3=page.a3)
-        plain = _run_dot(dot_str)
+        plain = _run_dot(dot_str, dot_exe)
         if plain is None:
             print(f"  ⚠ CDP topology: skipped page '{page.title}' (dot layout failed)")
             continue

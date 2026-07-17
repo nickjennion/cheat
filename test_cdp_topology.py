@@ -75,10 +75,46 @@ def test_generate_cdp_topology_writes_multipage(tmp_path, monkeypatch):
     assert root.tag == "mxfile" and root.findall("diagram")   # >= 1 page
 
 
+def test_find_dot_env_override(tmp_path, monkeypatch):
+    import cheat_core
+    fake = tmp_path / "mydot"
+    fake.write_text("")
+    monkeypatch.setenv("DOT", str(fake))
+    assert cheat_core._find_dot() == str(fake)
+
+
+def test_find_dot_uses_path(monkeypatch):
+    import cheat_core
+    monkeypatch.delenv("DOT", raising=False)
+    monkeypatch.delenv("GRAPHVIZ_DOT", raising=False)
+    monkeypatch.setattr(cheat_core.shutil, "which", lambda name: "/usr/bin/dot")
+    assert cheat_core._find_dot() == "/usr/bin/dot"
+
+
+def test_find_dot_windows_fallback(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.delenv("DOT", raising=False)
+    monkeypatch.delenv("GRAPHVIZ_DOT", raising=False)
+    monkeypatch.setattr(cheat_core.shutil, "which", lambda name: None)
+    fake = tmp_path / "dot.exe"
+    fake.write_text("")
+    monkeypatch.setattr(cheat_core, "_DOT_CANDIDATES", [str(fake)])
+    assert cheat_core._find_dot() == str(fake)
+
+
+def test_find_dot_none(monkeypatch):
+    import cheat_core
+    monkeypatch.delenv("DOT", raising=False)
+    monkeypatch.delenv("GRAPHVIZ_DOT", raising=False)
+    monkeypatch.setattr(cheat_core.shutil, "which", lambda name: None)
+    monkeypatch.setattr(cheat_core, "_DOT_CANDIDATES", [])
+    assert cheat_core._find_dot() is None
+
+
 def test_generate_cdp_topology_skips_without_dot(tmp_path, monkeypatch):
     import cheat_core
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(cheat_core.shutil, "which", lambda name: None)
+    monkeypatch.setattr(cheat_core, "_find_dot", lambda: None)
     ok, msg = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "topo")
     assert ok is False
     assert "Graphviz" in msg
