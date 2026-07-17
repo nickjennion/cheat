@@ -335,11 +335,15 @@ def _build_floor_page(floor_site, aps):
 # ============================================================================
 
 def _edge_label_index(topology):
-    """{frozenset({name_a, name_b}): 'a_port ↔ b_port'} for edge labelling."""
-    idx = {}
+    """{frozenset({name_a, name_b}): 'a_port ↔ b_port[, ...]'} for edge labels.
+
+    Parallel links between the same pair are aggregated so both drawn lines
+    carry every port pair (e.g. 'Te1/1/3 ↔ Te1/1/9, Te2/1/4 ↔ Te2/1/9').
+    """
+    pairs = {}
     for e in topology.edges:
-        idx.setdefault(frozenset((e.a, e.b)), f"{e.a_port} ↔ {e.b_port}")
-    return idx
+        pairs.setdefault(frozenset((e.a, e.b)), []).append(f"{e.a_port} ↔ {e.b_port}")
+    return {key: ", ".join(labels) for key, labels in pairs.items()}
 
 
 def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
