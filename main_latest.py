@@ -338,7 +338,7 @@ DEFAULT_PREFS = {
     "LOGGING": "off",
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
-    "SPLASH_DESIGN": "diamond",  # co-brand logo: "diamond" | "lockup" | "generic"
+    "SPLASH_DESIGN": "diamond",  # logo: "diamond" | "lockup" | "stacked" | "generic"
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
 }
 
@@ -432,7 +432,8 @@ def menu_options():
         elif choice == "I":
             prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
         elif choice == "J":
-            _cycle = {"diamond": "lockup", "lockup": "generic", "generic": "diamond"}
+            _cycle = {"diamond": "lockup", "lockup": "stacked",
+                      "stacked": "generic", "generic": "diamond"}
             prefs["SPLASH_DESIGN"] = _cycle.get(prefs["SPLASH_DESIGN"], "diamond")
         else:
             print("\n  Invalid selection.")
