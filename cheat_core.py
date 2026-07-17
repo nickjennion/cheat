@@ -6,6 +6,8 @@ main_latest.py, test harnesses) without pulling in CLI or menu code.
 """
 
 import json
+import shutil
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -21,9 +23,6 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
-
-import shutil
-import subprocess
 
 from interface_parser import parse_output
 from excel_generator import write_excel, write_combined_excel

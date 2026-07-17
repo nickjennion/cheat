@@ -64,7 +64,6 @@ def test_generate_cdp_topology_writes_multipage(tmp_path, monkeypatch):
     if shutil.which("dot") is None:
         import pytest
         pytest.skip("graphviz 'dot' not installed")
-    import openpyxl  # noqa: F401 (ensures deps import)
     import cheat_core, xml.etree.ElementTree as ET
     monkeypatch.chdir(tmp_path)
     ok, msg = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "topo")
