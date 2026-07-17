@@ -116,24 +116,6 @@ _MONTHS = {
 # Logical interfaces (Vlan10, Po1, Lo0, Tunnel1) lack the slot/port and miss.
 RE_PHYSICAL_IFACE = re.compile(r'^[A-Za-z]{2,}\d+/\d+')
 
-# CDP local interface: abbreviated type ("Ten", "Gig", "Fas"...) + space + slot/port.
-# Matches both multi-part (Ten 2/1/4) and single digit (Gig 0) port formats.
-# The local interface is always the first such match on a data line.
-RE_CDP_LOCAL_IFACE = re.compile(r'\b([A-Za-z]{2,4})\s+(\d+(?:/\d+)*)')
-
-# Neighbor Port ID sits at the very end of a CDP line. It is usually a Cisco
-# interface ("Gig 0", "Ten 2/1/19") but on non-Cisco neighbours can be anything
-# the device reports ("Port 1" on IP phones, "eth0" on AV/room gear). Capture
-# the trailing "<word> <slot/port>" form, falling back to a single bare token.
-RE_CDP_PORT_ID = re.compile(r'([A-Za-z][\w-]*)\s+(\d+(?:/\d+)*)\s*$')
-
-# Cisco interface-type abbreviations that should be normalised to short form
-# (Gig -> Gi0). Anything not in this set (Port, eth, Room...) is kept verbatim.
-CDP_CISCO_TYPES = {
-    "te", "ten", "gi", "gig", "fa", "fas", "fo", "for", "fou",
-    "hu", "hun", "tw", "two", "fi", "fiv", "et", "eth",
-}
-
 
 # ============================================================================
 # Helper Functions
@@ -301,23 +283,6 @@ def compute_link_changes(text: str, physical_ifaces: list) -> dict:
         else:
             out[iface] = f"stable ≥{horizon}" if horizon else "unknown"
     return out
-
-
-def extract_neighbor_port(stripped_line: str) -> str:
-    """Extract the neighbor's Port ID (last field) from a CDP data line.
-
-    Cisco interfaces are normalised to short form (Gig 0 -> Gi0); non-Cisco
-    port IDs (Port 1, eth0, ...) are preserved exactly as reported.
-    """
-    m = RE_CDP_PORT_ID.search(stripped_line)
-    if m:
-        word, num = m.group(1), m.group(2)
-        if word.lower() in CDP_CISCO_TYPES:
-            return word[:2].capitalize() + num
-        return f"{word} {num}"
-    # Single bare token at end of line, e.g. "eth0".
-    tokens = stripped_line.split()
-    return tokens[-1] if tokens else ""
 
 
 def parse_status_row(line: str):
