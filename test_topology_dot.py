@@ -22,6 +22,21 @@ def test_node_label_rogue_has_model_ip_unscanned():
     assert node_label(TopologyNode("s", is_rogue=False)) == "s"
 
 
+def test_to_dot_keeps_parallel_edges():
+    # Two physical links between the same switch pair (e.g. a dual uplink to a
+    # VSS 4500 that reports one CDP device id) must both be emitted, not
+    # collapsed to a single line.
+    from topology_dot import to_dot
+    topo = Topology(
+        nodes=[TopologyNode("acc", is_rogue=False), TopologyNode("dist", is_rogue=False)],
+        edges=[TopologyEdge("acc", "Te1/1/3", "dist", "Te1/1/15"),
+               TopologyEdge("acc", "Te2/1/4", "dist", "Te2/1/16")],
+    )
+    dot, _ = to_dot(topo, ["acc", "dist"], "dist")
+    assert dot.count("->") == 2                       # both links, not 1
+    assert dot.count("constraint=false") == 1         # 2nd parallel link is non-ranking
+
+
 def test_to_dot_structure():
     from topology_dot import to_dot
     dot, id_to_name = to_dot(_topo(), ["dist", "acc1", "rogue-x"], "dist")
