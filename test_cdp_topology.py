@@ -117,3 +117,23 @@ def test_generate_cdp_topology_skips_when_no_scanned(tmp_path, monkeypatch):
     assert ok is False
     from pathlib import Path
     assert not list(Path(tmp_path).glob("**/*.drawio"))
+
+
+def test_build_topology_rogue_carries_mgmt_ip():
+    from cdp_topology import build_topology
+    # sw1 sees rogue sw4 with a management IP in its CDP detail block.
+    raw = {"sw1": "\n".join([
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: sw4",
+        "Entry address(es):",
+        "  IP address: 10.1.2.3",
+        "Platform: cisco WS-C3560CX-8PC-S,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet0/0",
+        "Total cdp entries displayed : 1",
+    ])}
+    topo = build_topology(raw, ["sw1"])
+    sw4 = {n.name: n for n in topo.nodes}["sw4"]
+    assert sw4.is_rogue is True
+    assert sw4.mgmt_ip == "10.1.2.3"
+    assert sw4.platform == "WS-C3560CX-8PC-S"

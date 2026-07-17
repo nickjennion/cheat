@@ -15,6 +15,7 @@ class TopologyNode:
     name: str          # display name: hostname (scanned) or CDP device id (rogue)
     is_rogue: bool
     platform: str = ""  # truncated CDP platform, used in rogue labels
+    mgmt_ip: str = ""   # management IP for rogue labels (from CDP detail)
 
 
 @dataclass
@@ -41,11 +42,12 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
     scanned = {_norm_host(h) for h in scanned_hostnames}
     nodes: dict[str, TopologyNode] = {}   # norm name -> node
 
-    def ensure_node(display: str, platform: str = "") -> str:
+    def ensure_node(display: str, platform: str = "", mgmt_ip: str = "") -> str:
         norm = _norm_host(display)
         if norm not in nodes:
             nodes[norm] = TopologyNode(
-                name=display, is_rogue=norm not in scanned, platform=platform
+                name=display, is_rogue=norm not in scanned,
+                platform=platform, mgmt_ip=mgmt_ip,
             )
         return norm
 
@@ -56,7 +58,7 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
     for host, text in raw_outputs.items():
         hn = ensure_node(host)
         for nb in parse_cdp_switch_neighbors(text):
-            bn = ensure_node(nb.device, nb.platform)
+            bn = ensure_node(nb.device, nb.platform, nb.mgmt_ip)
             if bn == hn:
                 continue
             # Order-independent link key: a link seen from both ends collapses
