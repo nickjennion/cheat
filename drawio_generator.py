@@ -27,22 +27,39 @@ SITE_STYLES = {
 DEVICE_STYLES = {
     "border":          "shape=mxgraph.cisco.routers.router;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeColor=#ffffff;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#ffffff;fontSize=9;",
     "control-plane":   "shape=mxgraph.cisco.servers.standard_server;html=1;pointerEvents=1;dashed=0;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=9;",
-    "edge":            "shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;",
+    "edge":            "shape=mxgraph.cisco.switches.workgroup_switch;html=1;pointerEvents=1;dashed=0;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;",
     "wlc":             "shape=mxgraph.cisco.wireless.wireless_lan_controller;html=1;pointerEvents=1;dashed=0;fillColor=#f8cecc;strokeColor=#b85450;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=9;",
     "ap":              "shape=mxgraph.cisco.wireless.access_point;html=1;pointerEvents=1;dashed=0;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=8;",
 }
 
-CDP_TOPO_ROGUE_STYLE = (
-    "shape=mxgraph.cisco.switches.catalyst_702x_702x;html=1;pointerEvents=1;dashed=0;"
-    "fillColor=#f8cecc;strokeColor=#b85450;verticalLabelPosition=bottom;verticalAlign=top;"
-    "align=center;outlineConnect=0;fontColor=#333333;fontSize=9;"
-)
 CDP_TOPO_EDGE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;fontSize=8;"
 
 CDP_TOPO_SCALE = 72        # graphviz inches -> draw.io px
-CDP_GV_SCANNED_STYLE = DEVICE_STYLES["edge"]
-CDP_GV_ROGUE_STYLE = CDP_TOPO_ROGUE_STYLE
 CDP_GV_EDGE_STYLE = "curved=1;html=1;endArrow=none;fontSize=8;"
+
+# --- topology node styling (Device-icons toggle: "plain" | "stencil") ---
+_SCANNED_FILL, _SCANNED_STROKE = "#f5f5f5", "#666666"
+_ROGUE_FILL, _ROGUE_STROKE = "#f8cecc", "#b85450"
+
+
+def _cisco_shape(node) -> str:
+    """The Cisco stencil for a topology node. Switch-only today; the mapper is
+    left open to add router/AP/firewall/L3-switch icons later."""
+    return "mxgraph.cisco.switches.workgroup_switch"
+
+
+def _node_style(node, icons: str) -> str:
+    """draw.io style for a topology node. 'plain' = clean rectangle;
+    'stencil' = a real Cisco switch icon. Grey = scanned, red = rogue."""
+    rogue = bool(node and node.is_rogue)
+    fill = _ROGUE_FILL if rogue else _SCANNED_FILL
+    stroke = _ROGUE_STROKE if rogue else _SCANNED_STROKE
+    if icons == "plain":
+        return (f"rounded=0;whiteSpace=wrap;html=1;fillColor={fill};"
+                f"strokeColor={stroke};fontColor=#333333;fontSize=9;verticalAlign=middle;")
+    return (f"shape={_cisco_shape(node)};html=1;pointerEvents=1;dashed=0;"
+            f"fillColor={fill};strokeColor={stroke};verticalLabelPosition=bottom;"
+            f"verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;")
 # Port label rides near the downstream (target) end so it clears the mid-line.
 CDP_GV_EDGE_LABEL_STYLE = "edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=8;"
 CDP_GV_EDGE_LABEL_X = "0.75"
@@ -349,7 +366,7 @@ def _edge_label_index(topology):
     return {key: ", ".join(labels) for key, labels in pairs.items()}
 
 
-def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
+def generate_cdp_topology_drawio(rendered_pages, topology, icons: str = "stencil") -> str:
     """Build a multi-page .drawio from Graphviz-laid pages.
 
     rendered_pages: list of (title, ParsedLayout, id_to_name).
@@ -378,7 +395,7 @@ def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
         for gid, box in layout.nodes.items():
             name = id_to_name.get(gid, gid)
             node = by_name.get(name)
-            style = CDP_GV_ROGUE_STYLE if (node and node.is_rogue) else CDP_GV_SCANNED_STYLE
+            style = _node_style(node, icons)
             value = node_label(node) if node else name
             x = (box.x - box.w / 2) * CDP_TOPO_SCALE
             y = (H - (box.y + box.h / 2)) * CDP_TOPO_SCALE

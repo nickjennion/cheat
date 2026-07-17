@@ -336,6 +336,7 @@ DEFAULT_PREFS = {
     "LOGGING": "off",
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
+    "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
 }
 
 
@@ -383,10 +384,11 @@ def menu_options():
         print(f"  F) AI settings          [{prefs['AI_ENABLED']}]")
         print(f"  G) Logging              [{prefs['LOGGING']}]")
         print(f"  H) Splash style         [{prefs['SPLASH_STYLE']}]")
+        print(f"  I) Topology icons       [{prefs['DEVICE_ICONS']}]")
         print()
         print("  0) Back")
         print()
-        choice = input("  Select [A-H, 0]: ").strip().upper()
+        choice = input("  Select [A-I, 0]: ").strip().upper()
 
         if choice == "0":
             save_prefs(prefs)
@@ -423,6 +425,8 @@ def menu_options():
             prefs["LOGGING"] = _toggle(prefs["LOGGING"])
         elif choice == "H":
             prefs["SPLASH_STYLE"] = "classic" if prefs["SPLASH_STYLE"] == "rich" else "rich"
+        elif choice == "I":
+            prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
         else:
             print("\n  Invalid selection.")
             pause()
@@ -967,7 +971,9 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
     for _, msg in results:
         print(f"\n  {msg}")
     if mode == 3:
-        _, topo_msg = generate_cdp_topology(outputs, outputs.keys(), stem)
+        _, topo_msg = generate_cdp_topology(
+            outputs, outputs.keys(), stem,
+            icons=load_prefs().get("DEVICE_ICONS", "stencil"))
         print(f"\n  {topo_msg}")
     pause()
 

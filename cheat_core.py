@@ -362,9 +362,12 @@ def _interface_descriptions(raw_outputs: dict) -> dict:
 
 
 def generate_cdp_topology(
-    raw_outputs: dict, scanned_hostnames, filename_stem: str
+    raw_outputs: dict, scanned_hostnames, filename_stem: str, icons: str = "stencil"
 ) -> tuple[bool, str]:
-    """Build and write the multi-page CDP topology .drawio (Graphviz-laid)."""
+    """Build and write the multi-page CDP topology .drawio (Graphviz-laid).
+
+    icons: "stencil" for Cisco device icons (default) or "plain" for rectangles.
+    """
     topology = build_topology(raw_outputs, scanned_hostnames,
                               _interface_descriptions(raw_outputs))
     scanned_nodes = [n for n in topology.nodes if not n.is_rogue]
@@ -399,7 +402,7 @@ def generate_cdp_topology(
     if not rendered:
         return False, "✗ CDP topology: Graphviz layout failed"
 
-    xml = generate_cdp_topology_drawio(rendered, topology)
+    xml = generate_cdp_topology_drawio(rendered, topology, icons=icons)
     out_dir = Path(DRAWIO_DIR).resolve()
     out_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")

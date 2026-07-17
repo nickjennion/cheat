@@ -130,6 +130,24 @@ def test_find_dot_none(monkeypatch):
     assert cheat_core._find_dot() is None
 
 
+def test_generate_cdp_topology_stencil_icons(tmp_path, monkeypatch):
+    import shutil
+    if shutil.which("dot") is None:
+        import pytest
+        pytest.skip("graphviz 'dot' not installed")
+    import cheat_core, glob
+    monkeypatch.chdir(tmp_path)
+    ok, _ = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "s", icons="stencil")
+    assert ok is True
+    xml = open(glob.glob("drawio_exports/*.drawio")[0], encoding="utf-8").read()
+    assert "mxgraph.cisco.switches.workgroup_switch" in xml
+
+
+def test_default_prefs_has_device_icons():
+    import main_latest
+    assert main_latest.DEFAULT_PREFS.get("DEVICE_ICONS") == "stencil"
+
+
 def test_generate_cdp_topology_falls_back_when_primary_fails(tmp_path, monkeypatch):
     import shutil
     if shutil.which("dot") is None:
