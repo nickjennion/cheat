@@ -6,6 +6,8 @@ main_latest.py, test harnesses) without pulling in CLI or menu code.
 """
 
 import json
+import shutil
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -25,8 +27,9 @@ from rich.progress import (
 from interface_parser import parse_output
 from excel_generator import write_excel, write_combined_excel
 from unscanned_switches import find_unscanned_switches
-from cdp_topology import build_topology, layout_topology
-from drawio_generator import generate_cdp_topology_xml
+from cdp_topology import build_topology
+from topology_dot import build_pages, to_dot, parse_plain
+from drawio_generator import generate_cdp_topology_drawio
 
 
 # ============================================================================
@@ -293,22 +296,46 @@ def generate_excel(
     return results
 
 
+def _run_dot(dot_str: str) -> "str | None":
+    """Run `dot -Tplain`, returning the plain output, or None on failure."""
+    try:
+        result = subprocess.run(
+            ["dot", "-Tplain"], input=dot_str,
+            capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout if result.returncode == 0 else None
+
+
 def generate_cdp_topology(
     raw_outputs: dict, scanned_hostnames, filename_stem: str
 ) -> tuple[bool, str]:
-    """Build and write the CDP physical topology .drawio for a scan.
-
-    Returns (success, message). Writes nothing and returns (False, message)
-    when there are no scanned switches to anchor the diagram.
-    """
+    """Build and write the multi-page CDP topology .drawio (Graphviz-laid)."""
     topology = build_topology(raw_outputs, scanned_hostnames)
     scanned_nodes = [n for n in topology.nodes if not n.is_rogue]
     if not scanned_nodes:
         return False, "⚠ CDP topology skipped: no scanned switches"
 
-    positions = layout_topology(topology)
-    xml = generate_cdp_topology_xml(topology, positions)
+    if shutil.which("dot") is None:
+        return False, (
+            "⚠ CDP topology needs Graphviz — install with "
+            "'apt install graphviz' (Linux) or "
+            "'winget install Graphviz.Graphviz' (Windows)"
+        )
 
+    rendered = []
+    for page in build_pages(topology):
+        dot_str, id_to_name = to_dot(topology, page.node_names, page.root_name, a3=page.a3)
+        plain = _run_dot(dot_str)
+        if plain is None:
+            print(f"  ⚠ CDP topology: skipped page '{page.title}' (dot layout failed)")
+            continue
+        rendered.append((page.title, parse_plain(plain), id_to_name))
+    if not rendered:
+        return False, "✗ CDP topology: Graphviz layout failed"
+
+    xml = generate_cdp_topology_drawio(rendered, topology)
     out_dir = Path(DRAWIO_DIR).resolve()
     out_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -321,5 +348,5 @@ def generate_cdp_topology(
     rogue = sum(1 for n in topology.nodes if n.is_rogue)
     return True, (
         f"✓ CDP topology: {outpath} "
-        f"({len(scanned_nodes)} switch(es), {rogue} unscanned)"
+        f"({len(scanned_nodes)} switch(es), {rogue} unscanned, {len(rendered)} page(s))"
     )

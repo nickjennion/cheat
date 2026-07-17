@@ -9,6 +9,8 @@ Produces a multi-page .drawio file:
 
 import xml.etree.ElementTree as ET
 
+from topology_dot import node_label
+
 
 # ============================================================================
 # Styles
@@ -36,7 +38,11 @@ CDP_TOPO_ROGUE_STYLE = (
     "align=center;outlineConnect=0;fontColor=#333333;fontSize=9;"
 )
 CDP_TOPO_EDGE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;fontSize=8;"
-CDP_TOPO_HEADER = 80   # vertical space reserved for title + legend
+
+CDP_TOPO_SCALE = 72        # graphviz inches -> draw.io px
+CDP_GV_SCANNED_STYLE = DEVICE_STYLES["edge"]
+CDP_GV_ROGUE_STYLE = CDP_TOPO_ROGUE_STYLE
+CDP_GV_EDGE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=8;"
 
 EDGE_STYLE       = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 FABRIC_EDGE      = "edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
@@ -325,49 +331,75 @@ def _build_floor_page(floor_site, aps):
 
 
 # ============================================================================
-# CDP Topology renderer
+# CDP Topology multi-page draw.io emitter
 # ============================================================================
 
-def generate_cdp_topology_xml(topology, positions) -> str:
-    """Render a switch topology (nodes + positions) as a single-page .drawio.
+def _edge_label_index(topology):
+    """{frozenset({name_a, name_b}): 'a_port ↔ b_port'} for edge labelling."""
+    idx = {}
+    for e in topology.edges:
+        idx.setdefault(frozenset((e.a, e.b)), f"{e.a_port} ↔ {e.b_port}")
+    return idx
 
-    Scanned switches use the grey edge-switch style; rogue (unscanned) switches
-    are red. Edges are labelled with the port at each end.
+
+def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
+    """Build a multi-page .drawio from Graphviz-laid pages.
+
+    rendered_pages: list of (title, ParsedLayout, id_to_name).
     """
-    root, mx_root = _new_root()
-
-    _add_cell(mx_root, "title", "CDP Physical Topology",
-              "text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=14;",
-              10, 10, 600, 30)
-    _add_cell(mx_root, "legend",
-              "Grey = scanned switch   |   Red = unscanned (rogue) switch",
-              "text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;",
-              10, 44, 600, 20)
-
-    id_map = {}
-    cid = 2
-    for node in topology.nodes:
-        x, y = positions.get(node.name, (0, 0))
-        xid = str(cid); cid += 1
-        if node.is_rogue:
-            style = CDP_TOPO_ROGUE_STYLE
-            label = f"{node.name}\n{node.platform}\n(unscanned)"
-        else:
-            style = DEVICE_STYLES["edge"]
-            label = node.name
-        _add_cell(mx_root, xid, label, style, x, y + CDP_TOPO_HEADER, DW, DH)
-        id_map[node.name] = xid
-
-    for edge in topology.edges:
-        if edge.a in id_map and edge.b in id_map:
-            _add_edge(mx_root, str(cid), id_map[edge.a], id_map[edge.b],
-                      style=CDP_TOPO_EDGE_STYLE,
-                      label=f"{edge.a_port} ↔ {edge.b_port}")
-            cid += 1
+    by_name = {n.name: n for n in topology.nodes}
+    labels = _edge_label_index(topology)
 
     doc_root = ET.Element("mxfile", host="CHEAT", version="21.0.0")
-    diagram = ET.SubElement(doc_root, "diagram", name="CDP Topology")
-    diagram.append(root)
+    for title, layout, id_to_name in rendered_pages:
+        # Every page uses the A3-landscape page size from _new_root(); the
+        # per-distribution pages are sized to fit, while the whole-site Overview
+        # is intentionally larger than one sheet (draw.io tiles it across pages).
+        root, mx_root = _new_root()
+        H = layout.height
+
+        _add_cell(mx_root, "title", f"CDP Physical Topology — {title}",
+                  "text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=14;",
+                  10, 10, 800, 30)
+        _add_cell(mx_root, "legend",
+                  "Grey = scanned switch   |   Red = unscanned (rogue) switch",
+                  "text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;",
+                  10, 44, 800, 20)
+
+        cid = 2
+        id_to_cell = {}
+        for gid, box in layout.nodes.items():
+            name = id_to_name.get(gid, gid)
+            node = by_name.get(name)
+            style = CDP_GV_ROGUE_STYLE if (node and node.is_rogue) else CDP_GV_SCANNED_STYLE
+            value = node_label(node) if node else name
+            x = (box.x - box.w / 2) * CDP_TOPO_SCALE
+            y = (H - (box.y + box.h / 2)) * CDP_TOPO_SCALE
+            xid = str(cid); cid += 1
+            _add_cell(mx_root, xid, value, style, x, y + 80,
+                      box.w * CDP_TOPO_SCALE, box.h * CDP_TOPO_SCALE)
+            id_to_cell[gid] = xid
+
+        for e in layout.edges:
+            if e.tail not in id_to_cell or e.head not in id_to_cell:
+                continue
+            label = labels.get(
+                frozenset((id_to_name.get(e.tail), id_to_name.get(e.head))), "")
+            cell = ET.SubElement(mx_root, "mxCell", id=str(cid),
+                                 value=label, style=CDP_GV_EDGE_STYLE, edge="1",
+                                 source=id_to_cell[e.tail], target=id_to_cell[e.head],
+                                 parent="1")
+            geo = ET.SubElement(cell, "mxGeometry", relative="1", **{"as": "geometry"})
+            arr = ET.SubElement(geo, "Array", **{"as": "points"})
+            for (px, py) in e.points[1:-1]:   # drop endpoints; keep bend points
+                ET.SubElement(arr, "mxPoint",
+                              x=str(int(px * CDP_TOPO_SCALE)),
+                              y=str(int((H - py) * CDP_TOPO_SCALE) + 80))
+            cid += 1
+
+        diagram = ET.SubElement(doc_root, "diagram", name=title)
+        diagram.append(root)
+
     ET.indent(doc_root, space="  ")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(doc_root, encoding="unicode")
 

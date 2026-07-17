@@ -15,6 +15,7 @@ class TopologyNode:
     name: str          # display name: hostname (scanned) or CDP device id (rogue)
     is_rogue: bool
     platform: str = ""  # truncated CDP platform, used in rogue labels
+    mgmt_ip: str = ""   # management IP for rogue labels (from CDP detail)
 
 
 @dataclass
@@ -41,11 +42,12 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
     scanned = {_norm_host(h) for h in scanned_hostnames}
     nodes: dict[str, TopologyNode] = {}   # norm name -> node
 
-    def ensure_node(display: str, platform: str = "") -> str:
+    def ensure_node(display: str, platform: str = "", mgmt_ip: str = "") -> str:
         norm = _norm_host(display)
         if norm not in nodes:
             nodes[norm] = TopologyNode(
-                name=display, is_rogue=norm not in scanned, platform=platform
+                name=display, is_rogue=norm not in scanned,
+                platform=platform, mgmt_ip=mgmt_ip,
             )
         return norm
 
@@ -56,7 +58,7 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
     for host, text in raw_outputs.items():
         hn = ensure_node(host)
         for nb in parse_cdp_switch_neighbors(text):
-            bn = ensure_node(nb.device, nb.platform)
+            bn = ensure_node(nb.device, nb.platform, nb.mgmt_ip)
             if bn == hn:
                 continue
             # Order-independent link key: a link seen from both ends collapses
@@ -76,68 +78,3 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
     return Topology(nodes=node_list, edges=edge_list)
 
 
-NODE_W = 56
-NODE_H = 56
-H_SPACING = 120   # horizontal gap between sibling subtrees
-V_SPACING = 120   # vertical gap between depth levels
-
-
-def layout_topology(topology: Topology) -> dict[str, tuple[int, int]]:
-    """Layered tree layout: {node name -> (x, y)}.
-
-    Root of each component is the highest-degree node (scanned first). A BFS
-    spanning tree assigns depth levels top-down; each node is centred over its
-    children. Disconnected components are stacked vertically.
-    """
-    names = [n.name for n in topology.nodes]
-    is_rogue = {n.name: n.is_rogue for n in topology.nodes}
-
-    adj: dict[str, set] = {name: set() for name in names}
-    for e in topology.edges:
-        if e.a in adj and e.b in adj and e.a != e.b:
-            adj[e.a].add(e.b)
-            adj[e.b].add(e.a)
-    degree = {name: len(adj[name]) for name in names}
-
-    scanned_roots = sorted((n for n in names if not is_rogue[n]), key=lambda n: (-degree[n], n))
-    rogue_roots = sorted((n for n in names if is_rogue[n]), key=lambda n: (-degree[n], n))
-    root_candidates = scanned_roots + rogue_roots
-
-    positions: dict[str, tuple[int, int]] = {}
-    y_offset = 0
-
-    for root in root_candidates:
-        if root in positions:
-            continue
-
-        # BFS spanning tree for this component.
-        depth = {root: 0}
-        children: dict[str, list] = {root: []}
-        queue = [root]
-        while queue:
-            cur = queue.pop(0)
-            for nb in sorted(adj[cur]):
-                if nb not in depth:
-                    depth[nb] = depth[cur] + 1
-                    children[cur].append(nb)
-                    children[nb] = []
-                    queue.append(nb)
-
-        base_y = y_offset
-        x_cursor = [0]
-
-        def place(node: str) -> float:
-            kids = children.get(node, [])
-            if not kids:
-                x = x_cursor[0]
-                x_cursor[0] += NODE_W + H_SPACING
-            else:
-                x = sum(place(k) for k in kids) / len(kids)
-            positions[node] = (int(x), base_y + depth[node] * (NODE_H + V_SPACING))
-            return x
-
-        place(root)
-        max_depth = max(depth.values())
-        y_offset += (max_depth + 1) * (NODE_H + V_SPACING) + V_SPACING
-
-    return positions

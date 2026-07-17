@@ -59,55 +59,31 @@ def test_build_topology_dedups_bidirectional_link():
     assert len(rogue_edge) == 1
 
 
-def test_layout_root_is_top_and_highest_degree():
-    from cdp_topology import build_topology, layout_topology
-    topo = build_topology(_raw(), ["sw1", "sw2", "sw3"])
-    pos = layout_topology(topo)
-    assert set(pos) == {"sw1", "sw2", "sw3", "sw4"}
-    # sw1 has degree 3 (sw2, sw3, sw4) -> it is the root, at the top (min y).
-    min_y = min(y for _, y in pos.values())
-    assert pos["sw1"][1] == min_y
-    # A rogue leaf sits one level below its parent.
-    assert pos["sw4"][1] > pos["sw1"][1]
-
-
-def test_layout_stacks_disconnected_components_below():
-    from cdp_topology import build_topology, layout_topology
-    # sw5 is scanned but has no CDP neighbours -> its own component.
-    raw = dict(_raw())
-    raw["sw5"] = ""
-    topo = build_topology(raw, ["sw1", "sw2", "sw3", "sw5"])
-    pos = layout_topology(topo)
-    # sw1's component occupies the top band; the isolated sw5 lands below all of it.
-    first_component_max_y = max(pos[n][1] for n in ("sw1", "sw2", "sw3", "sw4"))
-    assert pos["sw5"][1] > first_component_max_y
-
-
-def test_generate_cdp_topology_xml_marks_rogue_and_labels_edges():
-    from cdp_topology import build_topology, layout_topology
-    from drawio_generator import generate_cdp_topology_xml
-    topo = build_topology(_raw(), ["sw1", "sw2", "sw3"])
-    xml = generate_cdp_topology_xml(topo, layout_topology(topo))
-    assert xml.startswith("<?xml")
-    assert "<mxfile" in xml
-    # Rogue node carries the red fill.
-    assert "f8cecc" in xml
-    # An edge label shows both ports with the double-arrow.
-    assert "↔" in xml
-    # The rogue label names the unscanned device.
-    assert "(unscanned)" in xml
-
-
-def test_generate_cdp_topology_writes_file(tmp_path, monkeypatch):
-    import cheat_core
+def test_generate_cdp_topology_writes_multipage(tmp_path, monkeypatch):
+    import shutil
+    if shutil.which("dot") is None:
+        import pytest
+        pytest.skip("graphviz 'dot' not installed")
+    import cheat_core, xml.etree.ElementTree as ET
     monkeypatch.chdir(tmp_path)
     ok, msg = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "topo")
     assert ok is True
     path = msg.split("CDP topology: ")[1].split(" (")[0]
     from pathlib import Path
-    assert Path(path).is_file()
-    assert Path(path).read_text(encoding="utf-8").lstrip().startswith("<?xml")
-    assert path.endswith("-cdp-topology.drawio")
+    assert Path(path).is_file() and path.endswith("-cdp-topology.drawio")
+    root = ET.fromstring(Path(path).read_text(encoding="utf-8").split("?>", 1)[1])
+    assert root.tag == "mxfile" and root.findall("diagram")   # >= 1 page
+
+
+def test_generate_cdp_topology_skips_without_dot(tmp_path, monkeypatch):
+    import cheat_core
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cheat_core.shutil, "which", lambda name: None)
+    ok, msg = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "topo")
+    assert ok is False
+    assert "Graphviz" in msg
+    from pathlib import Path
+    assert not list(Path(tmp_path).glob("**/*.drawio"))
 
 
 def test_generate_cdp_topology_skips_when_no_scanned(tmp_path, monkeypatch):
@@ -117,3 +93,23 @@ def test_generate_cdp_topology_skips_when_no_scanned(tmp_path, monkeypatch):
     assert ok is False
     from pathlib import Path
     assert not list(Path(tmp_path).glob("**/*.drawio"))
+
+
+def test_build_topology_rogue_carries_mgmt_ip():
+    from cdp_topology import build_topology
+    # sw1 sees rogue sw4 with a management IP in its CDP detail block.
+    raw = {"sw1": "\n".join([
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: sw4",
+        "Entry address(es):",
+        "  IP address: 10.1.2.3",
+        "Platform: cisco WS-C3560CX-8PC-S,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet0/0",
+        "Total cdp entries displayed : 1",
+    ])}
+    topo = build_topology(raw, ["sw1"])
+    sw4 = {n.name: n for n in topo.nodes}["sw4"]
+    assert sw4.is_rogue is True
+    assert sw4.mgmt_ip == "10.1.2.3"
+    assert sw4.platform == "WS-C3560CX-8PC-S"
