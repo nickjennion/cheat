@@ -382,8 +382,16 @@ def generate_cdp_topology(
 
     rendered = []
     for page in build_pages(topology):
-        dot_str, id_to_name = to_dot(topology, page.node_names, page.root_name, a3=page.a3)
-        plain = _run_dot(dot_str, dot_exe)
+        plain = id_to_name = None
+        # Try the smooth spline layout first; fall back to ortho if a page fails
+        # to lay out (some Graphviz builds choke on large graphs) so no page —
+        # especially the whole-site Overview — is ever silently dropped.
+        for mode in ("spline", "ortho"):
+            dot_str, id_to_name = to_dot(
+                topology, page.node_names, page.root_name, a3=page.a3, spline_mode=mode)
+            plain = _run_dot(dot_str, dot_exe)
+            if plain is not None:
+                break
         if plain is None:
             print(f"  ⚠ CDP topology: skipped page '{page.title}' (dot layout failed)")
             continue
