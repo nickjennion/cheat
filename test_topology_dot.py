@@ -175,10 +175,13 @@ def test_node_style_plain_vs_stencil():
     assert "mxgraph.cisco" not in _node_style(scanned, "plain")
     assert "#f5f5f5" in _node_style(scanned, "plain")
     assert "#f8cecc" in _node_style(rogue, "plain")
+    # plain scanned is a real rectangle (not just "no cisco")
+    assert "rounded=0" in _node_style(scanned, "plain") and "whiteSpace=wrap" in _node_style(scanned, "plain")
     # stencil = valid Cisco switch icon, grey scanned / red rogue
     st = _node_style(scanned, "stencil")
     assert "shape=mxgraph.cisco.switches.workgroup_switch" in st and "#f5f5f5" in st
-    assert "#f8cecc" in _node_style(rogue, "stencil")
+    st_r = _node_style(rogue, "stencil")
+    assert "#f8cecc" in st_r and "#b85450" in st_r and "mxgraph.cisco" in st_r
 
 
 def test_generate_cdp_topology_drawio_icons_toggle():

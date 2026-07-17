@@ -60,6 +60,8 @@ def _node_style(node, icons: str) -> str:
     return (f"shape={_cisco_shape(node)};html=1;pointerEvents=1;dashed=0;"
             f"fillColor={fill};strokeColor={stroke};verticalLabelPosition=bottom;"
             f"verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;")
+
+
 # Port label rides near the downstream (target) end so it clears the mid-line.
 CDP_GV_EDGE_LABEL_STYLE = "edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=8;"
 CDP_GV_EDGE_LABEL_X = "0.75"
