@@ -61,7 +61,7 @@ def test_to_dot_keeps_parallel_edges():
 def test_to_dot_structure():
     from topology_dot import to_dot
     dot, id_to_name = to_dot(_topo(), ["dist", "acc1", "rogue-x"], "dist")
-    assert "rankdir=TB" in dot and "splines=ortho" in dot
+    assert "rankdir=TB" in dot and "splines=curved" in dot
     assert "#f8cecc" in dot                      # rogue fill present
     assert dot.count("->") == 3                  # three edges emitted
     assert "constraint=false" in dot             # the non-tree edge
@@ -157,6 +157,12 @@ def test_generate_cdp_topology_drawio_multipage():
     assert "(unscanned)" in xml                   # rogue multi-line label
     assert "Gi1/0/1 ↔ Gi0/0" in xml               # edge port label from topology
     assert 'as="points"' in xml                   # edge waypoints present
+    assert "curved=1" in xml                       # smooth curved edges
+    # the port label rides near the downstream (target) end, not mid-line
+    lbl = [c for c in root.iter("mxCell")
+           if c.get("value") == "Gi1/0/1 ↔ Gi0/0" and c.get("vertex") == "1"]
+    assert lbl and "edgeLabel" in lbl[0].get("style", "")
+    assert lbl[0].find("mxGeometry").get("x") == "0.75"
 
 
 def test_docs_mention_graphviz_install():

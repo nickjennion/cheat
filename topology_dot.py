@@ -33,7 +33,7 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False):
     Tree edges (from a BFS spanning tree rooted at root_name) are directed
     parent->child so the aggregation ranks to the top; non-tree edges get
     constraint=false so they are drawn without distorting the ranks. Edge labels
-    are intentionally omitted (splines=ortho cannot place them).
+    are intentionally omitted (the draw.io emitter labels edges itself).
     """
     names = list(node_names)
     nameset = set(names)
@@ -64,7 +64,7 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False):
     lines = [
         "digraph G {",
         "  rankdir=TB;",
-        "  graph [splines=ortho, nodesep=0.4, ranksep=0.7];",
+        "  graph [splines=curved, nodesep=0.4, ranksep=0.7];",
         "  node [shape=box, style=filled, fontsize=10];",
     ]
     if a3:

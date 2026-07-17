@@ -42,7 +42,10 @@ CDP_TOPO_EDGE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=
 CDP_TOPO_SCALE = 72        # graphviz inches -> draw.io px
 CDP_GV_SCANNED_STYLE = DEVICE_STYLES["edge"]
 CDP_GV_ROGUE_STYLE = CDP_TOPO_ROGUE_STYLE
-CDP_GV_EDGE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=8;"
+CDP_GV_EDGE_STYLE = "curved=1;html=1;endArrow=none;fontSize=8;"
+# Port label rides near the downstream (target) end so it clears the mid-line.
+CDP_GV_EDGE_LABEL_STYLE = "edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=8;"
+CDP_GV_EDGE_LABEL_X = "0.75"
 
 EDGE_STYLE       = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 FABRIC_EDGE      = "edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#014F74;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
@@ -389,8 +392,9 @@ def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
                 continue
             label = labels.get(
                 frozenset((id_to_name.get(e.tail), id_to_name.get(e.head))), "")
-            cell = ET.SubElement(mx_root, "mxCell", id=str(cid),
-                                 value=label, style=CDP_GV_EDGE_STYLE, edge="1",
+            edge_id = str(cid); cid += 1
+            cell = ET.SubElement(mx_root, "mxCell", id=edge_id,
+                                 value="", style=CDP_GV_EDGE_STYLE, edge="1",
                                  source=id_to_cell[e.tail], target=id_to_cell[e.head],
                                  parent="1")
             geo = ET.SubElement(cell, "mxGeometry", relative="1", **{"as": "geometry"})
@@ -399,7 +403,15 @@ def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
                 ET.SubElement(arr, "mxPoint",
                               x=str(int(px * CDP_TOPO_SCALE)),
                               y=str(int((H - py) * CDP_TOPO_SCALE) + 80))
-            cid += 1
+            # Port label as a child cell anchored near the downstream end.
+            if label:
+                lbl = ET.SubElement(mx_root, "mxCell", id=str(cid), value=label,
+                                    style=CDP_GV_EDGE_LABEL_STYLE, vertex="1",
+                                    connectable="0", parent=edge_id)
+                lgeo = ET.SubElement(lbl, "mxGeometry", relative="1",
+                                     x=CDP_GV_EDGE_LABEL_X, **{"as": "geometry"})
+                ET.SubElement(lgeo, "mxPoint", **{"as": "offset"})
+                cid += 1
 
         diagram = ET.SubElement(doc_root, "diagram", name=title)
         diagram.append(root)
