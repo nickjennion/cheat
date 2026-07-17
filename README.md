@@ -92,6 +92,22 @@ pip install --user -r requirements.txt
 python main.py
 ```
 
+## Graphviz (topology diagram)
+
+The CDP physical topology export (`*-cdp-topology.drawio`) uses the Graphviz
+`dot` engine to lay out and route the diagram. Graphviz is a **system
+dependency** (a binary on your PATH), not a Python package — install it
+separately:
+
+- **Linux (Debian/Ubuntu):** `sudo apt install graphviz`
+- **Linux (RHEL/Fedora):** `sudo dnf install graphviz`
+- **Windows:** `winget install Graphviz.Graphviz` (or `choco install graphviz`),
+  or download the installer from graphviz.org and add its `bin\` folder to PATH.
+- **macOS:** `brew install graphviz`
+
+If `dot` is not found, the tool skips the topology diagram (with a reminder) and
+all other outputs are produced normally.
+
 ## Rate & Timeout Reference
 
 Default values used by `dnac_client.py` and `cheat_core.py`. All timeouts are in seconds.

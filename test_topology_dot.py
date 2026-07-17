@@ -121,3 +121,12 @@ def test_generate_cdp_topology_drawio_multipage():
     assert "(unscanned)" in xml                   # rogue multi-line label
     assert "Gi1/0/1 ↔ Gi0/0" in xml               # edge port label from topology
     assert 'as="points"' in xml                   # edge waypoints present
+
+
+def test_docs_mention_graphviz_install():
+    from pathlib import Path
+    reqs = Path("requirements.txt").read_text(encoding="utf-8").lower()
+    readme = Path("README.md").read_text(encoding="utf-8").lower()
+    assert "graphviz" in reqs
+    assert "apt install graphviz" in readme or "apt-get install graphviz" in readme
+    assert "winget install graphviz" in readme or "choco install graphviz" in readme
