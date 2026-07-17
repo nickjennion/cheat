@@ -329,6 +329,7 @@ def generate_cdp_topology(
         dot_str, id_to_name = to_dot(topology, page.node_names, page.root_name, a3=page.a3)
         plain = _run_dot(dot_str)
         if plain is None:
+            print(f"  ⚠ CDP topology: skipped page '{page.title}' (dot layout failed)")
             continue
         rendered.append((page.title, parse_plain(plain), id_to_name))
     if not rendered:

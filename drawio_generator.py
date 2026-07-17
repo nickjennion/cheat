@@ -352,6 +352,9 @@ def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
 
     doc_root = ET.Element("mxfile", host="CHEAT", version="21.0.0")
     for title, layout, id_to_name in rendered_pages:
+        # Every page uses the A3-landscape page size from _new_root(); the
+        # per-distribution pages are sized to fit, while the whole-site Overview
+        # is intentionally larger than one sheet (draw.io tiles it across pages).
         root, mx_root = _new_root()
         H = layout.height
 
