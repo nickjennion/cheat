@@ -2,6 +2,18 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-07-17 — Co-brand splash (Cisco × Hamburger University)
+
+- The Rich splash can now co-brand with Hamburger University. A **`SPLASH_DESIGN`**
+  preference (Options → `J`) cycles three logos:
+  - **`diamond`** (default) — HU halftone diamond mark beside the Cisco bars.
+  - **`lockup`** — HU diamond + `HAMBURGER UNIVERSITY` wordmark badge beside the bars.
+  - **`generic`** — original Cisco-only splash, no HU branding.
+- Co-brand designs append a red **`× Hamburger University`** tag to the
+  `CISCO · DNA CENTER` wordmark. HU navy/white sampled from the official mark.
+- `python splash_rich.py [design]` previews one design; no arg cycles all three.
+- `splash_generic.py` keeps a standalone snapshot of the pre-co-brand splash.
+
 ## 2026-07-15 → 2026-07-17
 
 ### CDP Physical Topology Export (`*-cdp-topology.drawio`)

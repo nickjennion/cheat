@@ -17,9 +17,6 @@ CYAN = (34, 211, 238)    # bright accent
 ICE = (186, 230, 253)    # near-white highlight
 WHITE = (255, 255, 255)
 
-# Hamburger University co-brand accent (the mockup's "× Hamburger University").
-VU_ACCENT = (227, 45, 52)   # HU tag colour — swap to WHITE for a mono co-brand
-
 # The 9-bar Cisco "bridge" mark (shared silhouette with splash.py).
 BARS = [
     "                ███                             ███                ",
@@ -70,85 +67,15 @@ def _bars(top, bottom):
     return out
 
 
-# Hamburger University marks, echoed as halftone-dot diamonds. A row of d dots is
-# "● ● …" so widths run 1,3,5,… — each row centred in a fixed field keeps every
-# row on one shared column grid.
-def _diamond_rows(half, field):
-    """Diamond of dots `2*half+1` rows tall, each row centred in `field`."""
-    return [("● " * ((2 * half + 1) - 2 * abs(i - half))).rstrip().center(field)
-            for i in range(2 * half + 1)]
-
-
-def _vu_diamond_rows():
-    """Design B: a large 9-row HU diamond (widest row is 9 dots = 17 cells)."""
-    return _diamond_rows(half=4, field=17)
-
-
-def _vu_lockup_rows():
-    """Design A: a compact HU badge — small diamond over the wordmark, 9 rows."""
-    field = 10
-    dia = _diamond_rows(half=2, field=field)          # 5 rows: 1,3,5,3,1
-    words = ["HAMBURGER".center(field), "UNIVERSITY".center(field)]
-    return ["".center(field), *dia, *words, "".center(field)]  # 1+5+2+1 = 9
-
-
-def _compose_logo(left_rows, field, top, bottom):
-    """Join a left-hand HU badge with the Cisco bars on one shared column grid.
-
-    Each line is [HU badge row, `field` wide] + gap + [one Cisco bar row]. The
-    bars are all appended at the same offset, so the Cisco mark keeps its column
-    grid while the HU mark sits to its left. Dots take a vertical ICE→CYAN
-    gradient (centre dot bright white); wordmark letters render white.
-    """
-    n = max(len(BARS) - 1, 1)
-    centre = (len(left_rows) // 2, field // 2)  # bright dot at the badge centre
-    out = Text()
-    for i, bar in enumerate(BARS):
-        vr, vg, vb = _lerp(ICE, CYAN, i / n)
-        for ci, ch in enumerate(left_rows[i]):
-            if ch == " ":
-                out.append(ch)
-            elif ch == "●":
-                if (i, ci) == centre:
-                    out.append(ch, style=f"bold {_rgb(WHITE)}")
-                else:
-                    out.append(ch, style=f"rgb({vr},{vg},{vb})")
-            else:  # HU wordmark letters
-                out.append(ch, style=f"bold {_rgb(WHITE)}")
-        out.append("   ")  # gap between the two marks
-        br, bg, bb = _lerp(top, bottom, i / n)
-        out.append(bar + "\n", style=f"rgb({br},{bg},{bb})")
-    return out
-
-
-def _logo(design, top, bottom):
-    """Build the logo block for a splash design.
-
-    "diamond" — HU diamond mark beside the Cisco bars (co-brand).
-    "lockup"  — HU diamond+wordmark badge beside the Cisco bars (co-brand).
-    "generic" — Cisco bars only (original, no HU branding).
-    """
-    if design == "generic":
-        return _bars(top, bottom)
-    if design == "lockup":
-        return _compose_logo(_vu_lockup_rows(), 10, top, bottom)
-    return _compose_logo(_vu_diamond_rows(), 17, top, bottom)
-
-
-def render(console, title, subtitle, menu_header, options, design="diamond"):
+def render(console, title, subtitle, menu_header, options):
     """Draw the sparkled splash to `console`, over the Cisco-blue background.
-
-    `design` selects the branding: "diamond" / "lockup" co-brand with Hamburger University (see `_logo`); "generic" is the original Cisco-only splash.
 
     Every element is printed with an `on rgb(DEEP)` base style so the blue fills
     behind the text and the centering padding — matching the app's themed screen.
     """
-    # Bars stay in the light half of the palette so they read on the blue bg;
-    # the HU mark (if any) sits to their left for the co-brand lockup.
-    logo = _logo(design, WHITE, CYAN)
+    # Bars stay in the light half of the palette so they read on the blue bg.
+    logo = _bars(WHITE, CYAN)
     wordmark = _hgradient("CISCO  ·  DNA CENTER", CYAN, WHITE)
-    if design != "generic":
-        wordmark.append("     ×  Hamburger University", style=f"bold {_rgb(VU_ACCENT)}")
     wordmark.justify = "center"
 
     hero = _hgradient("  ".join(title), CYAN, WHITE)  # letter-spaced for weight
@@ -186,20 +113,17 @@ def render(console, title, subtitle, menu_header, options, design="diamond"):
     console.print(splash, style=f"on {_rgb(DEEP)}")
 
 
-if __name__ == "__main__":  # quick preview of every design: `python3 splash_rich.py`
-    import sys
-
-    con = Console()
-    opts = [
-        "1) Use dnac.env",
-        "2) Enter manually · remember",
-        "3) Enter manually · forget",
-        "4) View dnac.env",
-        "5) Options",
-    ]
-    # One arg previews a single design; no arg cycles all three for comparison.
-    designs = sys.argv[1:] or ["diamond", "lockup", "generic"]
-    for d in designs:
-        con.rule(f"[bold]design = {d}[/]")
-        render(con, "CHEAT", "Cisco Homogeneous Environment Awareness Tool",
-               "Menu 1 · Credentials", opts, design=d)
+if __name__ == "__main__":  # quick manual preview: `python3 splash_rich.py`
+    render(
+        Console(),
+        "CHEAT",
+        "Cisco Homogeneous Environment Awareness Tool",
+        "Menu 1 · Credentials",
+        [
+            "1) Use dnac.env",
+            "2) Enter manually · remember",
+            "3) Enter manually · forget",
+            "4) View dnac.env",
+            "5) Options",
+        ],
+    )

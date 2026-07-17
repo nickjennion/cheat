@@ -16,7 +16,9 @@ def _logo_rows(title="CHEAT"):
 
 
 def _ink_midpoint(line):
-    inks = [i for i, ch in enumerate(line) if ch != " "]
+    # Measure the Cisco bars only: the co-brand HU diamond shares these lines to
+    # the left, so its dots must not count toward the bars' column-grid check.
+    inks = [i for i, ch in enumerate(line) if ch == "█"]
     return (inks[0] + inks[-1]) / 2
 
 
