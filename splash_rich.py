@@ -17,9 +17,6 @@ CYAN = (34, 211, 238)    # bright accent
 ICE = (186, 230, 253)    # near-white highlight
 WHITE = (255, 255, 255)
 
-# Hamburger University co-brand accent (the mockup's "× Hamburger University").
-VU_ACCENT = (227, 45, 52)   # HU tag colour — swap to WHITE for a mono co-brand
-
 # The 9-bar Cisco "bridge" mark (shared silhouette with splash.py).
 BARS = [
     "                ███                             ███                ",
@@ -85,27 +82,40 @@ def _vu_diamond_rows():
 
 
 def _vu_lockup_rows():
-    """Design A: a compact HU badge — small diamond over the wordmark, 9 rows."""
+    """Compact HU badge — small diamond over the wordmark, 9 rows (field 10)."""
     field = 10
     dia = _diamond_rows(half=2, field=field)          # 5 rows: 1,3,5,3,1
     words = ["HAMBURGER".center(field), "UNIVERSITY".center(field)]
     return ["".center(field), *dia, *words, "".center(field)]  # 1+5+2+1 = 9
 
 
-def _compose_logo(left_rows, field, top, bottom):
+def _vu_stacked_rows():
+    """Full HU lockup — large diamond over the wordmark, 11 rows (field 17)."""
+    field = 17
+    dia = _diamond_rows(half=4, field=field)          # 9 rows: 1,3,5,7,9,7,5,3,1
+    words = ["HAMBURGER".center(field), "UNIVERSITY".center(field)]
+    return [*dia, *words]                             # 9 + 2 = 11
+
+
+_BAR_W = len(BARS[0])  # every Cisco bar row is this wide
+
+
+def _compose_logo(left_rows, field, top, bottom, centre=None):
     """Join a left-hand HU badge with the Cisco bars on one shared column grid.
 
     Each line is [HU badge row, `field` wide] + gap + [one Cisco bar row]. The
     bars are all appended at the same offset, so the Cisco mark keeps its column
-    grid while the HU mark sits to its left. Dots take a vertical ICE→CYAN
-    gradient (centre dot bright white); wordmark letters render white.
+    grid while the HU mark sits to its left. When the badge is taller than the
+    bars (the stacked lockup), the bars top-align and blank bar rows pad the rest
+    so the wordmark hangs below. Dots take a vertical ICE→CYAN gradient (centre
+    dot bright white); wordmark letters render white.
     """
     n = max(len(BARS) - 1, 1)
-    centre = (len(left_rows) // 2, field // 2)  # bright dot at the badge centre
     out = Text()
-    for i, bar in enumerate(BARS):
-        vr, vg, vb = _lerp(ICE, CYAN, i / n)
-        for ci, ch in enumerate(left_rows[i]):
+    for i in range(max(len(left_rows), len(BARS))):
+        left = left_rows[i] if i < len(left_rows) else " " * field
+        vr, vg, vb = _lerp(ICE, CYAN, min(i, n) / n)
+        for ci, ch in enumerate(left):
             if ch == " ":
                 out.append(ch)
             elif ch == "●":
@@ -116,8 +126,12 @@ def _compose_logo(left_rows, field, top, bottom):
             else:  # HU wordmark letters
                 out.append(ch, style=f"bold {_rgb(WHITE)}")
         out.append("   ")  # gap between the two marks
-        br, bg, bb = _lerp(top, bottom, i / n)
-        out.append(bar + "\n", style=f"rgb({br},{bg},{bb})")
+        if i < len(BARS):
+            br, bg, bb = _lerp(top, bottom, i / n)
+            out.append(BARS[i], style=f"rgb({br},{bg},{bb})")
+        else:
+            out.append(" " * _BAR_W)
+        out.append("\n")
     return out
 
 
@@ -125,20 +139,24 @@ def _logo(design, top, bottom):
     """Build the logo block for a splash design.
 
     "diamond" — HU diamond mark beside the Cisco bars (co-brand).
-    "lockup"  — HU diamond+wordmark badge beside the Cisco bars (co-brand).
+    "lockup"  — compact HU diamond+wordmark badge beside the bars (co-brand).
+    "stacked" — full HU lockup (large diamond over wordmark) beside the bars.
     "generic" — Cisco bars only (original, no HU branding).
     """
     if design == "generic":
         return _bars(top, bottom)
     if design == "lockup":
-        return _compose_logo(_vu_lockup_rows(), 10, top, bottom)
-    return _compose_logo(_vu_diamond_rows(), 17, top, bottom)
+        return _compose_logo(_vu_lockup_rows(), 10, top, bottom, centre=(3, 4))
+    if design == "stacked":
+        return _compose_logo(_vu_stacked_rows(), 17, top, bottom, centre=(4, 8))
+    return _compose_logo(_vu_diamond_rows(), 17, top, bottom, centre=(4, 8))
 
 
 def render(console, title, subtitle, menu_header, options, design="diamond"):
     """Draw the sparkled splash to `console`, over the Cisco-blue background.
 
-    `design` selects the branding: "diamond" / "lockup" co-brand with Hamburger University (see `_logo`); "generic" is the original Cisco-only splash.
+    `design` selects the branding: "diamond" / "lockup" / "stacked" co-brand with
+    Hamburger University (see `_logo`); "generic" is the original Cisco-only splash.
 
     Every element is printed with an `on rgb(DEEP)` base style so the blue fills
     behind the text and the centering padding — matching the app's themed screen.
@@ -146,9 +164,11 @@ def render(console, title, subtitle, menu_header, options, design="diamond"):
     # Bars stay in the light half of the palette so they read on the blue bg;
     # the HU mark (if any) sits to their left for the co-brand lockup.
     logo = _logo(design, WHITE, CYAN)
-    wordmark = _hgradient("CISCO  ·  DNA CENTER", CYAN, WHITE)
+    # Co-brand tag rides the same cyan→white gradient as the Cisco wordmark.
+    label = "CISCO  ·  DNA CENTER"
     if design != "generic":
-        wordmark.append("     ×  Hamburger University", style=f"bold {_rgb(VU_ACCENT)}")
+        label += "     ×  Hamburger University"
+    wordmark = _hgradient(label, CYAN, WHITE)
     wordmark.justify = "center"
 
     hero = _hgradient("  ".join(title), CYAN, WHITE)  # letter-spaced for weight
@@ -197,8 +217,8 @@ if __name__ == "__main__":  # quick preview of every design: `python3 splash_ric
         "4) View dnac.env",
         "5) Options",
     ]
-    # One arg previews a single design; no arg cycles all three for comparison.
-    designs = sys.argv[1:] or ["diamond", "lockup", "generic"]
+    # One arg previews a single design; no arg cycles them all for comparison.
+    designs = sys.argv[1:] or ["diamond", "lockup", "stacked", "generic"]
     for d in designs:
         con.rule(f"[bold]design = {d}[/]")
         render(con, "CHEAT", "Cisco Homogeneous Environment Awareness Tool",
