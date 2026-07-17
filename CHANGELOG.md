@@ -2,6 +2,18 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-07-17 — Co-brand splash (Cisco × Victoria University)
+
+- The Rich splash can now co-brand with Victoria University. A **`SPLASH_DESIGN`**
+  preference (Options → `J`) cycles three logos:
+  - **`diamond`** (default) — VU halftone diamond mark beside the Cisco bars.
+  - **`lockup`** — VU diamond + `VICTORIA UNIVERSITY` wordmark badge beside the bars.
+  - **`generic`** — original Cisco-only splash, no VU branding.
+- Co-brand designs append a red **`× Victoria University`** tag to the
+  `CISCO · DNA CENTER` wordmark. VU navy/white sampled from the official mark.
+- `python splash_rich.py [design]` previews one design; no arg cycles all three.
+- `splash_generic.py` keeps a standalone snapshot of the pre-co-brand splash.
+
 ## 2026-07-15 → 2026-07-17
 
 ### CDP Physical Topology Export (`*-cdp-topology.drawio`)

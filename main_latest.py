@@ -110,7 +110,9 @@ def _show_splash_rich(menu_header, options) -> bool:
     except Exception:
         return False
     try:
-        splash_rich.render(Console(), SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options)
+        design = load_prefs().get("SPLASH_DESIGN", "diamond")
+        splash_rich.render(Console(), SPLASH_TITLE, SPLASH_SUBTITLE,
+                           menu_header, options, design=design)
     except Exception:
         return False
     # Rich resets SGR at the end of its output; re-assert the blue theme so the
@@ -336,6 +338,7 @@ DEFAULT_PREFS = {
     "LOGGING": "off",
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
+    "SPLASH_DESIGN": "diamond",  # co-brand logo: "diamond" | "lockup" | "generic"
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
 }
 
@@ -385,10 +388,11 @@ def menu_options():
         print(f"  G) Logging              [{prefs['LOGGING']}]")
         print(f"  H) Splash style         [{prefs['SPLASH_STYLE']}]")
         print(f"  I) Topology icons       [{prefs['DEVICE_ICONS']}]")
+        print(f"  J) Co-brand logo        [{prefs['SPLASH_DESIGN']}]")
         print()
         print("  0) Back")
         print()
-        choice = input("  Select [A-I, 0]: ").strip().upper()
+        choice = input("  Select [A-J, 0]: ").strip().upper()
 
         if choice == "0":
             save_prefs(prefs)
@@ -427,6 +431,9 @@ def menu_options():
             prefs["SPLASH_STYLE"] = "classic" if prefs["SPLASH_STYLE"] == "rich" else "rich"
         elif choice == "I":
             prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
+        elif choice == "J":
+            _cycle = {"diamond": "lockup", "lockup": "generic", "generic": "diamond"}
+            prefs["SPLASH_DESIGN"] = _cycle.get(prefs["SPLASH_DESIGN"], "diamond")
         else:
             print("\n  Invalid selection.")
             pause()
