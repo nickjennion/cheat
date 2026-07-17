@@ -72,13 +72,15 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False):
         lbl = (node_label(node) if node else name).replace('"', "").replace("\n", "\\n")
         lines.append(f'  {id_of[name]} [label="{lbl}", fillcolor="{fill}"];')
 
-    emitted = set()
+    # Emit every physical link. Parallel links between the same pair (a dual
+    # uplink to a VSS switch that reports one CDP device id) must all be drawn;
+    # only the first edge of a tree pair carries the rank constraint, so extra
+    # parallel links are added with constraint=false and don't distort ranks.
+    tree_used = set()
     for a, b in sub_edges:
         key = frozenset((a, b))
-        if key in emitted:
-            continue
-        emitted.add(key)
-        if key in tree:
+        if key in tree and key not in tree_used:
+            tree_used.add(key)
             src, dst = (a, b) if parent.get(b) == a else (b, a)
             lines.append(f"  {id_of[src]} -> {id_of[dst]};")
         else:
