@@ -91,3 +91,33 @@ def test_build_pages_overview_only_when_no_aggregation():
     from topology_dot import build_pages
     pages = build_pages(_star(3), threshold=6)   # hub degree 3 < 6
     assert [p.title for p in pages] == ["Overview"]
+
+
+def test_generate_cdp_topology_drawio_multipage():
+    import xml.etree.ElementTree as ET
+    from cdp_topology import Topology, TopologyNode, TopologyEdge
+    from topology_dot import ParsedLayout, NodeBox, EdgeRoute
+    from drawio_generator import generate_cdp_topology_drawio
+
+    topo = Topology(
+        nodes=[TopologyNode("dist", is_rogue=False),
+               TopologyNode("rogue-x", is_rogue=True, platform="WS-C4500X", mgmt_ip="10.0.0.9")],
+        edges=[TopologyEdge("dist", "Gi1/0/1", "rogue-x", "Gi0/0")],
+    )
+    layout = ParsedLayout(
+        width=4.0, height=2.0,
+        nodes={"n0": NodeBox(1.0, 1.5, 0.8, 0.5), "n1": NodeBox(1.0, 0.5, 0.8, 0.5)},
+        edges=[EdgeRoute("n0", "n1", [(1.0, 1.25), (1.0, 0.75)])],
+    )
+    id_to_name = {"n0": "dist", "n1": "rogue-x"}
+    xml = generate_cdp_topology_drawio([("Overview", layout, id_to_name)], topo)
+
+    assert xml.startswith("<?xml")
+    root = ET.fromstring(xml.split("?>", 1)[1])
+    assert root.tag == "mxfile"
+    diagrams = root.findall("diagram")
+    assert len(diagrams) == 1 and diagrams[0].get("name") == "Overview"
+    assert "f8cecc" in xml                       # rogue node red
+    assert "(unscanned)" in xml                   # rogue multi-line label
+    assert "Gi1/0/1 ↔ Gi0/0" in xml               # edge port label from topology
+    assert 'as="points"' in xml                   # edge waypoints present
