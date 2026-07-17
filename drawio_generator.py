@@ -403,7 +403,10 @@ def generate_cdp_topology_drawio(rendered_pages, topology) -> str:
                 ET.SubElement(arr, "mxPoint",
                               x=str(int(px * CDP_TOPO_SCALE)),
                               y=str(int((H - py) * CDP_TOPO_SCALE) + 80))
-            # Port label as a child cell anchored near the downstream end.
+            # Port label as a child cell anchored near the target end. For tree
+            # edges (parent->child) the target is the downstream switch, as
+            # intended; on the minority of non-tree cross-links the anchored end
+            # may be the upstream node — cosmetic only (position, not wiring).
             if label:
                 lbl = ET.SubElement(mx_root, "mxCell", id=str(cid), value=label,
                                     style=CDP_GV_EDGE_LABEL_STYLE, vertex="1",
