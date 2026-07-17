@@ -62,6 +62,9 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False):
         "  node [shape=box, style=filled, fontsize=10];",
     ]
     if a3:
+        # A3 landscape as an upper bound (no trailing "!"): a large page is
+        # scaled down to fit, but a small aggregation page is left compact
+        # rather than stretched to fill the whole sheet.
         lines.append('  graph [size="16.5,11.7", ratio=compress];')
     for name in names:
         node = by_name.get(name)
