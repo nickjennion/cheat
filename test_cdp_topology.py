@@ -167,6 +167,27 @@ def test_build_topology_rogue_carries_feeding_description():
     assert r.description == "Link to comms cab"
 
 
+def test_build_topology_rogue_without_description_omits_blank_label_line():
+    from cdp_topology import build_topology
+    from topology_dot import node_label
+    raw = {"sw1": "\n".join([
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: rogue1",
+        "Platform: cisco WS-C3560C,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet1/0/5,  Port ID (outgoing port): GigabitEthernet0/1",
+        "Total cdp entries displayed : 1",
+    ])}
+    # descriptions present but with no entry for the rogue's feeding port.
+    descriptions = {("sw1", "Gi1/0/9"): "Unrelated port"}
+    topo = build_topology(raw, ["sw1"], descriptions)
+    r = {n.name: n for n in topo.nodes}["rogue1"]
+    assert r.description == ""
+    label = node_label(r)
+    assert "" not in label.split("\n"), f"blank line in label: {label!r}"
+    assert label == "rogue1\nWS-C3560C\n(unscanned)"
+
+
 def test_generate_cdp_topology_rogue_label_has_description(tmp_path, monkeypatch):
     import shutil
     if shutil.which("dot") is None:

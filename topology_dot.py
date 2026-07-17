@@ -21,7 +21,7 @@ def node_label(node) -> str:
         parts.append(node.platform)
     if node.mgmt_ip:
         parts.append(node.mgmt_ip)
-    if getattr(node, "description", ""):
+    if node.description:
         parts.append(node.description)
     parts.append("(unscanned)")
     return "\n".join(parts)
