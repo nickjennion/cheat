@@ -60,10 +60,10 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
             if bn == hn:
                 continue
             # Order-independent link key: a link seen from both ends collapses
-            # to one edge. Correctness relies on local_iface and neighbour_port
-            # sharing the same abbreviated form (e.g. "Gi1/0/2") that brief
-            # `show cdp neighbors` emits; a full-word CDP format would break the
-            # reciprocal match and double the edge.
+            # to one edge. Reciprocal ports match because parse_cdp_detail
+            # normalises every interface to the same short form (shorten_iface /
+            # _norm_port), so this side's local_iface equals the other side's
+            # neighbour_port for the same physical link.
             key = frozenset({(hn, nb.local_iface), (bn, nb.neighbour_port)})
             if key not in edges:
                 edges[key] = TopologyEdge(
