@@ -45,7 +45,7 @@ COL_WIDTHS = [28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26,
 
 UNSCANNED_TITLE = "Unscanned Cisco Switches (seen via CDP, not scanned this session)"
 UNSCANNED_HEADERS = [
-    "Unknown Neighbour", "Platform", "Capability",
+    "Unknown Neighbour", "Platform", "Mgmt IP", "Capability",
     "Seen On", "Local Interface", "Neighbour Port",
 ]
 
@@ -288,10 +288,11 @@ def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
         r = hdr_row + 1 + i
         ws.cell(row=r, column=1, value=nb.device)
         ws.cell(row=r, column=2, value=nb.platform)
-        ws.cell(row=r, column=3, value=nb.capability)
-        ws.cell(row=r, column=4, value=nb.seen_on)
-        ws.cell(row=r, column=5, value=nb.local_iface)
-        ws.cell(row=r, column=6, value=nb.neighbour_port)
+        ws.cell(row=r, column=3, value=nb.mgmt_ip)
+        ws.cell(row=r, column=4, value=nb.capability)
+        ws.cell(row=r, column=5, value=nb.seen_on)
+        ws.cell(row=r, column=6, value=nb.local_iface)
+        ws.cell(row=r, column=7, value=nb.neighbour_port)
 
 
 def write_combined_excel(

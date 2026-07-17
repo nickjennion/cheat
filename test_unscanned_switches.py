@@ -84,14 +84,18 @@ def test_write_unscanned_switches_block_with_rows():
     from unscanned_switches import SwitchNeighbour
     from excel_generator import write_unscanned_switches_block, UNSCANNED_HEADERS
     ws = openpyxl.Workbook().active
-    rows = [SwitchNeighbour("sw4", "C9KV-UADP", "S I", "Gi0/1", "Gi0/2", "sw1")]
+    rows = [SwitchNeighbour("sw4", "WS-C4500X-32", "Router Switch IGMP",
+                            "Gi0/1", "Gi0/2", "sw1", mgmt_ip="10.99.99.9")]
     write_unscanned_switches_block(ws, 5, rows)
     assert "Unscanned Cisco Switches" in ws.cell(row=5, column=1).value
-    assert [ws.cell(row=6, column=c).value for c in range(1, 7)] == UNSCANNED_HEADERS
+    assert [ws.cell(row=6, column=c).value for c in range(1, 8)] == UNSCANNED_HEADERS
     assert ws.cell(row=7, column=1).value == "sw4"
-    assert ws.cell(row=7, column=4).value == "sw1"
-    assert ws.cell(row=7, column=5).value == "Gi0/1"
-    assert ws.cell(row=7, column=6).value == "Gi0/2"
+    assert ws.cell(row=7, column=2).value == "WS-C4500X-32"
+    assert ws.cell(row=7, column=3).value == "10.99.99.9"   # Mgmt IP
+    assert ws.cell(row=7, column=4).value == "Router Switch IGMP"
+    assert ws.cell(row=7, column=5).value == "sw1"          # Seen On
+    assert ws.cell(row=7, column=6).value == "Gi0/1"        # Local Interface
+    assert ws.cell(row=7, column=7).value == "Gi0/2"        # Neighbour Port
 
 
 def test_write_unscanned_switches_block_empty():
