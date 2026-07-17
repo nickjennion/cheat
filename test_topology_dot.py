@@ -165,6 +165,25 @@ def test_generate_cdp_topology_drawio_multipage():
     assert lbl[0].find("mxGeometry").get("x") == "0.75"
 
 
+def test_generate_cdp_topology_drawio_no_label_edge_has_no_child_cell():
+    # An edge with no port label must not emit an empty edgeLabel child cell.
+    import xml.etree.ElementTree as ET
+    from topology_dot import ParsedLayout, NodeBox, EdgeRoute
+    from drawio_generator import generate_cdp_topology_drawio
+    topo = Topology(
+        nodes=[TopologyNode("a", is_rogue=False), TopologyNode("b", is_rogue=False)],
+        edges=[],  # no topology edges -> the label lookup is empty
+    )
+    layout = ParsedLayout(
+        width=2.0, height=2.0,
+        nodes={"n0": NodeBox(0.5, 1.5, 0.5, 0.3), "n1": NodeBox(0.5, 0.5, 0.5, 0.3)},
+        edges=[EdgeRoute("n0", "n1", [(0.5, 1.2), (0.5, 0.8)])],
+    )
+    xml = generate_cdp_topology_drawio([("Test", layout, {"n0": "a", "n1": "b"})], topo)
+    root = ET.fromstring(xml.split("?>", 1)[1])
+    assert [c for c in root.iter("mxCell") if "edgeLabel" in (c.get("style") or "")] == []
+
+
 def test_docs_mention_graphviz_install():
     from pathlib import Path
     reqs = Path("requirements.txt").read_text(encoding="utf-8").lower()
