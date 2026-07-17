@@ -10,7 +10,7 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 
 | File | Purpose |
 |------|---------|
-| `main_latest.py` | **Interactive menu launcher (current development entry point).** Two-stage menu flow: credentials (dnac.env or manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Pure UI — no business logic. Delegates all execution, parsing, and Excel generation to `cheat_core.py`. |
+| `main_latest.py` | **Interactive menu launcher (current development entry point).** Two-stage menu flow: credentials (dnac.env or manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Pure UI — no business logic. Delegates all execution, parsing, and Excel generation to `cheat_core.py`. Persists preferences (`prefs.env`) including command concurrency (Menu 5 `c`, 1–5) and topology device-icon style (**Options → `I`**, stencil vs plain). |
 | `main.py` | **Original CLI entry point.** Argparse-driven workflow: authenticate, fetch inventory, filter by hostname wildcard, execute five diagnostic commands via Command Runner, parse output, generate combined Excel report. Imports shared constants and execution logic from `cheat_core.py`. |
 | `main_debug.py` | **Debug variant of main.py.** Identical workflow with verbose logging enabled (`DEBUG = True`). Prints stack traces on errors, logs partial auth tokens, shows poll-by-poll task progress, and dumps raw JSON responses. **Note:** logs the username and first 30 characters of the bearer token to stdout — do not redirect output to shared files in this mode. |
 | `cheat_core.py` | **Shared execution and reporting module.** UI-agnostic. Provides `run_commands()` (execute/poll/save loop), `parse_outputs()` (parse loop wrapper), `generate_excel()` (modes: separate-per-device, one-workbook, combined-with-utilisation), and all shared constants (`DNAC_COMMANDS`, `COMMAND_RUNNER_DIR`, `EXCEL_DIR`, polling timeouts). Import this from any entry point. |
@@ -23,7 +23,18 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 | `interface_parser.py` | **CLI output parser.** Parses concatenated output from `show hardware`, `show interfaces`, `show interfaces status`, `show interface counters`, and `show cdp neighbors`. Extracts stack member metadata, interface state/protocol/VLAN/description/counters/last-input, CDP neighbor mappings, and computes a `suspect` flag indicating whether an interface has ever seen traffic. Returns sorted `InterfaceRecord` objects and a `StackMember` dictionary. |
 | `excel_generator.py` | **Excel report writer.** Takes parsed `InterfaceRecord`/`StackMember` data and produces a multi-sheet `.xlsx` workbook. One sheet per device, color-coded by interface state (green=connected, yellow=notconnect, gray=disabled, red=err-disabled), gold highlight for interfaces with traffic, orange for stack members with <42 days uptime. Freeze panes and auto-filter enabled. |
 | `consolidate_report.py` | **Report flattener.** Reads a multi-sheet port report produced by the main tool and consolidates every port from every device into a single "All Ports" sheet in a new workbook. Preserves all column styling, color coding, and formatting. Expects the standard 14-column header layout. |
-| `port_utilisation.py` | **Port usage analyser.** Reads a CHEAT Excel report and calculates per-switch port utilisation statistics: counts copper ports (GiX/0/X, TeX/0/X) with recent traffic vs. idle ports based on the "Last Input" column. Supports a configurable threshold (default 42 days). Outputs a readable stdout summary table and a timestamped summary Excel file. |
+| `port_utilisation.py` | **Port usage analyser.** Reads a CHEAT Excel report and calculates per-switch port utilisation statistics: counts copper ports (GiX/0/X, TeX/0/X) with recent traffic vs. idle ports based on the "Last Input" column. Supports a configurable threshold (default 42 days). Outputs a readable stdout summary table and a timestamped summary Excel file. Includes an **unscanned Cisco switches** block listing CDP neighbours (with mgmt IP) not scanned in the session. |
+| `unscanned_switches.py` | **Coverage gap finder.** From CDP data and the set of scanned hostnames, computes the list of Cisco switches seen as CDP neighbours but never explicitly scanned in the session ("rogue" switches). Feeds the unscanned-switches block in the port-utilisation report. |
+
+### CDP Topology
+
+| File | Purpose |
+|------|---------|
+| `cdp_detail.py` | **`show cdp neighbors detail` parser.** Parses the detail output into rich neighbour records carrying management IP and full platform/model string. Source of truth for both the topology diagram and the report's CDP-neighbour columns. |
+| `cdp_topology.py` | **Topology graph builder.** Turns parsed CDP data into a graph of `TopologyNode` objects (hostname, model, mgmt IP, rogue flag, feeding-port description), distinguishing scanned switches from unscanned "rogue" neighbours. |
+| `topology_dot.py` | **Graphviz DOT generator + layout parser.** Emits the topology as a Graphviz `dot` graph (tree ranking, aggregation-on-top, A3 sizing, selectable spline mode), parses `dot -Tplain` output back into coordinates, detects aggregation switches, and splits large sites into multiple pages. |
+| `drawio_generator.py` | **draw.io / mxGraph XML emitter.** Renders laid-out topology pages into a multi-page `.drawio` file: curved edges, aggregated port labels near the downstream switch, and a device-icon toggle (Cisco stencil shapes vs plain rectangles; grey scanned / red rogue). |
+| `splash_rich.py` | **Rich splash banner.** Renders the Cisco ASCII logo and tool banner at launch. |
 
 ### Testing
 
@@ -134,5 +145,6 @@ Default values used by `dnac_client.py` and `cheat_core.py`. All timeouts are in
 | `all_devices.json` | `main.py` / `main_latest.py` | Full DNAC device inventory |
 | `command_runner_outputs/command_output_*.txt` | `cheat_core.py` | Raw command output per device |
 | `excel_reports/port-information-*.xlsx` | `cheat_core.py` / `main.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) |
-| `excel_reports/port_utilisation_summary_*.xlsx` | `port_utilisation.py` | Per-switch port utilisation summary |
+| `excel_reports/port_utilisation_summary_*.xlsx` | `port_utilisation.py` | Per-switch port utilisation summary (+ unscanned Cisco switches block) |
+| `drawio_exports/*-cdp-topology.drawio` | `cheat_core.py` | Multi-page draw.io CDP physical topology diagram (Graphviz-laid-out) |
 | `token.env` | `dnac_client.py` | Bearer token from last auth |
