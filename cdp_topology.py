@@ -16,6 +16,7 @@ class TopologyNode:
     is_rogue: bool
     platform: str = ""  # truncated CDP platform, used in rogue labels
     mgmt_ip: str = ""   # management IP for rogue labels (from CDP detail)
+    description: str = ""  # feeding scanned-port's interface description (rogue labels)
 
 
 @dataclass
@@ -32,22 +33,29 @@ class Topology:
     edges: list[TopologyEdge]
 
 
-def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
+def build_topology(raw_outputs: dict[str, str], scanned_hostnames,
+                   descriptions: dict | None = None) -> Topology:
     """Build the switch topology graph from collected CDP output.
 
     Graph identity is the normalised name; the first-seen original string is
     the display name. Bidirectional links (seen from both scanned ends) are
     collapsed to one undirected edge.
+
+    descriptions maps (normalised scanned host, short local interface) ->
+    interface description; a rogue node inherits the description of the scanned
+    port that feeds it (first-seen parent wins).
     """
     scanned = {_norm_host(h) for h in scanned_hostnames}
+    descriptions = descriptions or {}
     nodes: dict[str, TopologyNode] = {}   # norm name -> node
 
-    def ensure_node(display: str, platform: str = "", mgmt_ip: str = "") -> str:
+    def ensure_node(display: str, platform: str = "", mgmt_ip: str = "",
+                    description: str = "") -> str:
         norm = _norm_host(display)
         if norm not in nodes:
             nodes[norm] = TopologyNode(
                 name=display, is_rogue=norm not in scanned,
-                platform=platform, mgmt_ip=mgmt_ip,
+                platform=platform, mgmt_ip=mgmt_ip, description=description,
             )
         return norm
 
@@ -58,7 +66,8 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames) -> Topology:
     for host, text in raw_outputs.items():
         hn = ensure_node(host)
         for nb in parse_cdp_switch_neighbors(text):
-            bn = ensure_node(nb.device, nb.platform, nb.mgmt_ip)
+            feed_desc = descriptions.get((hn, nb.local_iface), "")
+            bn = ensure_node(nb.device, nb.platform, nb.mgmt_ip, feed_desc)
             if bn == hn:
                 continue
             # Order-independent link key: a link seen from both ends collapses

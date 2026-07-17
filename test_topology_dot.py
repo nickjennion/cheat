@@ -22,6 +22,27 @@ def test_node_label_rogue_has_model_ip_unscanned():
     assert node_label(TopologyNode("s", is_rogue=False)) == "s"
 
 
+def test_node_label_rogue_includes_feeding_description():
+    from topology_dot import node_label
+    n = TopologyNode("r", is_rogue=True, platform="WS-C3560C",
+                     mgmt_ip="10.0.0.9", description="Link to 11P1 cab")
+    assert node_label(n) == "r\nWS-C3560C\n10.0.0.9\nLink to 11P1 cab\n(unscanned)"
+    # empty description / ip segments are omitted
+    n2 = TopologyNode("r2", is_rogue=True, platform="X")
+    assert node_label(n2) == "r2\nX\n(unscanned)"
+
+
+def test_edge_label_index_aggregates_parallel_ports():
+    from drawio_generator import _edge_label_index
+    topo = Topology(
+        nodes=[TopologyNode("acc", is_rogue=False), TopologyNode("dist", is_rogue=False)],
+        edges=[TopologyEdge("acc", "Te1/1/3", "dist", "Te1/1/9"),
+               TopologyEdge("acc", "Te2/1/4", "dist", "Te2/1/9")],
+    )
+    idx = _edge_label_index(topo)
+    assert idx[frozenset(("acc", "dist"))] == "Te1/1/3 ↔ Te1/1/9, Te2/1/4 ↔ Te2/1/9"
+
+
 def test_to_dot_keeps_parallel_edges():
     # Two physical links between the same switch pair (e.g. a dual uplink to a
     # VSS 4500 that reports one CDP device id) must both be emitted, not

@@ -27,7 +27,7 @@ from rich.progress import (
 
 from interface_parser import parse_output
 from excel_generator import write_excel, write_combined_excel
-from unscanned_switches import find_unscanned_switches
+from unscanned_switches import find_unscanned_switches, _norm_host
 from cdp_topology import build_topology
 from topology_dot import build_pages, to_dot, parse_plain
 from drawio_generator import generate_cdp_topology_drawio
@@ -343,11 +343,30 @@ def _run_dot(dot_str: str, dot_exe: str) -> "str | None":
     return result.stdout if result.returncode == 0 else None
 
 
+def _interface_descriptions(raw_outputs: dict) -> dict:
+    """Map (normalised host, short interface) -> interface description.
+
+    Reuses the interface parser over each device's raw output so rogue topology
+    nodes can show the description configured on the scanned port feeding them.
+    """
+    descriptions = {}
+    for host, text in raw_outputs.items():
+        try:
+            records, _ = parse_output(text, host)
+        except Exception:
+            continue
+        for rec in records:
+            if rec.description:
+                descriptions[(_norm_host(rec.switch), rec.iface)] = rec.description
+    return descriptions
+
+
 def generate_cdp_topology(
     raw_outputs: dict, scanned_hostnames, filename_stem: str
 ) -> tuple[bool, str]:
     """Build and write the multi-page CDP topology .drawio (Graphviz-laid)."""
-    topology = build_topology(raw_outputs, scanned_hostnames)
+    topology = build_topology(raw_outputs, scanned_hostnames,
+                              _interface_descriptions(raw_outputs))
     scanned_nodes = [n for n in topology.nodes if not n.is_rogue]
     if not scanned_nodes:
         return False, "⚠ CDP topology skipped: no scanned switches"

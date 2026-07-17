@@ -150,6 +150,48 @@ def test_generate_cdp_topology_skips_when_no_scanned(tmp_path, monkeypatch):
     assert not list(Path(tmp_path).glob("**/*.drawio"))
 
 
+def test_build_topology_rogue_carries_feeding_description():
+    from cdp_topology import build_topology
+    raw = {"sw1": "\n".join([
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: rogue1",
+        "Platform: cisco WS-C3560C,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet1/0/5,  Port ID (outgoing port): GigabitEthernet0/1",
+        "Total cdp entries displayed : 1",
+    ])}
+    descriptions = {("sw1", "Gi1/0/5"): "Link to comms cab"}
+    topo = build_topology(raw, ["sw1"], descriptions)
+    r = {n.name: n for n in topo.nodes}["rogue1"]
+    assert r.is_rogue is True
+    assert r.description == "Link to comms cab"
+
+
+def test_generate_cdp_topology_rogue_label_has_description(tmp_path, monkeypatch):
+    import shutil
+    if shutil.which("dot") is None:
+        import pytest
+        pytest.skip("graphviz 'dot' not installed")
+    import cheat_core
+    monkeypatch.chdir(tmp_path)
+    raw = {"sw1": "\n".join([
+        "show interfaces",
+        "GigabitEthernet1/0/5 is up, line protocol is up (connected)",
+        "  Description: UPLINK TO ROGUE CAB",
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: rogueX",
+        "Platform: cisco WS-C3560C,  Capabilities: Router Switch IGMP",
+        "Interface: GigabitEthernet1/0/5,  Port ID (outgoing port): GigabitEthernet0/1",
+        "Total cdp entries displayed : 1",
+    ])}
+    ok, _ = cheat_core.generate_cdp_topology(raw, list(raw.keys()), "d")
+    assert ok is True
+    import glob
+    xml = open(glob.glob("drawio_exports/*.drawio")[0], encoding="utf-8").read()
+    assert "UPLINK TO ROGUE CAB" in xml
+
+
 def test_build_topology_rogue_carries_mgmt_ip():
     from cdp_topology import build_topology
     # sw1 sees rogue sw4 with a management IP in its CDP detail block.
