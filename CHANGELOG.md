@@ -2,6 +2,22 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-07-19 — Splash hardening (review follow-up)
+
+- **Terminal-width guard.** `render()` now degrades the logo to the richest
+  design that fits (`diamond`/`stacked` → `lockup` → `generic`) so the mark no
+  longer folds into a broken mess on an 80-column terminal.
+- **Splash render failures are no longer silent.** A crash in the Rich splash
+  still falls back to the classic splash, but the traceback is surfaced when
+  `CHEAT_DEBUG` is set or `LOGGING` is on — so a real regression isn't
+  indistinguishable from "Rich not installed".
+- Prefs are read once per splash draw (design passed through), and the wordmark
+  string no longer shadows the options-loop variable.
+- **Tests:** parametrised smoke test across all four designs, VU-tag/diamond
+  presence per design, invalid-design fallback, stacked-hangs-below-bars, the
+  width-guard degradation, and prefs migration (old `prefs.env` gains the new
+  `SPLASH_DESIGN` default).
+
 ## 2026-07-17 — Co-brand splash (Cisco × Victoria University)
 
 - The Rich splash can now co-brand with Victoria University. A **`SPLASH_DESIGN`**
