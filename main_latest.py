@@ -102,7 +102,7 @@ SPLASH_TITLE = "CHEAT"
 SPLASH_SUBTITLE = "Cisco Homogeneous Environment Awareness Tool"
 
 
-def _show_splash_rich(menu_header, options) -> bool:
+def _show_splash_rich(menu_header, options, design="diamond") -> bool:
     """Draw the Rich splash over the blue theme. Returns False if unavailable."""
     try:
         import splash_rich
@@ -110,10 +110,16 @@ def _show_splash_rich(menu_header, options) -> bool:
     except Exception:
         return False
     try:
-        design = load_prefs().get("SPLASH_DESIGN", "diamond")
         splash_rich.render(Console(), SPLASH_TITLE, SPLASH_SUBTITLE,
                            menu_header, options, design=design)
     except Exception:
+        # A render failure here is a real bug, not a missing dependency — but we
+        # still fall back to the classic splash so the app stays usable. Surface
+        # the traceback when debugging (CHEAT_DEBUG) or logging is enabled, so it
+        # isn't silently indistinguishable from "Rich not installed".
+        if os.environ.get("CHEAT_DEBUG") or load_prefs().get("LOGGING") == "on":
+            import traceback
+            traceback.print_exc()
         return False
     # Rich resets SGR at the end of its output; re-assert the blue theme so the
     # menu prompt printed after us stays white-on-blue.
@@ -127,8 +133,9 @@ def show_splash(menu_header, options):
     """Clear the screen and draw the branded Cisco splash with a menu."""
     theme_clear()
     # Rich splash only when interactive and selected; always fall back to classic.
-    if _COLOR_ON and load_prefs().get("SPLASH_STYLE", "rich") == "rich":
-        if _show_splash_rich(menu_header, options):
+    prefs = load_prefs()  # single read; pass the chosen design straight through
+    if _COLOR_ON and prefs.get("SPLASH_STYLE", "rich") == "rich":
+        if _show_splash_rich(menu_header, options, prefs.get("SPLASH_DESIGN", "diamond")):
             return
     for line in splash.build_lines(SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options):
         print("  " + line)

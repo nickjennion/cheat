@@ -135,6 +135,25 @@ def _compose_logo(left_rows, field, top, bottom, centre=None):
     return out
 
 
+# Minimum terminal width each design needs to render without the bars folding
+# (HU field + 3-space gap + bar width, or just the bars for "generic").
+_DESIGN_WIDTH = {"diamond": 87, "stacked": 87, "lockup": 80, "generic": _BAR_W}
+
+
+def _fit_design(design, width):
+    """Degrade to the richest design that fits `width` (keeps the splash intact).
+
+    A too-wide logo makes Rich fold the bar rows and the mark shatters, so on a
+    narrow terminal step diamond/stacked → lockup → generic rather than break.
+    """
+    if width >= _DESIGN_WIDTH.get(design, _DESIGN_WIDTH["diamond"]):
+        return design
+    for fallback in ("lockup", "generic"):
+        if width >= _DESIGN_WIDTH[fallback]:
+            return fallback
+    return "generic"  # least-bad on very narrow terminals
+
+
 def _logo(design, top, bottom):
     """Build the logo block for a splash design.
 
@@ -161,14 +180,17 @@ def render(console, title, subtitle, menu_header, options, design="diamond"):
     Every element is printed with an `on rgb(DEEP)` base style so the blue fills
     behind the text and the centering padding — matching the app's themed screen.
     """
+    # Fall back to a narrower design if the terminal can't fit the chosen one,
+    # so the logo never folds into a broken mess on an 80-column screen.
+    design = _fit_design(design, console.width)
     # Bars stay in the light half of the palette so they read on the blue bg;
     # the HU mark (if any) sits to their left for the co-brand lockup.
     logo = _logo(design, WHITE, CYAN)
     # Co-brand tag rides the same cyan→white gradient as the Cisco wordmark.
-    label = "CISCO  ·  DNA CENTER"
+    tagline = "CISCO  ·  DNA CENTER"
     if design != "generic":
-        label += "     ×  Hamburger University"
-    wordmark = _hgradient(label, CYAN, WHITE)
+        tagline += "     ×  Hamburger University"
+    wordmark = _hgradient(tagline, CYAN, WHITE)
     wordmark.justify = "center"
 
     hero = _hgradient("  ".join(title), CYAN, WHITE)  # letter-spaced for weight
