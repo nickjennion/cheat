@@ -217,6 +217,76 @@ def test_generate_cdp_topology_drawio_no_label_edge_has_no_child_cell():
     assert [c for c in root.iter("mxCell") if "edgeLabel" in (c.get("style") or "")] == []
 
 
+def _pyramid_topo():
+    # dist(4500) — acc-9300 & acc-3560 hang off it (middle); the 3560/9200 that
+    # hang off those (not off a 4500) are desk (bottom); a router with no known
+    # model token defaults to the middle.
+    nodes = [TopologyNode(n, is_rogue=False) for n in (
+        "core-4500-1", "acc-9300-a", "acc-3560-b", "desk-3560-x",
+        "desk-9200-y", "edge-router-z")]
+    edges = [
+        TopologyEdge("core-4500-1", "Te1/1", "acc-9300-a", "Gi0/1"),
+        TopologyEdge("core-4500-1", "Te1/2", "acc-3560-b", "Gi0/1"),
+        TopologyEdge("acc-9300-a", "Gi0/2", "desk-3560-x", "Gi0/1"),
+        TopologyEdge("acc-3560-b", "Gi0/2", "desk-9200-y", "Gi0/1"),
+        TopologyEdge("core-4500-1", "Te1/3", "edge-router-z", "Gi0/0"),
+    ]
+    return Topology(nodes=nodes, edges=edges)
+
+
+def test_switch_tier_by_hostname_model():
+    from topology_dot import switch_tier
+    assert switch_tier("core-4500-1", near_dist=False) == 0     # 4500 -> top always
+    assert switch_tier("acc-9300-a", near_dist=True) == 1       # access under a 4500
+    assert switch_tier("acc-3560-b", near_dist=True) == 1
+    assert switch_tier("desk-3560-x", near_dist=False) == 2     # access model, no 4500 -> desk
+    assert switch_tier("orphan-9300", near_dist=False) == 2     # 9300 not under 4500 -> desk
+    assert switch_tier("edge-router-z", near_dist=True) == 1    # unknown model -> middle
+    assert switch_tier("mystery-box", near_dist=False) == 1     # unknown, no 4500 -> middle
+
+
+def test_pyramid_tiers_uses_adjacency():
+    from topology_dot import pyramid_tiers, _adjacency
+    topo = _pyramid_topo()
+    tiers = pyramid_tiers([n.name for n in topo.nodes], _adjacency(topo))
+    assert tiers["core-4500-1"] == 0
+    assert tiers["acc-9300-a"] == 1 and tiers["acc-3560-b"] == 1
+    assert tiers["desk-3560-x"] == 2 and tiers["desk-9200-y"] == 2
+    assert tiers["edge-router-z"] == 1                          # unknown -> middle
+
+
+def test_to_dot_pyramid_emits_rank_groups_and_soft_edges():
+    from topology_dot import to_dot
+    topo = _pyramid_topo()
+    dot, _ = to_dot(topo, [n.name for n in topo.nodes], "core-4500-1", pyramid=True)
+    assert dot.count("rank=same") == 3               # three tiers present
+    assert "style=invis" in dot                       # tier-ordering anchor chain
+    # every physical link is drawn but non-ranking, so links can't distort tiers
+    assert dot.count("constraint=false") == 5         # all five edges
+    assert "->;" not in dot                            # no bare ranking edges
+
+
+def test_pyramid_layout_stacks_tiers_top_to_bottom():
+    # End-to-end through the real dot binary: distribution must sit above access,
+    # access above desk (graphviz plain y grows upward, so y_dist > y_acc > y_desk).
+    import shutil
+    import subprocess
+    if not shutil.which("dot"):
+        import pytest
+        pytest.skip("graphviz 'dot' not installed")
+    from topology_dot import to_dot, parse_plain
+    topo = _pyramid_topo()
+    dot, id_to_name = to_dot(topo, [n.name for n in topo.nodes], "core-4500-1",
+                             pyramid=True)
+    plain = subprocess.run(["dot", "-Tplain"], input=dot, capture_output=True,
+                           text=True, check=True).stdout
+    layout = parse_plain(plain)
+    y = {id_to_name[i]: box.y for i, box in layout.nodes.items()}
+    assert y["core-4500-1"] > y["acc-9300-a"] > y["desk-3560-x"]
+    assert y["acc-9300-a"] == y["acc-3560-b"]         # siblings share the tier row
+    assert y["desk-3560-x"] == y["desk-9200-y"]
+
+
 def test_docs_mention_graphviz_install():
     from pathlib import Path
     reqs = Path("requirements.txt").read_text(encoding="utf-8").lower()

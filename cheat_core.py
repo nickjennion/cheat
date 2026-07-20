@@ -362,11 +362,14 @@ def _interface_descriptions(raw_outputs: dict) -> dict:
 
 
 def generate_cdp_topology(
-    raw_outputs: dict, scanned_hostnames, filename_stem: str, icons: str = "stencil"
+    raw_outputs: dict, scanned_hostnames, filename_stem: str, icons: str = "stencil",
+    layout: str = "auto",
 ) -> tuple[bool, str]:
     """Build and write the multi-page CDP topology .drawio (Graphviz-laid).
 
     icons: "stencil" for Cisco device icons (default) or "plain" for rectangles.
+    layout: "auto" (Graphviz BFS ranking) or "pyramid" (distribution/access/desk
+    three-tier ranks by hostname model — see topology_dot.switch_tier).
     """
     topology = build_topology(raw_outputs, scanned_hostnames,
                               _interface_descriptions(raw_outputs))
@@ -391,7 +394,8 @@ def generate_cdp_topology(
         # especially the whole-site Overview — is ever silently dropped.
         for mode in ("spline", "ortho"):
             dot_str, id_to_name = to_dot(
-                topology, page.node_names, page.root_name, a3=page.a3, spline_mode=mode)
+                topology, page.node_names, page.root_name, a3=page.a3,
+                spline_mode=mode, pyramid=(layout == "pyramid"))
             plain = _run_dot(dot_str, dot_exe)
             if plain is not None:
                 break

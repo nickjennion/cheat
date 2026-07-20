@@ -347,6 +347,7 @@ DEFAULT_PREFS = {
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
     "SPLASH_DESIGN": "diamond",  # logo: "diamond" | "lockup" | "stacked" | "generic"
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
+    "TOPOLOGY_LAYOUT": "auto",  # topology ranks: "auto" (Graphviz) or "pyramid" (dist/access/desk)
 }
 
 
@@ -396,10 +397,11 @@ def menu_options():
         print(f"  H) Splash style         [{prefs['SPLASH_STYLE']}]")
         print(f"  I) Topology icons       [{prefs['DEVICE_ICONS']}]")
         print(f"  J) Co-brand logo        [{prefs['SPLASH_DESIGN']}]")
+        print(f"  K) Topology layout      [{prefs['TOPOLOGY_LAYOUT']}]  (auto | pyramid: dist/access/desk)")
         print()
         print("  0) Back")
         print()
-        choice = input("  Select [A-J, 0]: ").strip().upper()
+        choice = input("  Select [A-K, 0]: ").strip().upper()
 
         if choice == "0":
             save_prefs(prefs)
@@ -442,6 +444,8 @@ def menu_options():
             _cycle = {"diamond": "lockup", "lockup": "stacked",
                       "stacked": "generic", "generic": "diamond"}
             prefs["SPLASH_DESIGN"] = _cycle.get(prefs["SPLASH_DESIGN"], "diamond")
+        elif choice == "K":
+            prefs["TOPOLOGY_LAYOUT"] = "pyramid" if prefs["TOPOLOGY_LAYOUT"] == "auto" else "auto"
         else:
             print("\n  Invalid selection.")
             pause()
@@ -986,9 +990,11 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
     for _, msg in results:
         print(f"\n  {msg}")
     if mode == 3:
+        _tp = load_prefs()
         _, topo_msg = generate_cdp_topology(
             outputs, outputs.keys(), stem,
-            icons=load_prefs().get("DEVICE_ICONS", "stencil"))
+            icons=_tp.get("DEVICE_ICONS", "stencil"),
+            layout=_tp.get("TOPOLOGY_LAYOUT", "auto"))
         print(f"\n  {topo_msg}")
     pause()
 
