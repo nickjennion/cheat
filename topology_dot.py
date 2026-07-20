@@ -27,14 +27,54 @@ def node_label(node) -> str:
     return "\n".join(parts)
 
 
+# Pyramid layout: hostname model tokens decide the tier (distribution / access /
+# desk). Distribution switches carry a 4500 in the hostname; the access family
+# below them are 9300/9200/3850/3560. See switch_tier for the full rule.
+_DIST_TOKEN = "4500"
+_ACCESS_TOKENS = ("9300", "9200", "3850", "3560")
+
+
+def switch_tier(name: str, near_dist: bool) -> int:
+    """Pyramid tier for a hostname: 0=distribution (top), 1=access (middle),
+    2=desk (bottom).
+
+    - hostname contains 4500                    -> 0 (distribution fibre)
+    - hostname contains 9300/9200/3850/3560:
+        directly cabled to a 4500               -> 1 (access)
+        otherwise                               -> 2 (desk)
+    - anything else (incl. most rogue/unscanned
+      nodes, whose model isn't in the hostname) -> 1 (the neutral middle)
+
+    `near_dist` is True when the node is directly cabled to a 4500-class switch.
+    """
+    if _DIST_TOKEN in name:
+        return 0
+    if any(tok in name for tok in _ACCESS_TOKENS):
+        return 1 if near_dist else 2
+    return 1
+
+
+def pyramid_tiers(names, adj) -> dict:
+    """Map each node name to its pyramid tier given the subgraph adjacency."""
+    dist = {n for n in names if _DIST_TOKEN in n}
+    return {n: switch_tier(n, bool(adj[n] & dist)) for n in names}
+
+
 def to_dot(topology, node_names, root_name: str, a3: bool = False,
-           spline_mode: str = "spline"):
+           spline_mode: str = "spline", pyramid: bool = False):
     """Return (dot_string, {synthetic_id: node_name}) for the given node subset.
 
     Tree edges (from a BFS spanning tree rooted at root_name) are directed
     parent->child so the aggregation ranks to the top; non-tree edges get
     constraint=false so they are drawn without distorting the ranks. Edge labels
     are intentionally omitted (the draw.io emitter labels edges itself).
+
+    When `pyramid` is set, ranks are pinned to a classic distribution/access/desk
+    three-tier hierarchy by hostname model instead (see switch_tier): every node
+    is rank-grouped by tier, an invisible anchor chain orders the tiers top to
+    bottom, and all physical links are drawn constraint=false so they can't
+    distort those ranks. This trades the free-form BFS layout for a compact
+    pyramid when the flat graph spreads too wide across the horizontal axis.
 
     spline_mode is the Graphviz `splines` value (default "spline" — smooth and
     node-avoiding, and reliable at full-site scale; the fragile "curved" mode
@@ -83,6 +123,27 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False,
         fill = "#f8cecc" if (node and node.is_rogue) else "#f5f5f5"
         lbl = (node_label(node) if node else name).replace('"', "").replace("\n", "\\n")
         lines.append(f'  {id_of[name]} [label="{lbl}", fillcolor="{fill}"];')
+
+    if pyramid:
+        # Pin ranks to distribution/access/desk tiers by hostname model. Each
+        # tier is a rank=same group; an invisible chain between one anchor per
+        # present tier orders them top->bottom. Physical links are all drawn
+        # constraint=false so within-tier links don't fight the rank grouping
+        # (they still steer left/right ordering, keeping children under parents).
+        tiers = pyramid_tiers(names, adj)
+        present = [t for t in (0, 1, 2) if any(tiers[n] == t for n in names)]
+        for t in present:
+            members = sorted(n for n in names if tiers[n] == t)
+            grp = " ".join(id_of[m] for m in members)
+            lines.append(f"  {{ rank=same; {grp}; }}")
+        anchors = [sorted(n for n in names if tiers[n] == t)[0] for t in present]
+        for a, b in zip(anchors, anchors[1:]):
+            lines.append(f"  {id_of[a]} -> {id_of[b]} [style=invis];")
+        for a, b in sub_edges:
+            src, dst = (a, b) if tiers[a] <= tiers[b] else (b, a)
+            lines.append(f"  {id_of[src]} -> {id_of[dst]} [constraint=false];")
+        lines.append("}")
+        return "\n".join(lines), {v: k for k, v in id_of.items()}
 
     # Emit every physical link. Parallel links between the same pair (a dual
     # uplink to a VSS switch that reports one CDP device id) must all be drawn;

@@ -2,6 +2,27 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-07-20 — Pyramid topology layout (distribution / access / desk)
+
+- **New `TOPOLOGY_LAYOUT` preference (Options → `K`)** toggles the CDP topology
+  between `auto` (the existing Graphviz BFS ranking) and `pyramid` — a classic
+  three-tier distribution/access/desk hierarchy. `pyramid` fixes the
+  "everything spreads across the horizontal axis" problem by pinning switches to
+  three rows instead of a free-form tree.
+- **Tiers are decided by hostname model** (`topology_dot.switch_tier`):
+  - **Top — distribution:** hostname contains `4500`.
+  - **Middle — access:** hostname contains `9300` / `9200` / `3850` / `3560`
+    **and** the switch is directly cabled to a `4500`. Switches whose model
+    isn't in the hostname (including most rogue/unscanned nodes) also default
+    here.
+  - **Bottom — desk:** a `9300` / `9200` / `3850` / `3560` **not** directly
+    cabled to a `4500`.
+- **Implementation.** In pyramid mode `to_dot` rank-groups each tier
+  (`rank=same`), orders the tiers top→bottom with an invisible anchor chain, and
+  draws every physical link `constraint=false` so links steer left/right
+  placement (children under parents) without distorting the ranks. Parallel
+  uplinks are still all drawn. `auto` is unchanged and remains the default.
+
 ## 2026-07-19 — Splash hardening (review follow-up)
 
 - **Terminal-width guard.** `render()` now degrades the logo to the richest
