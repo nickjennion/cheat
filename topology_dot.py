@@ -110,7 +110,7 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False,
     lines = [
         "digraph G {",
         "  rankdir=TB;",
-        f"  graph [splines={spline_mode}, nodesep=0.4, ranksep=0.7];",
+        f"  graph [splines={spline_mode}, nodesep=0.4, ranksep={1.4 if pyramid else 0.7}];",
         "  node [shape=box, style=filled, fontsize=10];",
     ]
     if a3:
