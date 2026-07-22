@@ -243,6 +243,8 @@ def test_switch_tier_by_hostname_model():
     assert switch_tier("orphan-9300", near_dist=False) == 2     # 9300 not under 4500 -> desk
     assert switch_tier("edge-router-z", near_dist=True) == 1    # unknown model -> middle
     assert switch_tier("mystery-box", near_dist=False) == 1     # unknown, no 4500 -> middle
+    assert switch_tier("b4-sw01-ap01", near_dist=False) == 3    # -ap in name -> AP tier
+    assert switch_tier("B4-SW01-AP01", near_dist=True) == 3     # case-insensitive
 
 
 def test_pyramid_tiers_uses_adjacency():
