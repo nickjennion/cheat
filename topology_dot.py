@@ -27,21 +27,23 @@ def node_label(node) -> str:
     return "\n".join(parts)
 
 
-# Pyramid layout: hostname model tokens decide the tier (distribution / access /
-# desk). Distribution switches carry a 4500 in the hostname; the access family
-# below them are 9300/9200/3850/3560. See switch_tier for the full rule.
+# Pyramid layout: hostname tokens decide the tier (distribution / access /
+# desk / AP). Distribution switches carry a 4500 in the hostname; the access
+# family below them are 9300/9200/3850/3560; APs match -ap in the hostname.
+# See switch_tier for the full rule.
 _DIST_TOKEN = "4500"
 _ACCESS_TOKENS = ("9300", "9200", "3850", "3560")
 
 
 def switch_tier(name: str, near_dist: bool) -> int:
     """Pyramid tier for a hostname: 0=distribution (top), 1=access (middle),
-    2=desk (bottom).
+    2=desk, 3=AP (bottom).
 
     - hostname contains 4500                    -> 0 (distribution fibre)
     - hostname contains 9300/9200/3850/3560:
         directly cabled to a 4500               -> 1 (access)
         otherwise                               -> 2 (desk)
+    - hostname contains -ap (access point)      -> 3 (AP, bottom)
     - anything else (incl. most rogue/unscanned
       nodes, whose model isn't in the hostname) -> 1 (the neutral middle)
 
@@ -49,6 +51,8 @@ def switch_tier(name: str, near_dist: bool) -> int:
     """
     if _DIST_TOKEN in name:
         return 0
+    if "-ap" in name.lower():
+        return 3
     if any(tok in name for tok in _ACCESS_TOKENS):
         return 1 if near_dist else 2
     return 1
@@ -131,7 +135,7 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False,
         # constraint=false so within-tier links don't fight the rank grouping
         # (they still steer left/right ordering, keeping children under parents).
         tiers = pyramid_tiers(names, adj)
-        present = [t for t in (0, 1, 2) if any(tiers[n] == t for n in names)]
+        present = [t for t in (0, 1, 2, 3) if any(tiers[n] == t for n in names)]
         for t in present:
             members = sorted(n for n in names if tiers[n] == t)
             grp = " ".join(id_of[m] for m in members)
