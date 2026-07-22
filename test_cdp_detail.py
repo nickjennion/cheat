@@ -84,3 +84,12 @@ def test_parse_cdp_detail_platform_and_caps_independent():
     n = parse_cdp_detail(text)[0]
     assert n.platform == "Weird Platform Name"
     assert is_switch(n) is True
+
+
+def test_is_access_point():
+    from cdp_detail import CdpNeighbor, is_access_point, is_switch
+    ap = CdpNeighbor("b4-sw01-ap01", "", "AIR-CAP2702I", "", "Gi0/1", "Dot11Radio0")
+    assert is_access_point(ap) is True
+    assert is_switch(ap) is False      # Trans-Bridge, not Switch — would have been filtered
+    non_ap = CdpNeighbor("b4-sw01", "", "WS-C3560", "Switch", "Gi0/2", "Gi0/1")
+    assert is_access_point(non_ap) is False

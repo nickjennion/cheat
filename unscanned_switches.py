@@ -7,7 +7,7 @@ and diffs the switch-capable neighbours against the set of scanned hosts.
 
 from dataclasses import dataclass, replace
 
-from cdp_detail import parse_cdp_detail, is_switch
+from cdp_detail import parse_cdp_detail, is_switch, is_access_point
 
 
 @dataclass
@@ -25,7 +25,7 @@ def parse_cdp_switch_neighbors(text: str) -> list[SwitchNeighbour]:
     """Switch-capable CDP neighbours from `show cdp neighbors detail` output."""
     out: list[SwitchNeighbour] = []
     for nb in parse_cdp_detail(text):
-        if not is_switch(nb):
+        if not (is_switch(nb) or is_access_point(nb)):
             continue
         out.append(SwitchNeighbour(
             device=nb.device,
