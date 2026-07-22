@@ -41,6 +41,11 @@ def is_switch(neighbor: CdpNeighbor) -> bool:
     return "switch" in neighbor.capabilities.lower()
 
 
+def is_access_point(neighbor: CdpNeighbor) -> bool:
+    """True when the neighbour looks like a wireless AP (-ap in device name)."""
+    return "-ap" in neighbor.device.lower()
+
+
 def _clean_platform(s: str) -> str:
     s = re.sub(r"^\s*cisco\s+", "", s.strip(), flags=re.IGNORECASE)
     s = re.sub(r"\s*\(PID:[^)]*\)\s*$", "", s)
