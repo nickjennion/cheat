@@ -5,7 +5,7 @@ Pure graph building and layout — no XML, no file IO. Nodes are switches
 (scanned + rogue), edges are switch<->switch CDP links.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from unscanned_switches import parse_cdp_switch_neighbors, _norm_host
 
@@ -57,6 +57,16 @@ def build_topology(raw_outputs: dict[str, str], scanned_hostnames,
                 name=display, is_rogue=norm not in scanned,
                 platform=platform, mgmt_ip=mgmt_ip, description=description,
             )
+        else:
+            # Enrich existing node with CDP-reported platform/IP if missing.
+            # Scanned nodes are added with no platform/IP; this fills them in
+            # when another switch reports them as a CDP neighbour.
+            n = nodes[norm]
+            if platform and not n.platform:
+                nodes[norm] = replace(n, platform=platform)
+                n = nodes[norm]
+            if mgmt_ip and not n.mgmt_ip:
+                nodes[norm] = replace(n, mgmt_ip=mgmt_ip)
         return norm
 
     for h in scanned_hostnames:

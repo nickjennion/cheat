@@ -9,21 +9,20 @@ from dataclasses import dataclass
 
 
 def node_label(node) -> str:
-    """Newline-separated display label.
+    """Newline-separated display label: hostname / model / mgmt IP.
 
-    Rogue nodes carry: hostname / model / mgmt IP / feeding-port description /
-    (unscanned). Empty segments are omitted.
+    Rogue nodes also append the feeding-port description and '(unscanned)'.
+    Empty segments are omitted for all node types.
     """
-    if not node.is_rogue:
-        return node.name
     parts = [node.name]
     if node.platform:
         parts.append(node.platform)
     if node.mgmt_ip:
         parts.append(node.mgmt_ip)
-    if node.description:
-        parts.append(node.description)
-    parts.append("(unscanned)")
+    if node.is_rogue:
+        if node.description:
+            parts.append(node.description)
+        parts.append("(unscanned)")
     return "\n".join(parts)
 
 
