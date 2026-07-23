@@ -991,8 +991,19 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
         print(f"\n  {msg}")
     if mode == 3:
         _tp = load_prefs()
+        topo_outputs = outputs
+        print("\n  Topology: filter by hostname prefix (blank = all switches)")
+        print("  Space-separated prefixes, e.g.  sta-10s1  sta-11s1")
+        raw_pfx = input("  Prefix(es): ").strip()
+        if raw_pfx:
+            pfxs = [p.lower() for p in raw_pfx.split() if p.strip()]
+            topo_outputs = {h: t for h, t in outputs.items()
+                            if any(h.lower().startswith(p) for p in pfxs)}
+            if not topo_outputs:
+                print("  ⚠ No switches matched — using all switches.")
+                topo_outputs = outputs
         _, topo_msg = generate_cdp_topology(
-            outputs, outputs.keys(), stem,
+            topo_outputs, topo_outputs.keys(), stem,
             icons=_tp.get("DEVICE_ICONS", "stencil"),
             layout=_tp.get("TOPOLOGY_LAYOUT", "auto"))
         print(f"\n  {topo_msg}")

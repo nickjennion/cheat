@@ -272,12 +272,16 @@ def build_pages(topology, threshold: int = 6) -> list:
     aggset = set(aggs)
     for agg in aggs:
         members = {agg}
+        sibling_hubs = set()  # peer hubs reachable via shared access switches
         for nb in adj[agg]:                 # hop 1: direct neighbours
             members.add(nb)
             if nb in aggset:
                 continue                    # don't expand through another hub
             for leaf in adj[nb]:            # hop 2: their leaves
-                if leaf not in aggset:
+                if leaf in aggset and leaf != agg:
+                    sibling_hubs.add(leaf)  # dual-uplink peer — include but don't expand
+                elif leaf not in aggset:
                     members.add(leaf)
+        members.update(sibling_hubs)        # show dual uplinks to sibling hubs
         pages.append(Page(agg, sorted(members), agg, a3=True))
     return pages
