@@ -79,12 +79,18 @@ def parse_last_input_days(last_input_str: str) -> Optional[float]:
 
 
 def is_copper_port(iface: str) -> bool:
-    """Check if interface is a base copper port (GiX/0/X or TeX/0/X)."""
+    """Check if interface is a base copper port.
+
+    Matches stacked format (Gi1/0/1, Te1/0/1) and non-stacked format
+    (Gi0/1, Fa0/1) used by older switches such as the 3560.
+    """
     if not iface:
         return False
     iface_upper = str(iface).upper()
-    # Match Gi<member>/0/<port> or Te<member>/0/<port> patterns
-    return bool(re.match(r"^(GI|TE)\d+/0/\d+", iface_upper))
+    return bool(
+        re.match(r"^(GI|TE)\d+/0/\d+$", iface_upper) or  # stacked: Gi1/0/1
+        re.match(r"^(GI|FA)\d+/\d+$", iface_upper)         # non-stacked: Gi0/1, Fa0/1
+    )
 
 
 def analyse_workbook(
