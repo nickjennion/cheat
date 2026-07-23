@@ -786,9 +786,13 @@ def menu_3(devices, client, host, username):
         choice = input("  Select [1-3]: ").strip()
 
         if choice == "1":
-            selected = menu_4(devices, client, host, username)
-            if selected:
-                menu_5(selected, client, host, username)
+            while True:
+                selected = menu_4(devices, client, host, username)
+                if not selected:
+                    break
+                result = menu_5(selected, client, host, username)
+                if result != "reselect":
+                    break
         elif choice == "2":
             theme_clear()
             print(f"  {'#':<5} {'Hostname':<45} {'Platform':<22} {'IP Address'}")
@@ -1280,12 +1284,25 @@ def menu_5(selected_devices, client, host, username):
         print("  p) Toggle copper only")
         print("  l) Toggle link-state column")
         print("  c) Concurrency (1-5)")
+        print("  9) Back to switch list")
+        print("  r) Re-auth token")
         print("  8) Back")
         print()
-        choice = input("  Select [1-8 / s / p / l / c]: ").strip().lower()
+        choice = input("  Select [1-9 / r / s / p / l / c]: ").strip().lower()
 
         if choice == "8":
             return
+
+        elif choice == "9":
+            return "reselect"
+
+        elif choice == "r":
+            print()
+            if client.authenticate():
+                print("  Token refreshed successfully.")
+            else:
+                print("  Re-auth failed — token unchanged.")
+            pause()
 
         elif choice == "s":
             slow_mode = not slow_mode
