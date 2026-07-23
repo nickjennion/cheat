@@ -234,10 +234,21 @@ def _adjacency(topology):
 
 
 def select_aggregations(topology, threshold: int = 6) -> list:
-    """Node names whose CDP-neighbour degree >= threshold, highest degree first."""
+    """Node names whose CDP-neighbour degree >= threshold, highest degree first.
+
+    AP nodes (names containing -ap) are excluded from hub candidacy and from
+    the degree count so that access switches with many APs don't get promoted
+    to hubs, which would create very large pages and cause Graphviz timeouts.
+    """
     adj = _adjacency(topology)
-    hubs = [name for name, nbrs in adj.items() if len(nbrs) >= threshold]
-    return sorted(hubs, key=lambda n: (-len(adj[n]), n))
+    ap_names = {n.name for n in topology.nodes if "-ap" in n.name.lower()}
+    switch_degree = {
+        name: len(nbrs - ap_names)
+        for name, nbrs in adj.items()
+        if name not in ap_names
+    }
+    hubs = [name for name, deg in switch_degree.items() if deg >= threshold]
+    return sorted(hubs, key=lambda n: (-switch_degree[n], n))
 
 
 def build_pages(topology, threshold: int = 6) -> list:
@@ -249,7 +260,11 @@ def build_pages(topology, threshold: int = 6) -> list:
     if not topology.nodes:
         return []
     adj = _adjacency(topology)
-    root = max(adj, key=lambda n: (len(adj[n]), n))   # global max-degree node
+    ap_names = {n.name for n in topology.nodes if "-ap" in n.name.lower()}
+    root = max(
+        (n for n in adj if n not in ap_names),
+        key=lambda n: (len(adj[n] - ap_names), n),
+    )  # highest switch-only degree node as root
     all_names = [n.name for n in topology.nodes]
     pages = [Page("Overview", all_names, root, a3=False)]
 

@@ -40,20 +40,28 @@ CDP_GV_EDGE_STYLE = "curved=1;html=1;endArrow=none;fontSize=8;"
 # --- topology node styling (Device-icons toggle: "plain" | "stencil") ---
 _SCANNED_FILL, _SCANNED_STROKE = "#f5f5f5", "#666666"
 _ROGUE_FILL, _ROGUE_STROKE = "#f8cecc", "#b85450"
+_AP_FILL, _AP_STROKE = "#d5e8d4", "#82b366"
+
+
+def _is_ap_node(node) -> bool:
+    return bool(node and "-ap" in node.name.lower())
 
 
 def _cisco_shape(node) -> str:
-    """The Cisco stencil for a topology node. Switch-only today; the mapper is
-    left open to add router/AP/firewall/L3-switch icons later."""
+    if _is_ap_node(node):
+        return "mxgraph.cisco.wireless.access_point"
     return "mxgraph.cisco.switches.workgroup_switch"
 
 
 def _node_style(node, icons: str) -> str:
     """draw.io style for a topology node. 'plain' = clean rectangle;
-    'stencil' = a real Cisco switch icon. Grey = scanned, red = rogue."""
-    rogue = bool(node and node.is_rogue)
-    fill = _ROGUE_FILL if rogue else _SCANNED_FILL
-    stroke = _ROGUE_STROKE if rogue else _SCANNED_STROKE
+    'stencil' = Cisco icon. Grey = scanned switch, red = rogue switch, green = AP."""
+    if _is_ap_node(node):
+        fill, stroke = _AP_FILL, _AP_STROKE
+    elif bool(node and node.is_rogue):
+        fill, stroke = _ROGUE_FILL, _ROGUE_STROKE
+    else:
+        fill, stroke = _SCANNED_FILL, _SCANNED_STROKE
     if icons == "plain":
         return (f"rounded=0;whiteSpace=wrap;html=1;fillColor={fill};"
                 f"strokeColor={stroke};fontColor=#333333;fontSize=9;verticalAlign=middle;")
@@ -388,7 +396,7 @@ def generate_cdp_topology_drawio(rendered_pages, topology, icons: str = "stencil
                   "text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=14;",
                   10, 10, 800, 30)
         _add_cell(mx_root, "legend",
-                  "Grey = scanned switch   |   Red = unscanned (rogue) switch",
+                  "Grey = scanned switch   |   Red = unscanned (rogue) switch   |   Green = access point",
                   "text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;",
                   10, 44, 800, 20)
 
