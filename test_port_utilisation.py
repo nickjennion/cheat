@@ -85,3 +85,19 @@ def test_analyse_workbook_collects_hardware(tmp_path):
     success, _msg, results, hardware = analyse_workbook(str(path), 42)
     assert success
     assert hardware["sw-a"] == {1: "C9300-48P", 2: "C9300-24P"}
+
+
+def test_is_copper_port_formats():
+    from port_utilisation import is_copper_port
+    # stacked format (3850, 9300)
+    assert is_copper_port("Gi1/0/1") is True
+    assert is_copper_port("Te1/0/1") is True
+    assert is_copper_port("Gi2/0/24") is True
+    # non-stacked format (3560, older switches)
+    assert is_copper_port("Gi0/1") is True
+    assert is_copper_port("Fa0/24") is True
+    # excluded: SVI, subinterface, uplink module, empty
+    assert is_copper_port("Vlan10") is False
+    assert is_copper_port("Gi0/1.100") is False
+    assert is_copper_port("Gi1/1/1") is False   # non-zero module
+    assert is_copper_port("") is False
