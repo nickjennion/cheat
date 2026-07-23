@@ -38,36 +38,29 @@ CDP_TOPO_SCALE = 72        # graphviz inches -> draw.io px
 CDP_GV_EDGE_STYLE = "curved=1;html=1;endArrow=none;fontSize=8;"
 
 # --- topology node styling (Device-icons toggle: "plain" | "stencil") ---
-_SCANNED_FILL, _SCANNED_STROKE = "#f5f5f5", "#666666"
-_ROGUE_FILL, _ROGUE_STROKE = "#f8cecc", "#b85450"
-_AP_FILL, _AP_STROKE = "#d5e8d4", "#82b366"
+_SCANNED_FILL, _SCANNED_STROKE = "#d5e8d4", "#82b366"   # green — known switch
+_ROGUE_FILL,   _ROGUE_STROKE   = "#f8cecc", "#b85450"   # red   — unscanned switch
+_AP_FILL,      _AP_STROKE      = "#dae8fc", "#6c8ebf"   # blue  — access point
 
 
 def _is_ap_node(node) -> bool:
     return bool(node and "-ap" in node.name.lower())
 
 
-def _cisco_shape(node) -> str:
-    if _is_ap_node(node):
-        return "mxgraph.cisco.wireless.access_point"
-    return "mxgraph.cisco.switches.workgroup_switch"
-
-
 def _node_style(node, icons: str) -> str:
-    """draw.io style for a topology node. 'plain' = clean rectangle;
-    'stencil' = Cisco icon. Grey = scanned switch, red = rogue switch, green = AP."""
+    """draw.io style for a CDP topology node.
+
+    Green rectangle  = scanned (known) switch
+    Red rectangle    = unscanned (rogue) switch
+    Blue ellipse     = access point
+    """
     if _is_ap_node(node):
         fill, stroke = _AP_FILL, _AP_STROKE
-    elif bool(node and node.is_rogue):
-        fill, stroke = _ROGUE_FILL, _ROGUE_STROKE
-    else:
-        fill, stroke = _SCANNED_FILL, _SCANNED_STROKE
-    if icons == "plain":
-        return (f"rounded=0;whiteSpace=wrap;html=1;fillColor={fill};"
-                f"strokeColor={stroke};fontColor=#333333;fontSize=9;verticalAlign=middle;")
-    return (f"shape={_cisco_shape(node)};html=1;pointerEvents=1;dashed=0;"
-            f"fillColor={fill};strokeColor={stroke};verticalLabelPosition=bottom;"
-            f"verticalAlign=top;align=center;outlineConnect=0;fontColor=#333333;fontSize=9;")
+        return (f"ellipse;whiteSpace=wrap;html=1;fillColor={fill};"
+                f"strokeColor={stroke};fontColor=#333333;fontSize=8;")
+    fill, stroke = (_ROGUE_FILL, _ROGUE_STROKE) if (node and node.is_rogue) else (_SCANNED_FILL, _SCANNED_STROKE)
+    return (f"rounded=0;whiteSpace=wrap;html=1;fillColor={fill};"
+            f"strokeColor={stroke};fontColor=#333333;fontSize=9;verticalAlign=middle;")
 
 
 # Port label rides near the downstream (target) end so it clears the mid-line.
@@ -396,7 +389,7 @@ def generate_cdp_topology_drawio(rendered_pages, topology, icons: str = "stencil
                   "text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=14;",
                   10, 10, 800, 30)
         _add_cell(mx_root, "legend",
-                  "Grey = scanned switch   |   Red = unscanned (rogue) switch   |   Green = access point",
+                  "Green = scanned switch   |   Red = unscanned (rogue) switch   |   Blue circle = access point",
                   "text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#666666;",
                   10, 44, 800, 20)
 

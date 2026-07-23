@@ -171,17 +171,17 @@ def test_node_style_plain_vs_stencil():
     from drawio_generator import _node_style
     scanned = TopologyNode("s", is_rogue=False)
     rogue = TopologyNode("r", is_rogue=True)
-    # plain = clean rectangle, no cisco stencil
-    assert "mxgraph.cisco" not in _node_style(scanned, "plain")
-    assert "#f5f5f5" in _node_style(scanned, "plain")
-    assert "#f8cecc" in _node_style(rogue, "plain")
-    # plain scanned is a real rectangle (not just "no cisco")
-    assert "rounded=0" in _node_style(scanned, "plain") and "whiteSpace=wrap" in _node_style(scanned, "plain")
-    # stencil = valid Cisco switch icon, grey scanned / red rogue
-    st = _node_style(scanned, "stencil")
-    assert "shape=mxgraph.cisco.switches.workgroup_switch" in st and "#f5f5f5" in st
-    st_r = _node_style(rogue, "stencil")
-    assert "#f8cecc" in st_r and "#b85450" in st_r and "mxgraph.cisco" in st_r
+    # scanned = green rectangle
+    s_style = _node_style(scanned, "plain")
+    assert "mxgraph.cisco" not in s_style
+    assert "#d5e8d4" in s_style        # green fill
+    assert "rounded=0" in s_style and "whiteSpace=wrap" in s_style
+    # rogue = red rectangle
+    r_style = _node_style(rogue, "plain")
+    assert "#f8cecc" in r_style and "#b85450" in r_style
+    # icons param no longer switches to stencil — always plain rectangles
+    assert "#d5e8d4" in _node_style(scanned, "stencil")
+    assert "mxgraph.cisco" not in _node_style(scanned, "stencil")
 
 
 def test_generate_cdp_topology_drawio_icons_toggle():
@@ -194,8 +194,11 @@ def test_generate_cdp_topology_drawio_icons_toggle():
                           nodes={"n0": NodeBox(1.0, 1.5, 0.8, 0.5), "n1": NodeBox(1.0, 0.5, 0.8, 0.5)},
                           edges=[EdgeRoute("n0", "n1", [(1.0, 1.25), (1.0, 0.75)])])
     pages = [("Overview", layout, {"n0": "dist", "n1": "r"})]
-    assert "workgroup_switch" in generate_cdp_topology_drawio(pages, topo, icons="stencil")
-    assert "mxgraph.cisco" not in generate_cdp_topology_drawio(pages, topo, icons="plain")
+    # Both modes now produce plain rectangles with colour coding (no Cisco stencil)
+    xml = generate_cdp_topology_drawio(pages, topo, icons="stencil")
+    assert "#d5e8d4" in xml             # scanned = green
+    assert "#f8cecc" in xml             # rogue = red
+    assert "mxgraph.cisco" not in xml   # no stencil icons
 
 
 def test_generate_cdp_topology_drawio_no_label_edge_has_no_child_cell():
