@@ -47,6 +47,8 @@ DNAC_COMMANDS = [
 
 LINK_STATE_COMMANDS = ["show logging", "show clock"]
 
+AV_MAC_COMMANDS = ["show mac address-table", "show cdp neighbors detail"]
+
 
 def build_command_list(link_state: bool) -> list:
     """Base report commands, plus link-state commands when enabled."""
