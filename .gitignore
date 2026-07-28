@@ -30,3 +30,7 @@ command_output_*.txt
 .DS_Store
 .vscode/
 .idea/
+
+# Superpowers subagent-driven-development scratch
+.worktrees/
+.superpowers/
