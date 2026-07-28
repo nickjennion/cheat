@@ -151,3 +151,44 @@ def test_build_av_mac_report_no_matching_vlan_returns_no_rows():
     report = build_av_mac_report(MULTI_MAC_OUTPUTS, ["999"])
     assert report.rows == []
     assert report.vlan_stacks == {"999": []}
+
+
+def test_write_av_mac_report_excel_writes_summary_and_detail(tmp_path):
+    import openpyxl
+    from av_mac_report import AvMacReport, AvMacRow
+    from excel_generator import write_av_mac_report_excel
+
+    report = AvMacReport(
+        vlan_stacks={"900": ["acc1"]},
+        rows=[
+            AvMacRow(switch="acc1", stack_member="1", interface="Gi1/0/24",
+                     vlan="900", mac="0011.2233.4455", type="DYNAMIC", notes=""),
+            AvMacRow(switch="acc1", stack_member="1", interface="Gi1/0/5",
+                     vlan="900", mac="aaaa.aaaa.aaaa", type="DYNAMIC",
+                     notes="Multiple MACs — possible unmanaged switch"),
+        ],
+    )
+    out = tmp_path / "av.xlsx"
+    ok, msg = write_av_mac_report_excel(report, str(out))
+    assert ok
+
+    ws = openpyxl.load_workbook(out)["AV MAC-Port Export"]
+    assert ws.cell(row=1, column=1).value == "AV VLANs Found On These Switches"
+    assert ws.cell(row=2, column=1).value == "VLAN 900: acc1"
+
+    header_row = next(r for r in range(1, ws.max_row + 1)
+                       if ws.cell(row=r, column=1).value == "Switch")
+    assert [ws.cell(row=header_row, column=c).value for c in range(1, 8)] == [
+        "Switch", "Stack Member", "Interface", "VLAN", "MAC Address", "Type", "Notes"
+    ]
+    assert ws.cell(row=header_row + 1, column=5).value == "0011.2233.4455"
+    assert ws.cell(row=header_row + 2, column=7).value == "Multiple MACs — possible unmanaged switch"
+
+
+def test_write_av_mac_report_excel_fails_on_empty_rows(tmp_path):
+    from av_mac_report import AvMacReport
+    from excel_generator import write_av_mac_report_excel
+    report = AvMacReport(vlan_stacks={}, rows=[])
+    ok, msg = write_av_mac_report_excel(report, str(tmp_path / "av.xlsx"))
+    assert ok is False
+    assert "No matching" in msg

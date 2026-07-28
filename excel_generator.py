@@ -471,3 +471,75 @@ def write_client_search_excel(clients: list, outpath: str) -> tuple[bool, str]:
 
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"
+
+
+# ============================================================================
+# AV MAC/Port Export
+# ============================================================================
+
+AV_MAC_SUMMARY_TITLE = "AV VLANs Found On These Switches"
+AV_MAC_HEADERS = ["Switch", "Stack Member", "Interface", "VLAN", "MAC Address", "Type", "Notes"]
+AV_MAC_COL_WIDTHS = [28, 13, 14, 8, 20, 10, 40]
+AV_MAC_FLAG_COLOUR = "FFFFD700"
+
+
+def write_av_mac_report_sheet(ws, report) -> int:
+    """Write the VLAN summary block then the MAC/port detail table.
+
+    Returns the next free row below the detail table.
+    """
+    title = ws.cell(row=1, column=1, value=AV_MAC_SUMMARY_TITLE)
+    title.font = Font(bold=True, name="Arial", size=10)
+
+    row = 2
+    for vlan in sorted(report.vlan_stacks, key=int):
+        switches = report.vlan_stacks[vlan]
+        found = ", ".join(switches) if switches else "not found on any selected switch"
+        ws.cell(row=row, column=1, value=f"VLAN {vlan}: {found}")
+        row += 1
+
+    row += 1  # blank row before the detail table
+    header_font, header_fill, header_align, header_border = get_header_styles()
+    data_font, data_align, data_border = get_data_styles()
+
+    hdr_row = row
+    for col, (header, width) in enumerate(zip(AV_MAC_HEADERS, AV_MAC_COL_WIDTHS), start=1):
+        c = ws.cell(row=hdr_row, column=col, value=header)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = header_align
+        c.border = header_border
+        ws.column_dimensions[get_column_letter(col)].width = width
+    ws.freeze_panes = f"A{hdr_row + 1}"
+
+    for i, r in enumerate(report.rows):
+        data_row = hdr_row + 1 + i
+        values = [r.switch, r.stack_member, r.interface, r.vlan, r.mac, r.type, r.notes]
+        flagged = bool(r.notes)
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=data_row, column=col, value=value)
+            cell.font = Font(name="Arial", size=10, bold=True) if flagged else data_font
+            cell.alignment = data_align
+            cell.border = data_border
+            if flagged:
+                cell.fill = PatternFill("solid", start_color=AV_MAC_FLAG_COLOUR)
+
+    end_row = hdr_row + len(report.rows)
+    ws.auto_filter.ref = f"A{hdr_row}:G{end_row}"
+    return end_row + 1
+
+
+def write_av_mac_report_excel(report, outpath: str) -> tuple[bool, str]:
+    """Write the AV MAC/port report to a single-sheet Excel workbook."""
+    if not report.rows:
+        return False, "No matching MAC addresses found for the requested VLAN(s)"
+
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "AV MAC-Port Export"
+        write_av_mac_report_sheet(ws, report)
+        wb.save(outpath)
+        return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC/port mapping(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"
