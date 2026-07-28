@@ -87,7 +87,7 @@ def test_write_unscanned_switches_block_with_rows():
     rows = [SwitchNeighbour("sw4", "WS-C4500X-32", "Router Switch IGMP",
                             "Gi0/1", "Gi0/2", "sw1", mgmt_ip="10.99.99.9")]
     write_unscanned_switches_block(ws, 5, rows)
-    assert "Unscanned Cisco Switches" in ws.cell(row=5, column=1).value
+    assert "Discovered Devices w/ Switching Capability" in ws.cell(row=5, column=1).value
     assert [ws.cell(row=6, column=c).value for c in range(1, 8)] == UNSCANNED_HEADERS
     assert ws.cell(row=7, column=1).value == "sw4"
     assert ws.cell(row=7, column=2).value == "WS-C4500X-32"
@@ -106,6 +106,42 @@ def test_write_unscanned_switches_block_empty():
     assert ws.cell(row=6, column=1).value == "None detected"
 
 
+def _find_row_with(ws, needle):
+    for r in range(1, ws.max_row + 1):
+        val = ws.cell(row=r, column=1).value
+        if val and needle in str(val):
+            return r
+    return None
+
+
+def test_write_unscanned_switches_block_splits_devices_and_aps():
+    import openpyxl
+    from unscanned_switches import SwitchNeighbour
+    from excel_generator import write_unscanned_switches_block
+    ws = openpyxl.Workbook().active
+    rows = [
+        SwitchNeighbour("sw4", "WS-C4500X-32", "Router Switch IGMP",
+                         "Gi0/1", "Gi0/2", "sw1", mgmt_ip="10.99.99.9"),
+        SwitchNeighbour("floor2-ap", "AIR-AP3802I-Z-K9", "Router Trans-Bridge",
+                         "Gi1/0/5", "Gi0", "sw1", mgmt_ip="10.99.99.10"),
+    ]
+    write_unscanned_switches_block(ws, 5, rows)
+
+    devices_title_row = _find_row_with(ws, "Discovered Devices w/ Switching Capability")
+    ap_title_row = _find_row_with(ws, "Discovered Access Points")
+    assert devices_title_row == 5
+    assert ap_title_row is not None
+    assert ap_title_row > devices_title_row
+
+    # Switch lands in the devices section, above the AP title.
+    sw_row = _find_row_with(ws, "sw4")
+    assert sw_row is not None and sw_row < ap_title_row
+
+    # AP lands in the AP section, below the AP title.
+    ap_row = _find_row_with(ws, "floor2-ap")
+    assert ap_row is not None and ap_row > ap_title_row
+
+
 def _devices_data():
     from interface_parser import InterfaceRecord
     rec = InterfaceRecord(switch="sw1", iface="Gi1/0/1", stack_member="1",
@@ -116,7 +152,7 @@ def _devices_data():
 def _find_block_title_row(ws):
     for r in range(1, ws.max_row + 1):
         val = ws.cell(row=r, column=1).value
-        if val and "Unscanned Cisco Switches" in str(val):
+        if val and "Discovered Devices w/ Switching Capability" in str(val):
             return r
     return None
 

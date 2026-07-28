@@ -10,6 +10,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+from cdp_detail import is_access_point
 from interface_parser import InterfaceRecord, StackMember, uptime_days, site_location
 from port_utilisation import is_copper_port, write_utilisation_sheet
 from unscanned_switches import find_unscanned_switches, SwitchNeighbour
@@ -43,7 +44,8 @@ HEADERS = [
 
 COL_WIDTHS = [28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26, 30]
 
-UNSCANNED_TITLE = "Unscanned Cisco Switches (seen via CDP, not scanned this session)"
+UNSCANNED_TITLE = "Discovered Devices w/ Switching Capability (seen via CDP, not in DNAC)"
+UNSCANNED_AP_TITLE = "Discovered Access Points"
 UNSCANNED_HEADERS = [
     "Unknown Neighbour", "Platform", "Mgmt IP", "Capability",
     "Seen On", "Local Interface", "Neighbour Port",
@@ -260,18 +262,19 @@ def _compute_hardware(devices_data: dict) -> dict[str, dict[int, str]]:
     return hardware
 
 
-def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
-    """Append the unscanned-switches block to an existing worksheet.
+def _write_neighbour_table(ws, start_row: int, title: str, rows: list) -> int:
+    """Write one titled neighbour table starting at start_row.
 
     Writes a bold title at start_row. With no rows, writes 'None detected'
     below it; otherwise a header row then one row per sighting.
+    Returns the next free row (one blank row below the table).
     """
-    title = ws.cell(row=start_row, column=1, value=UNSCANNED_TITLE)
-    title.font = Font(bold=True, name="Arial", size=10)
+    title_cell = ws.cell(row=start_row, column=1, value=title)
+    title_cell.font = Font(bold=True, name="Arial", size=10)
 
     if not rows:
         ws.cell(row=start_row + 1, column=1, value="None detected")
-        return
+        return start_row + 3
 
     header_font = Font(bold=True, color="FFFFFFFF", name="Arial", size=10)
     header_fill = PatternFill("solid", start_color="FF2B579A")
@@ -293,6 +296,21 @@ def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
         ws.cell(row=r, column=5, value=nb.seen_on)
         ws.cell(row=r, column=6, value=nb.local_iface)
         ws.cell(row=r, column=7, value=nb.neighbour_port)
+
+    return hdr_row + 1 + len(rows) + 1
+
+
+def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
+    """Append the discovered-neighbours blocks to an existing worksheet.
+
+    Splits rows into switching-capable devices (routers/switches) and access
+    points, writing each as its own titled table, devices first.
+    """
+    devices = [r for r in rows if not is_access_point(r)]
+    aps = [r for r in rows if is_access_point(r)]
+
+    next_row = _write_neighbour_table(ws, start_row, UNSCANNED_TITLE, devices)
+    _write_neighbour_table(ws, next_row, UNSCANNED_AP_TITLE, aps)
 
 
 def write_combined_excel(
