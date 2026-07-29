@@ -105,7 +105,7 @@ SPLASH_TITLE = "CHEAT"
 SPLASH_SUBTITLE = "Cisco Homogeneous Environment Awareness Tool"
 
 
-def _show_splash_rich(menu_header, options, design="diamond") -> bool:
+def _show_splash_rich(menu_header, options, design="burger") -> bool:
     """Draw the Rich splash over the blue theme. Returns False if unavailable."""
     try:
         import splash_rich
@@ -138,7 +138,7 @@ def show_splash(menu_header, options):
     # Rich splash only when interactive and selected; always fall back to classic.
     prefs = load_prefs()  # single read; pass the chosen design straight through
     if _COLOR_ON and prefs.get("SPLASH_STYLE", "rich") == "rich":
-        if _show_splash_rich(menu_header, options, prefs.get("SPLASH_DESIGN", "diamond")):
+        if _show_splash_rich(menu_header, options, prefs.get("SPLASH_DESIGN", "burger")):
             return
     for line in splash.build_lines(SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options):
         print("  " + line)
@@ -348,7 +348,7 @@ DEFAULT_PREFS = {
     "LOGGING": "off",
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
-    "SPLASH_DESIGN": "diamond",  # logo: "diamond" | "lockup" | "stacked" | "generic"
+    "SPLASH_DESIGN": "burger",  # logo: "burger" | "lockup" | "stacked" | "generic"
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
     "TOPOLOGY_LAYOUT": "auto",  # topology ranks: "auto" (Graphviz) or "pyramid" (dist/access/desk)
 }
@@ -444,9 +444,9 @@ def menu_options():
         elif choice == "I":
             prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
         elif choice == "J":
-            _cycle = {"diamond": "lockup", "lockup": "stacked",
-                      "stacked": "generic", "generic": "diamond"}
-            prefs["SPLASH_DESIGN"] = _cycle.get(prefs["SPLASH_DESIGN"], "diamond")
+            _cycle = {"burger": "lockup", "lockup": "stacked",
+                      "stacked": "generic", "generic": "burger"}
+            prefs["SPLASH_DESIGN"] = _cycle.get(prefs["SPLASH_DESIGN"], "burger")
         elif choice == "K":
             prefs["TOPOLOGY_LAYOUT"] = "pyramid" if prefs["TOPOLOGY_LAYOUT"] == "auto" else "auto"
         else:

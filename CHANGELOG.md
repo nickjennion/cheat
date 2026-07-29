@@ -2,6 +2,20 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-07-29 — Splash co-brand reskin (Cisco × Hamburger University)
+
+- Replaced the co-brand mark's identifying wordmark and diamond glyph with a
+  fictional "Hamburger University" sandbox theme, matching the placeholder
+  entity already used elsewhere in this repo's demo data
+  (`drawio_exports/hu-chicago-sda.drawio`).
+- **`SPLASH_DESIGN` renamed `diamond` → `burger`** (default unchanged in
+  behaviour, just the key and the on-screen mark). `lockup`/`stacked`/`generic`
+  keys are unchanged.
+- The halftone-dot mark is now a burger silhouette (bun crown → bun edge →
+  filling stack → tapered base) instead of a diamond, built on the same
+  column-grid math so the alignment/degrade tests didn't need structural
+  changes — only the dot-count sequence per row changed.
+
 ## 2026-07-20 — Pyramid topology layout (distribution / access / desk)
 
 - **New `TOPOLOGY_LAYOUT` preference (Options → `K`)** toggles the CDP topology
@@ -26,7 +40,7 @@ All notable feature work on CHEAT. Newest first.
 ## 2026-07-19 — Splash hardening (review follow-up)
 
 - **Terminal-width guard.** `render()` now degrades the logo to the richest
-  design that fits (`diamond`/`stacked` → `lockup` → `generic`) so the mark no
+  design that fits (`burger`/`stacked` → `lockup` → `generic`) so the mark no
   longer folds into a broken mess on an 80-column terminal.
 - **Splash render failures are no longer silent.** A crash in the Rich splash
   still falls back to the classic splash, but the traceback is surfaced when
@@ -34,23 +48,22 @@ All notable feature work on CHEAT. Newest first.
   indistinguishable from "Rich not installed".
 - Prefs are read once per splash draw (design passed through), and the wordmark
   string no longer shadows the options-loop variable.
-- **Tests:** parametrised smoke test across all four designs, HU-tag/diamond
+- **Tests:** parametrised smoke test across all four designs, HU-tag/burger
   presence per design, invalid-design fallback, stacked-hangs-below-bars, the
   width-guard degradation, and prefs migration (old `prefs.env` gains the new
   `SPLASH_DESIGN` default).
 
 ## 2026-07-17 — Co-brand splash (Cisco × Hamburger University)
 
-- The Rich splash can now co-brand with Hamburger University. A **`SPLASH_DESIGN`**
-  preference (Options → `J`) cycles four logos:
-  - **`diamond`** (default) — HU halftone diamond mark beside the Cisco bars.
-  - **`lockup`** — compact HU diamond + `HAMBURGER UNIVERSITY` badge beside the bars.
-  - **`stacked`** — full HU lockup (large diamond over the `HAMBURGER UNIVERSITY`
-    wordmark) beside the bars, bars top-aligned with the diamond.
+- The Rich splash can now co-brand with a fictional Hamburger University sandbox
+  theme. A **`SPLASH_DESIGN`** preference (Options → `J`) cycles four logos:
+  - **`burger`** (default) — HU halftone burger mark beside the Cisco bars.
+  - **`lockup`** — compact HU burger + `HAMBURGER UNIVERSITY` badge beside the bars.
+  - **`stacked`** — full HU lockup (large burger over the `HAMBURGER UNIVERSITY`
+    wordmark) beside the bars, bars top-aligned with the burger mark.
   - **`generic`** — original Cisco-only splash, no HU branding.
 - Co-brand designs append a **`× Hamburger University`** tag to the
-  `CISCO · DNA CENTER` wordmark, riding the same cyan→white gradient. HU
-  navy/white sampled from the official mark.
+  `CISCO · DNA CENTER` wordmark, riding the same cyan→white gradient.
 - `python splash_rich.py [design]` previews one design; no arg cycles all four.
 - `splash_generic.py` keeps a standalone snapshot of the pre-co-brand splash.
 
