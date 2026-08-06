@@ -24,5 +24,5 @@ def test_load_prefs_supplies_splash_design_default_for_old_prefs(tmp_path, monke
     old.write_text("SLOW_MODE=on\nCOLOURS=off\n")
     monkeypatch.setattr(main_latest, "PREFS_FILE", Path(old))
     prefs = main_latest.load_prefs()
-    assert prefs["SPLASH_DESIGN"] == "diamond"  # new key defaulted
+    assert prefs["SPLASH_DESIGN"] == "burger"  # new key defaulted
     assert prefs["SLOW_MODE"] == "on"           # existing value preserved

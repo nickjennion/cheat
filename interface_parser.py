@@ -387,11 +387,13 @@ def parse_hardware(lines: list[str]) -> dict[int, StackMember]:
 
 
 def parse_cdp_neighbors(text: str) -> dict[str, str]:
-    """Map local interface -> "device (port) ip" for every CDP neighbour.
+    """Map local interface -> "device [platform] (port) ip" for every CDP neighbour.
 
-    Built from `show cdp neighbors detail`. Multiple neighbours on one interface
-    are comma-joined. The management IP is appended when known. Imported here
-    (not at module top) to avoid a cdp_detail <-> interface_parser import cycle.
+    Built from `show cdp neighbors detail`. The platform (e.g. "IP Phone 8845")
+    identifies what a SEP<MAC> phone actually is; omitted when CDP didn't report
+    one. Multiple neighbours on one interface are comma-joined. The management
+    IP is appended when known. Imported here (not at module top) to avoid a
+    cdp_detail <-> interface_parser import cycle.
     """
     from cdp_detail import parse_cdp_detail
 
@@ -399,7 +401,11 @@ def parse_cdp_neighbors(text: str) -> dict[str, str]:
     for nb in parse_cdp_detail(text):
         if not nb.local_iface:
             continue
-        entry = f"{nb.device} ({nb.remote_port})" if nb.remote_port else nb.device
+        entry = nb.device
+        if nb.platform:
+            entry += f" [{nb.platform}]"
+        if nb.remote_port:
+            entry += f" ({nb.remote_port})"
         if nb.mgmt_ip:
             entry += f" {nb.mgmt_ip}"
         if nb.local_iface in neighbors:

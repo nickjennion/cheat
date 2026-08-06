@@ -225,7 +225,7 @@ def test_parse_output_no_logging_leaves_blank():
 _CDP_DETAIL_COL = "\n".join([
     "show cdp neighbors detail",
     "-------------------------",
-    "Device ID: dist-4500xv.net.example.com",
+    "Device ID: dist-4500xv.net.hu.edu",
     "Entry address(es):",
     "  IP address: 10.20.1.5",
     "Platform: cisco WS-C4500X-32,  Capabilities: Router Switch IGMP",
@@ -245,7 +245,24 @@ _CDP_DETAIL_COL = "\n".join([
 def test_parse_cdp_neighbors_enriched_cell():
     from interface_parser import parse_cdp_neighbors
     cell = parse_cdp_neighbors(_CDP_DETAIL_COL)["Gi1/0/1"]
-    # both neighbours on the same local interface, comma-joined, with mgmt IP.
-    assert "dist-4500xv.net.example.com (Te2/1/24) 10.99.99.9" in cell
-    assert "SEP00ecab (Port 1) 10.20.9.5" in cell           # phone included
+    # both neighbours on the same local interface, comma-joined, with mgmt IP
+    # and the CDP platform in brackets so phone models are identifiable.
+    assert "dist-4500xv.net.hu.edu [WS-C4500X-32] (Te2/1/24) 10.99.99.9" in cell
+    assert "SEP00ecab [IP Phone 6901] (Port 1) 10.20.9.5" in cell
     assert cell.count(",") == 1                              # exactly two joined
+
+
+def test_parse_cdp_neighbors_no_platform_omits_brackets():
+    from interface_parser import parse_cdp_neighbors
+    text = "\n".join([
+        "show cdp neighbors detail",
+        "-------------------------",
+        "Device ID: mystery-box",
+        "Entry address(es):",
+        "  IP address: 10.20.9.7",
+        "Interface: GigabitEthernet1/0/2,  Port ID (outgoing port): eth0",
+        "Total cdp entries displayed : 1",
+    ])
+    cell = parse_cdp_neighbors(text)["Gi1/0/2"]
+    assert cell == "mystery-box (eth0) 10.20.9.7"
+    assert "[" not in cell and "]" not in cell

@@ -24,7 +24,7 @@ Two redacted real samples informed this design. Entries are separated by a line
 of dashes (`-------------------------`); each is a block of `Key: value` lines.
 Observed variety that the parser must handle:
 
-- **Device IDs** vary: FQDN (`x-dist-4500xv.net.example.com`, `x.x.x.com.au`),
+- **Device IDs** vary: FQDN (`x-dist-4500xv.net.hu.edu`, `x.x.x.com.au`),
   `SEP<mac>` (phones), and bare MAC (`f4747...`, a C1300 small-business switch).
 - **Entry address(es)** may be IPv4, IPv6 global, or **IPv6 link-local only**
   (the C1300 has no IPv4 at all).

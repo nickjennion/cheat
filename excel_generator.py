@@ -42,7 +42,7 @@ HEADERS = [
     "CDP Neighbors",
 ]
 
-COL_WIDTHS = [28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26, 30]
+COL_WIDTHS = [28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 8, 10, 12, 22, 14, 26, 44]
 
 UNSCANNED_TITLE = "Discovered Devices w/ Switching Capability (seen via CDP, not in DNAC)"
 UNSCANNED_AP_TITLE = "Discovered Access Points"
