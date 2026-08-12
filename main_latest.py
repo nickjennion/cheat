@@ -1078,7 +1078,7 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
         _tp = load_prefs()
         while True:
             print("\n  Topology: filter by hostname prefix (blank = all switches, 'done' to finish)")
-            print("  Space-separated prefixes, e.g.  sta-10s1  sta-11s1")
+            print("  Space-separated prefixes, e.g.  site-a-b01  site-a-b02")
             raw_pfx = input("  Prefix(es): ").strip()
             if raw_pfx.lower() == "done":
                 break
