@@ -32,7 +32,8 @@ import ap_monitor
 import splash
 
 
-ENV_FILE = Path("dnac.env")
+ENV_FILE = Path("dnac.env")          # legacy DNA Center credentials
+ENV_FILE_NEW = Path("dnac2.env")     # new DNA Center credentials (same keys)
 SAMPLE_FILE = Path("sample_dnac.env")
 ALL_DEVICES_FILE = Path("all_devices.json")
 
@@ -105,7 +106,7 @@ SPLASH_TITLE = "CHEAT"
 SPLASH_SUBTITLE = "Cisco Homogeneous Environment Awareness Tool"
 
 
-def _show_splash_rich(menu_header, options, design="burger") -> bool:
+def _show_splash_rich(menu_header, options, design="mark") -> bool:
     """Draw the Rich splash over the blue theme. Returns False if unavailable."""
     try:
         import splash_rich
@@ -138,7 +139,7 @@ def show_splash(menu_header, options):
     # Rich splash only when interactive and selected; always fall back to classic.
     prefs = load_prefs()  # single read; pass the chosen design straight through
     if _COLOR_ON and prefs.get("SPLASH_STYLE", "rich") == "rich":
-        if _show_splash_rich(menu_header, options, prefs.get("SPLASH_DESIGN", "burger")):
+        if _show_splash_rich(menu_header, options, prefs.get("SPLASH_DESIGN", "mark")):
             return
     for line in splash.build_lines(SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options):
         print("  " + line)
@@ -193,13 +194,17 @@ def pause():
     input("\nPress Enter to continue...")
 
 
-def load_credentials_from_env():
-    """Load DNAC credentials from dnac.env. Returns (host, user, pass) or None."""
-    if not ENV_FILE.exists():
+def load_credentials_from_env(env_file: Path = ENV_FILE):
+    """Load DNAC credentials from an env file. Returns (host, user, pass) or None.
+
+    Never falls back to another file: a missing dnac2.env must not silently hand
+    back the legacy credentials, which would target the wrong controller.
+    """
+    if not env_file.exists():
         return None
     try:
         creds = {}
-        for line in ENV_FILE.read_text().splitlines():
+        for line in env_file.read_text().splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
@@ -212,22 +217,58 @@ def load_credentials_from_env():
         if host and username and password:
             return host, username, password
     except Exception as e:
-        print(f"  Warning: could not read dnac.env: {e}")
+        print(f"  Warning: could not read {env_file}: {e}")
     return None
 
 
-def save_credentials_to_env(host, username, password):
-    """Write credentials to dnac.env (overwrites existing). Returns success."""
+def save_credentials_to_env(host, username, password, env_file: Path = ENV_FILE):
+    """Write credentials to an env file (overwrites existing). Returns success."""
     try:
-        ENV_FILE.write_text(
+        env_file.write_text(
             f"DNAC_HOST={host}\n"
             f"DNAC_USERNAME={username}\n"
             f"DNAC_PASSWORD={password}\n"
         )
         return True
     except Exception as e:
-        print(f"\n  ✗ Could not write {ENV_FILE}: {e}")
+        print(f"\n  ✗ Could not write {env_file}: {e}")
         return False
+
+
+def _print_env_file(path: Path) -> bool:
+    """Print one credential file with DNAC_PASSWORD masked.
+
+    Returns False (printing nothing) when the file does not exist, so the caller
+    can decide whether to show the sample-file hint.
+    """
+    if not path.exists():
+        return False
+    print(f"  --- {path} ---")
+    for line in path.read_text().splitlines():
+        if "=" in line and not line.strip().startswith("#"):
+            k, _ = line.split("=", 1)
+            if k.strip().upper() == "DNAC_PASSWORD":
+                print(f"  {k.strip()}=********")
+            else:
+                print(f"  {line.strip()}")
+        else:
+            print(f"  {line}")
+    print("  ---")
+    return True
+
+
+def _prompt_save_target() -> Path:
+    """Ask which credential file to write. Blank = legacy (the old behaviour)."""
+    while True:
+        print()
+        print(f"    1) {ENV_FILE}   (legacy DNAC)")
+        print(f"    2) {ENV_FILE_NEW}  (new DNAC)")
+        choice = input("    Save to [1]: ").strip()
+        if choice in ("", "1"):
+            return ENV_FILE
+        if choice == "2":
+            return ENV_FILE_NEW
+        print("    Enter 1 or 2.")
 
 
 def _prompt_manual_credentials():
@@ -261,64 +302,59 @@ def menu_1():
     """Returns (host, username, password) once credentials are confirmed."""
     while True:
         show_splash("Menu 1 · Credentials", [
-            "1) Use dnac.env",
-            "2) Enter manually   · remember",
-            "3) Enter manually   · forget",
-            "4) View dnac.env",
-            "5) Options",
+            "1) Use Legacy DNAC",
+            "2) Use New DNAC",
+            "3) Enter manually   · remember",
+            "4) Enter manually   · forget",
+            "5) View credential files",
+            "6) Options",
         ])
-        choice = input("  Select [1-5]: ").strip()
+        choice = input("  Select [1-6]: ").strip()
 
-        if choice == "1":
-            result = load_credentials_from_env()
+        if choice in ("1", "2"):   # legacy dnac.env / new dnac2.env
+            env_file = ENV_FILE if choice == "1" else ENV_FILE_NEW
+            result = load_credentials_from_env(env_file)
             if result:
                 host, username, _ = result
-                print(f"\n  ✓ Loaded from dnac.env")
+                print(f"\n  ✓ Loaded from {env_file}")
                 print(f"    Host: {host}  |  User: {username}")
                 pause()
                 return result
             else:
-                print(f"\n  ✗ dnac.env not found or incomplete.")
+                print(f"\n  ✗ {env_file} not found or incomplete.")
                 if SAMPLE_FILE.exists():
-                    print(f"    Copy {SAMPLE_FILE} to dnac.env and fill in your values.")
+                    print(f"    Copy {SAMPLE_FILE} to {env_file} and fill in your values.")
                 else:
-                    print(f"    Create dnac.env with DNAC_HOST=, DNAC_USERNAME=, DNAC_PASSWORD=")
+                    print(f"    Create {env_file} with DNAC_HOST=, DNAC_USERNAME=, DNAC_PASSWORD=")
                 pause()
 
-        elif choice == "2":  # Enter manually · remember (persist to dnac.env)
+        elif choice == "3":  # Enter manually · remember (persist to a chosen file)
             creds = _prompt_manual_credentials()
             if creds:
-                if save_credentials_to_env(*creds):
-                    print(f"\n  ✓ Saved to {ENV_FILE}")
+                env_file = _prompt_save_target()
+                if save_credentials_to_env(*creds, env_file=env_file):
+                    print(f"\n  ✓ Saved to {env_file}")
                 pause()
                 return creds
 
-        elif choice == "3":  # Enter manually · forget (session only, never written)
+        elif choice == "4":  # Enter manually · forget (session only, never written)
             creds = _prompt_manual_credentials()
             if creds:
                 return creds
 
-        elif choice == "4":  # View dnac.env
+        elif choice == "5":  # View credential files
             print()
-            if ENV_FILE.exists():
-                print(f"  --- {ENV_FILE} ---")
-                for line in ENV_FILE.read_text().splitlines():
-                    if "=" in line and not line.strip().startswith("#"):
-                        k, _ = line.split("=", 1)
-                        if k.strip().upper() == "DNAC_PASSWORD":
-                            print(f"  {k.strip()}=********")
-                        else:
-                            print(f"  {line.strip()}")
-                    else:
-                        print(f"  {line}")
-                print(f"  ---")
-            else:
-                print(f"  dnac.env not found.")
+            shown = False
+            for path in (ENV_FILE, ENV_FILE_NEW):
+                if _print_env_file(path):
+                    shown = True
+            if not shown:
+                print(f"  No credential files found ({ENV_FILE}, {ENV_FILE_NEW}).")
                 if SAMPLE_FILE.exists():
-                    print(f"  Copy {SAMPLE_FILE} to dnac.env and fill in your values.")
+                    print(f"  Copy {SAMPLE_FILE} to {ENV_FILE} and fill in your values.")
             pause()
 
-        elif choice == "5":  # Options / preferences
+        elif choice == "6":  # Options / preferences
             menu_options()
 
         else:
@@ -348,10 +384,21 @@ DEFAULT_PREFS = {
     "LOGGING": "off",
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
-    "SPLASH_DESIGN": "burger",  # logo: "burger" | "lockup" | "stacked" | "generic"
+    "SPLASH_DESIGN": "mark",    # logo: "mark" | "lockup" | "stacked" | "generic"
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
     "TOPOLOGY_LAYOUT": "auto",  # topology ranks: "auto" (Graphviz) or "pyramid" (dist/access/desk)
 }
+
+
+# Options → J cycles the splash logo. "mark" was called "burger" before the
+# co-brand was de-branded; load_prefs migrates the old value.
+SPLASH_DESIGN_CYCLE = {"mark": "lockup", "lockup": "stacked",
+                       "stacked": "generic", "generic": "mark"}
+
+
+def next_splash_design(design: str) -> str:
+    """Next logo in the Options → J cycle. Unrecognised values reset to 'mark'."""
+    return SPLASH_DESIGN_CYCLE.get(design, "mark")
 
 
 def load_prefs():
@@ -367,6 +414,9 @@ def load_prefs():
                 prefs[k.strip()] = v.strip()
         except Exception as e:
             print(f"  Warning: could not read {PREFS_FILE}: {e}")
+    # Migrate the pre-de-brand logo name so Options → J shows a live value.
+    if prefs.get("SPLASH_DESIGN") == "burger":
+        prefs["SPLASH_DESIGN"] = "mark"
     return prefs
 
 
@@ -444,9 +494,7 @@ def menu_options():
         elif choice == "I":
             prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
         elif choice == "J":
-            _cycle = {"burger": "lockup", "lockup": "stacked",
-                      "stacked": "generic", "generic": "burger"}
-            prefs["SPLASH_DESIGN"] = _cycle.get(prefs["SPLASH_DESIGN"], "burger")
+            prefs["SPLASH_DESIGN"] = next_splash_design(prefs["SPLASH_DESIGN"])
         elif choice == "K":
             prefs["TOPOLOGY_LAYOUT"] = "pyramid" if prefs["TOPOLOGY_LAYOUT"] == "auto" else "auto"
         else:

@@ -120,10 +120,11 @@ if __name__ == "__main__":  # quick manual preview: `python3 splash_rich.py`
         "Cisco Homogeneous Environment Awareness Tool",
         "Menu 1 · Credentials",
         [
-            "1) Use dnac.env",
-            "2) Enter manually · remember",
-            "3) Enter manually · forget",
-            "4) View dnac.env",
-            "5) Options",
+            "1) Use Legacy DNAC",
+            "2) Use New DNAC",
+            "3) Enter manually · remember",
+            "4) Enter manually · forget",
+            "5) View credential files",
+            "6) Options",
         ],
     )

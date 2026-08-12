@@ -17,11 +17,12 @@ BG = "\033[48;2;1;79;116m"      # Cisco DNA Center blue #014F74
 RESET = "\033[0m"
 
 OPTIONS = [
-    "1) Use dnac.env",
-    "2) Enter manually   · remember",
-    "3) Enter manually   · forget",
-    "4) View dnac.env",
-    "5) Options",
+    "1) Use Legacy DNAC",
+    "2) Use New DNAC",
+    "3) Enter manually   · remember",
+    "4) Enter manually   · forget",
+    "5) View credential files",
+    "6) Options",
 ]
 
 

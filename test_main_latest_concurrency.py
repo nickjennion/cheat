@@ -24,5 +24,35 @@ def test_load_prefs_supplies_splash_design_default_for_old_prefs(tmp_path, monke
     old.write_text("SLOW_MODE=on\nCOLOURS=off\n")
     monkeypatch.setattr(main_latest, "PREFS_FILE", Path(old))
     prefs = main_latest.load_prefs()
-    assert prefs["SPLASH_DESIGN"] == "burger"  # new key defaulted
-    assert prefs["SLOW_MODE"] == "on"           # existing value preserved
+    assert prefs["SPLASH_DESIGN"] == "mark"  # new key defaulted
+    assert prefs["SLOW_MODE"] == "on"         # existing value preserved
+
+
+def test_load_prefs_migrates_burger_to_mark(tmp_path, monkeypatch):
+    # The co-brand design was renamed burger -> mark; a prefs.env written before
+    # the rename must not leave a stale value on the Options -> J row.
+    import main_latest
+    old = tmp_path / "prefs.env"
+    old.write_text("SPLASH_DESIGN=burger\nSLOW_MODE=on\n")
+    monkeypatch.setattr(main_latest, "PREFS_FILE", Path(old))
+    prefs = main_latest.load_prefs()
+    assert prefs["SPLASH_DESIGN"] == "mark"
+    assert prefs["SLOW_MODE"] == "on"   # untouched by the migration
+
+
+def test_load_prefs_leaves_other_splash_designs_alone(tmp_path, monkeypatch):
+    import main_latest
+    old = tmp_path / "prefs.env"
+    old.write_text("SPLASH_DESIGN=stacked\n")
+    monkeypatch.setattr(main_latest, "PREFS_FILE", Path(old))
+    assert main_latest.load_prefs()["SPLASH_DESIGN"] == "stacked"
+
+
+def test_splash_design_cycle_starts_and_ends_at_mark():
+    import main_latest
+    assert main_latest.DEFAULT_PREFS["SPLASH_DESIGN"] == "mark"
+    assert main_latest.next_splash_design("mark") == "lockup"
+    assert main_latest.next_splash_design("lockup") == "stacked"
+    assert main_latest.next_splash_design("stacked") == "generic"
+    assert main_latest.next_splash_design("generic") == "mark"
+    assert main_latest.next_splash_design("banana") == "mark"   # corrupt value

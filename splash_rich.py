@@ -67,7 +67,7 @@ def _bars(top, bottom):
     return out
 
 
-# Hamburger University marks (sandbox demo co-brand), echoed as halftone-dot
+# Generic University marks (sandbox demo co-brand), echoed as halftone-dot
 # shapes. A row of n dots is "● ● …" — each row centred in a fixed field keeps
 # every row on one shared column grid.
 def _shape_rows(counts, field):
@@ -75,42 +75,42 @@ def _shape_rows(counts, field):
     return [("● " * n).rstrip().center(field) for n in counts]
 
 
-# Burger silhouette (bun crown -> bun edge -> filling stack -> tapered base),
-# widest row is 9 dots = 17 cells.
-_BURGER_COUNTS_LARGE = [3, 7, 9, 9, 9, 9, 9, 7, 5]
-_BURGER_COUNTS_SMALL = [1, 5, 5, 5, 3]
+# Mark silhouette (crown -> edge -> stacked middle -> tapered base), widest row
+# is 9 dots = 17 cells.
+_MARK_COUNTS_LARGE = [3, 7, 9, 9, 9, 9, 9, 7, 5]
+_MARK_COUNTS_SMALL = [1, 5, 5, 5, 3]
 
 
-def _hu_burger_rows():
-    """Design B: a large 9-row HU burger mark (widest row is 9 dots = 17 cells)."""
-    return _shape_rows(_BURGER_COUNTS_LARGE, field=17)
+def _mark_rows():
+    """Design B: the large 9-row co-brand mark (widest row is 9 dots = 17 cells)."""
+    return _shape_rows(_MARK_COUNTS_LARGE, field=17)
 
 
-def _hu_lockup_rows():
-    """Compact HU badge — small burger over the wordmark, 9 rows (field 10)."""
+def _lockup_rows():
+    """Compact badge — small mark over the wordmark, 9 rows (field 10)."""
     field = 10
-    burger = _shape_rows(_BURGER_COUNTS_SMALL, field)  # 5 rows: 1,5,5,5,3
-    words = ["HAMBURGER".center(field), "UNIVERSITY".center(field)]
-    return ["".center(field), *burger, *words, "".center(field)]  # 1+5+2+1 = 9
+    mark = _shape_rows(_MARK_COUNTS_SMALL, field)  # 5 rows: 1,5,5,5,3
+    words = ["GENERIC".center(field), "UNIVERSITY".center(field)]
+    return ["".center(field), *mark, *words, "".center(field)]  # 1+5+2+1 = 9
 
 
-def _hu_stacked_rows():
-    """Full HU lockup — large burger over the wordmark, 11 rows (field 17)."""
+def _stacked_rows():
+    """Full lockup — large mark over the wordmark, 11 rows (field 17)."""
     field = 17
-    burger = _shape_rows(_BURGER_COUNTS_LARGE, field)  # 9 rows
-    words = ["HAMBURGER".center(field), "UNIVERSITY".center(field)]
-    return [*burger, *words]                           # 9 + 2 = 11
+    mark = _shape_rows(_MARK_COUNTS_LARGE, field)  # 9 rows
+    words = ["GENERIC".center(field), "UNIVERSITY".center(field)]
+    return [*mark, *words]                         # 9 + 2 = 11
 
 
 _BAR_W = len(BARS[0])  # every Cisco bar row is this wide
 
 
 def _compose_logo(left_rows, field, top, bottom, centre=None):
-    """Join a left-hand HU badge with the Cisco bars on one shared column grid.
+    """Join a left-hand co-brand badge with the Cisco bars on one column grid.
 
-    Each line is [HU badge row, `field` wide] + gap + [one Cisco bar row]. The
+    Each line is [badge row, `field` wide] + gap + [one Cisco bar row]. The
     bars are all appended at the same offset, so the Cisco mark keeps its column
-    grid while the HU mark sits to its left. When the badge is taller than the
+    grid while the co-brand mark sits to its left. When the badge is taller than the
     bars (the stacked lockup), the bars top-align and blank bar rows pad the rest
     so the wordmark hangs below. Dots take a vertical ICE→CYAN gradient (centre
     dot bright white); wordmark letters render white.
@@ -128,7 +128,7 @@ def _compose_logo(left_rows, field, top, bottom, centre=None):
                     out.append(ch, style=f"bold {_rgb(WHITE)}")
                 else:
                     out.append(ch, style=f"rgb({vr},{vg},{vb})")
-            else:  # HU wordmark letters
+            else:  # co-brand wordmark letters
                 out.append(ch, style=f"bold {_rgb(WHITE)}")
         out.append("   ")  # gap between the two marks
         if i < len(BARS):
@@ -141,17 +141,17 @@ def _compose_logo(left_rows, field, top, bottom, centre=None):
 
 
 # Minimum terminal width each design needs to render without the bars folding
-# (HU field + 3-space gap + bar width, or just the bars for "generic").
-_DESIGN_WIDTH = {"burger": 87, "stacked": 87, "lockup": 80, "generic": _BAR_W}
+# (mark field + 3-space gap + bar width, or just the bars for "generic").
+_DESIGN_WIDTH = {"mark": 87, "stacked": 87, "lockup": 80, "generic": _BAR_W}
 
 
 def _fit_design(design, width):
     """Degrade to the richest design that fits `width` (keeps the splash intact).
 
     A too-wide logo makes Rich fold the bar rows and the mark shatters, so on a
-    narrow terminal step burger/stacked → lockup → generic rather than break.
+    narrow terminal step mark/stacked → lockup → generic rather than break.
     """
-    if width >= _DESIGN_WIDTH.get(design, _DESIGN_WIDTH["burger"]):
+    if width >= _DESIGN_WIDTH.get(design, _DESIGN_WIDTH["mark"]):
         return design
     for fallback in ("lockup", "generic"):
         if width >= _DESIGN_WIDTH[fallback]:
@@ -162,25 +162,28 @@ def _fit_design(design, width):
 def _logo(design, top, bottom):
     """Build the logo block for a splash design.
 
-    "burger"  — HU burger mark beside the Cisco bars (co-brand).
-    "lockup"  — compact HU burger+wordmark badge beside the bars (co-brand).
-    "stacked" — full HU lockup (large burger over wordmark) beside the bars.
-    "generic" — Cisco bars only (original, no HU branding).
+    "mark"    — co-brand mark beside the Cisco bars.
+    "lockup"  — compact mark+wordmark badge beside the bars (co-brand).
+    "stacked" — full lockup (large mark over wordmark) beside the bars.
+    "generic" — Cisco bars only (original, no co-branding).
+
+    Any unrecognised design falls through to "mark", so a corrupt SPLASH_DESIGN
+    in prefs.env still renders.
     """
     if design == "generic":
         return _bars(top, bottom)
     if design == "lockup":
-        return _compose_logo(_hu_lockup_rows(), 10, top, bottom, centre=(3, 4))
+        return _compose_logo(_lockup_rows(), 10, top, bottom, centre=(3, 4))
     if design == "stacked":
-        return _compose_logo(_hu_stacked_rows(), 17, top, bottom, centre=(4, 8))
-    return _compose_logo(_hu_burger_rows(), 17, top, bottom, centre=(4, 8))
+        return _compose_logo(_stacked_rows(), 17, top, bottom, centre=(4, 8))
+    return _compose_logo(_mark_rows(), 17, top, bottom, centre=(4, 8))
 
 
-def render(console, title, subtitle, menu_header, options, design="burger"):
+def render(console, title, subtitle, menu_header, options, design="mark"):
     """Draw the sparkled splash to `console`, over the Cisco-blue background.
 
-    `design` selects the branding: "burger" / "lockup" / "stacked" co-brand with
-    Hamburger University (see `_logo`); "generic" is the original Cisco-only splash.
+    `design` selects the branding: "mark" / "lockup" / "stacked" co-brand with
+    Generic University (see `_logo`); "generic" is the original Cisco-only splash.
 
     Every element is printed with an `on rgb(DEEP)` base style so the blue fills
     behind the text and the centering padding — matching the app's themed screen.
@@ -189,12 +192,12 @@ def render(console, title, subtitle, menu_header, options, design="burger"):
     # so the logo never folds into a broken mess on an 80-column screen.
     design = _fit_design(design, console.width)
     # Bars stay in the light half of the palette so they read on the blue bg;
-    # the HU mark (if any) sits to their left for the co-brand lockup.
+    # the co-brand mark (if any) sits to their left for the lockup.
     logo = _logo(design, WHITE, CYAN)
     # Co-brand tag rides the same cyan→white gradient as the Cisco wordmark.
     tagline = "CISCO  ·  DNA CENTER"
     if design != "generic":
-        tagline += "     ×  Hamburger University"
+        tagline += "     ×  Generic University"
     wordmark = _hgradient(tagline, CYAN, WHITE)
     wordmark.justify = "center"
 
@@ -238,14 +241,15 @@ if __name__ == "__main__":  # quick preview of every design: `python3 splash_ric
 
     con = Console()
     opts = [
-        "1) Use dnac.env",
-        "2) Enter manually · remember",
-        "3) Enter manually · forget",
-        "4) View dnac.env",
-        "5) Options",
+        "1) Use Legacy DNAC",
+        "2) Use New DNAC",
+        "3) Enter manually · remember",
+        "4) Enter manually · forget",
+        "5) View credential files",
+        "6) Options",
     ]
     # One arg previews a single design; no arg cycles them all for comparison.
-    designs = sys.argv[1:] or ["burger", "lockup", "stacked", "generic"]
+    designs = sys.argv[1:] or ["mark", "lockup", "stacked", "generic"]
     for d in designs:
         con.rule(f"[bold]design = {d}[/]")
         render(con, "CHEAT", "Cisco Homogeneous Environment Awareness Tool",

@@ -2,6 +2,44 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-08-12 — Dual DNAC credentials + splash de-brand
+
+### Menu 1 — two controllers
+
+- **`1) Use Legacy DNAC`** (was `1) Use dnac.env`) — behaviour unchanged, reads
+  `dnac.env`.
+- **`2) Use New DNAC`** (new) — reads **`dnac2.env`**, using the same three
+  `DNAC_HOST` / `DNAC_USERNAME` / `DNAC_PASSWORD` keys, so the file is a literal
+  copy of `dnac.env` with different values. Already covered by the `*.env`
+  gitignore rule.
+- **No silent fallback.** A missing `dnac2.env` reports the miss and returns to
+  the menu rather than loading legacy credentials, which would point the session
+  at the wrong controller.
+- **`3) Enter manually · remember`** now asks which file to write
+  (`1) dnac.env` / `2) dnac2.env`); **blank = legacy**, preserving the old
+  behaviour. So typing new-controller credentials can no longer silently
+  overwrite the legacy file.
+- **`5) View credential files`** (was `4) View dnac.env`) shows every credential
+  file that exists, `DNAC_PASSWORD` masked as before.
+- Options moves to `6)`; the prompt becomes `Select [1-6]`.
+  (`main_latest.py`, `test_credential_files.py`)
+
+### Splash de-brand (Cisco × Generic University)
+
+- The co-brand wording is now **"Generic University"** — both the
+  `CISCO · DNA CENTER  ×  …` tagline and the halftone wordmark rows
+  (`GENERIC` / `UNIVERSITY`) in the `lockup` and `stacked` designs.
+- **`SPLASH_DESIGN` renamed `burger` → `mark`.** `generic` already names the
+  no-co-brand design, so the co-brand mark could not take that name. The
+  Options → `J` cycle is now `mark → lockup → stacked → generic → mark`, and
+  `load_prefs()` migrates a pre-rename `prefs.env` so the J row never shows a
+  stale value. Internals renamed to match (`_mark_rows`, `_lockup_rows`,
+  `_stacked_rows`, `_MARK_COUNTS_*`), and the J-cycle moved out of `menu_options`
+  into `next_splash_design()` so it is directly testable.
+- The mark's dot geometry is unchanged — only wording and naming moved.
+- Standalone splash previews (`splash_rich.py`, `splash_generic.py`,
+  `splash_preview.py`) show the new six-item Menu 1.
+
 ## 2026-07-29 — Splash co-brand reskin (Cisco × Hamburger University)
 
 - Replaced the co-brand mark's identifying wordmark and diamond glyph with a

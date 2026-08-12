@@ -9,10 +9,11 @@ share the same horizontal ink midpoint (the whole block centred as one unit).
 
 import pytest
 
-DESIGNS = ["burger", "lockup", "stacked", "generic"]
+DESIGNS = ["mark", "lockup", "stacked", "generic"]
+COBRAND_DESIGNS = ["mark", "lockup", "stacked"]
 
 
-def _render_text(design="burger", width=112, title="CHEAT"):
+def _render_text(design="mark", width=112, title="CHEAT"):
     from rich.console import Console
     import splash_rich
     con = Console(record=True, width=width, force_terminal=True)
@@ -25,9 +26,8 @@ def _bar_rows(text):
 
 
 def _ink_midpoint(line):
-    # Measure the Cisco bars only: the co-brand HU burger mark shares these
-    # lines to the left, so its dots must not count toward the bars' column-grid
-    # check.
+    # Measure the Cisco bars only: the co-brand mark shares these lines to the
+    # left, so its dots must not count toward the bars' column-grid check.
     inks = [i for i, ch in enumerate(line) if ch == "█"]
     return (inks[0] + inks[-1]) / 2
 
@@ -40,41 +40,57 @@ def test_logo_bars_share_one_column_grid(design):
     assert len(midpoints) == 1, f"{design}: bars not aligned: {midpoints}"
 
 
-@pytest.mark.parametrize("design", ["burger", "lockup", "stacked"])
-def test_cobrand_designs_show_hu_tag(design):
-    assert "Hamburger University" in _render_text(design)
+@pytest.mark.parametrize("design", COBRAND_DESIGNS)
+def test_cobrand_designs_show_the_cobrand_tag(design):
+    assert "Generic University" in _render_text(design)
 
 
-def test_generic_has_no_hu_tag():
-    assert "Hamburger University" not in _render_text("generic")
+def test_generic_design_has_no_cobrand_tag():
+    assert "Generic University" not in _render_text("generic")
 
 
-def test_invalid_design_falls_back_to_burger():
+@pytest.mark.parametrize("design", DESIGNS)
+def test_no_design_says_hamburger(design):
+    text = _render_text(design, width=200)
+    assert "Hamburger" not in text
+    assert "HAMBURGER" not in text
+
+
+@pytest.mark.parametrize("design", ["lockup", "stacked"])
+def test_wordmark_reads_generic_university(design):
+    # The halftone wordmark rows are upper-case, so GENERIC here can only come
+    # from the mark itself — the tagline spells it "Generic University".
+    text = _render_text(design, width=200)
+    assert "GENERIC" in text
+    assert "UNIVERSITY" in text
+
+
+def test_invalid_design_falls_back_to_mark():
     # Load-bearing: a corrupt SPLASH_DESIGN in prefs.env must not crash the splash.
-    assert _render_text("banana") == _render_text("burger")
+    assert _render_text("banana") == _render_text("mark")
 
 
 def test_stacked_wordmark_hangs_below_the_bars():
-    # The stacked lockup is taller than the 9 bar rows: HAMBURGER/UNIVERSITY sit
+    # The stacked lockup is taller than the 9 bar rows: GENERIC/UNIVERSITY sit
     # on lines that carry no Cisco bar.
     lines = _render_text("stacked", width=200).splitlines()
     uni = [ln for ln in lines if "UNIVERSITY" in ln]
     assert uni and "█" not in uni[0]
 
 
-@pytest.mark.parametrize("design", ["burger", "lockup", "stacked"])
-def test_cobrand_designs_render_the_hu_burger(design):
-    assert "●" in _render_text(design)  # the halftone-dot burger mark
+@pytest.mark.parametrize("design", COBRAND_DESIGNS)
+def test_cobrand_designs_render_the_mark(design):
+    assert "●" in _render_text(design)  # the halftone-dot mark
 
 
-def test_generic_has_no_burger_dots():
+def test_generic_design_has_no_mark_dots():
     assert "●" not in _render_text("generic")
 
 
 def test_narrow_terminal_degrades_without_folding():
-    # At 80 columns the 87-wide burger mark would fold; the width guard must
-    # step it down to a design that still renders its 9 bar rows intact.
-    rows = _bar_rows(_render_text("burger", width=80))
+    # At 80 columns the 87-wide mark would fold; the width guard must step it
+    # down to a design that still renders its 9 bar rows intact.
+    rows = _bar_rows(_render_text("mark", width=80))
     assert len(rows) == 9
     midpoints = {_ink_midpoint(r) for r in rows}
     assert len(midpoints) == 1
@@ -82,8 +98,8 @@ def test_narrow_terminal_degrades_without_folding():
 
 def test_fit_design_degrades_by_width():
     import splash_rich
-    assert splash_rich._fit_design("burger", 120) == "burger"
-    assert splash_rich._fit_design("burger", 80) == "lockup"
+    assert splash_rich._fit_design("mark", 120) == "mark"
+    assert splash_rich._fit_design("mark", 80) == "lockup"
     assert splash_rich._fit_design("stacked", 80) == "lockup"
     assert splash_rich._fit_design("lockup", 70) == "generic"
-    assert splash_rich._fit_design("burger", 40) == "generic"
+    assert splash_rich._fit_design("mark", 40) == "generic"
