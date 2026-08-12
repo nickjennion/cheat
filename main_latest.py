@@ -23,9 +23,15 @@ from cheat_core import (
     next_concurrency,
     DEFAULT_CONCURRENCY,
     AV_MAC_COMMANDS,
+    DEVICE_TRACKING_COMMANDS,
 )
-from excel_generator import write_client_search_excel, write_av_mac_report_excel
+from excel_generator import (
+    write_client_search_excel,
+    write_av_mac_report_excel,
+    write_ip_mac_report_excel,
+)
 from av_mac_report import build_av_mac_report
+from ip_mac_report import build_ip_mac_report
 from port_utilisation import is_copper_port
 from drawio_generator import generate_drawio
 import ap_monitor
@@ -292,6 +298,30 @@ def _prompt_filename(label="Filename"):
     if not name.lower().endswith(".xlsx"):
         name += ".xlsx"
     return name
+
+
+def _prompt_vlans():
+    """Prompt for VLAN ID(s), comma or space separated. [] when blank or invalid."""
+    print()
+    print("  VLAN ID(s), comma or space separated (e.g. 900 905)")
+    raw = input("  VLAN ID(s): ").strip()
+    if not raw:
+        print("  Cancelled.")
+        return []
+    vlans = [v for v in re.split(r"[,\s]+", raw) if v]
+    if not all(v.isdigit() for v in vlans):
+        print("  ✗ VLAN IDs must be numeric.")
+        return []
+    return vlans
+
+
+def _timestamped_excel_path(filename) -> str:
+    """excel_reports/<stem>-<timestamp>.xlsx, creating the directory."""
+    from datetime import datetime
+    excel_dir = Path(EXCEL_DIR).resolve()
+    excel_dir.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    return str(excel_dir / f"{Path(filename).stem}-{ts}.xlsx")
 
 
 # ============================================================================
@@ -1317,16 +1347,9 @@ def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
     already-selected switch group, then correlates them into a flagged
     MAC-to-physical-port report (see av_mac_report.build_av_mac_report).
     """
-    print()
-    print("  AV MAC/port export — VLAN ID(s), comma or space separated (e.g. 900 905)")
-    raw_vlans = input("  VLAN ID(s): ").strip()
-    if not raw_vlans:
-        print("  Cancelled.")
-        pause()
-        return
-    vlans = [v for v in re.split(r"[,\s]+", raw_vlans) if v]
-    if not all(v.isdigit() for v in vlans):
-        print("  ✗ VLAN IDs must be numeric.")
+    print("\n  AV MAC/port export")
+    vlans = _prompt_vlans()
+    if not vlans:
         pause()
         return
 
@@ -1350,13 +1373,62 @@ def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
         pause()
         return
 
-    from datetime import datetime
-    excel_dir = Path(EXCEL_DIR).resolve()
-    excel_dir.mkdir(exist_ok=True)
-    ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
-    stem = Path(filename).stem
-    outpath = str(excel_dir / f"{stem}-{ts}.xlsx")
-    ok, msg = write_av_mac_report_excel(report, outpath)
+    ok, msg = write_av_mac_report_excel(report, _timestamped_excel_path(filename))
+    print(f"\n  {msg}")
+    pause()
+
+
+def action_ip_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURRENCY):
+    """Menu 5 'd': IP/MAC per VLAN export from the SISF device-tracking database.
+
+    Runs `show device-tracking database` on the already-selected switch group,
+    then filters the binding table to the requested VLANs and aggregates the
+    endpoints into one spreadsheet (see ip_mac_report.build_ip_mac_report).
+    Requires Catalyst 9000-class IOS-XE; switches that reject the command are
+    reported rather than silently contributing nothing.
+    """
+    print("\n  IP/MAC per VLAN export (device tracking)")
+    vlans = _prompt_vlans()
+    if not vlans:
+        pause()
+        return
+
+    outputs = run_commands(selected_devices, client, DEVICE_TRACKING_COMMANDS,
+                           concurrency=concurrency)
+    if not outputs:
+        pause()
+        return
+
+    report = build_ip_mac_report(outputs, vlans)
+
+    # Surface coverage gaps on screen as well as in the workbook: a fleet where
+    # half the switches predate SISF should not look like an empty result.
+    if report.unsupported:
+        print(f"\n  ⚠ {len(report.unsupported)} switch(es) did not support the command: "
+              f"{', '.join(report.unsupported)}")
+    if report.no_bindings:
+        print(f"  ⚠ {len(report.no_bindings)} switch(es) returned no bindings: "
+              f"{', '.join(report.no_bindings)}")
+
+    if not report.rows:
+        print("\n  No IP/MAC bindings found for the requested VLAN(s).")
+        pause()
+        return
+
+    flagged = sum(1 for r in report.rows if r.notes)
+    print(f"\n  Found {len(report.rows)} IP/MAC binding(s) ({flagged} flagged for review)")
+    if report.excluded_local:
+        print(f"  Excluded {report.excluded_local} local/static row(s)")
+    if report.non_ipv4:
+        print(f"  Skipped {report.non_ipv4} non-IPv4 binding(s)")
+
+    filename = _prompt_filename()
+    if not filename:
+        print("  Cancelled.")
+        pause()
+        return
+
+    ok, msg = write_ip_mac_report_excel(report, _timestamped_excel_path(filename))
     print(f"\n  {msg}")
     pause()
 
@@ -1383,6 +1455,7 @@ def menu_5(selected_devices, client, host, username):
         print("  6) MAC prefix search  (Assurance /clients, wildcard)")
         print("  7) IP address search  (Assurance /clients, wildcard)")
         print("  m) MAC/port export (for AV)")
+        print("  d) IP/MAC per VLAN export (device tracking)")
         print("  s) Toggle slow mode")
         print("  p) Toggle copper only")
         print("  l) Toggle link-state column")
@@ -1391,7 +1464,7 @@ def menu_5(selected_devices, client, host, username):
         print("  r) Re-auth token")
         print("  8) Back")
         print()
-        choice = input("  Select [1-9 / m / r / s / p / l / c]: ").strip().lower()
+        choice = input("  Select [1-9 / d / m / r / s / p / l / c]: ").strip().lower()
 
         if choice == "8":
             return
@@ -1476,6 +1549,9 @@ def menu_5(selected_devices, client, host, username):
 
         elif choice == "m":
             action_av_mac_export(selected_devices, client, concurrency)
+
+        elif choice == "d":
+            action_ip_mac_export(selected_devices, client, concurrency)
 
         else:
             print("\n  Invalid selection.")

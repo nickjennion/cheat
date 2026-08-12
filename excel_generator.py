@@ -543,3 +543,105 @@ def write_av_mac_report_excel(report, outpath: str) -> tuple[bool, str]:
         return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC/port mapping(s))"
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"
+
+
+# ============================================================================
+# IP/MAC Per VLAN Export (device tracking)
+# ============================================================================
+
+IP_MAC_SUMMARY_TITLE = "IP/MAC Bindings Found On These Switches"
+IP_MAC_HEADERS = ["Switch", "Stack Member", "Interface", "VLAN", "IP Address",
+                  "MAC Address", "State", "Age", "Notes"]
+IP_MAC_COL_WIDTHS = [28, 13, 14, 8, 18, 20, 14, 10, 34]
+IP_MAC_FLAG_COLOUR = "FFFFD700"
+
+
+def _ip_mac_summary_lines(report) -> list:
+    """Summary block text: one line per requested VLAN, then any caveat lines.
+
+    Caveat lines are emitted only when their count is non-zero, so a clean run
+    shows just the VLAN lines.
+    """
+    lines = []
+    for vlan in sorted(report.vlan_switches, key=lambda v: (not v.isdigit(), v)):
+        switches = report.vlan_switches[vlan]
+        found = ", ".join(switches) if switches else "not found on any selected switch"
+        lines.append(f"VLAN {vlan}: {found}")
+
+    if report.excluded_local:
+        lines.append(f"Excluded {report.excluded_local} local/static row(s)")
+    if report.non_ipv4:
+        lines.append(f"Skipped {report.non_ipv4} non-IPv4 binding(s)")
+    if report.unsupported:
+        lines.append(
+            f"{len(report.unsupported)} switch(es) did not support the command: "
+            f"{', '.join(report.unsupported)}"
+        )
+    if report.no_bindings:
+        lines.append(
+            f"{len(report.no_bindings)} switch(es) returned no bindings: "
+            f"{', '.join(report.no_bindings)}"
+        )
+    return lines
+
+
+def write_ip_mac_report_sheet(ws, report) -> int:
+    """Write the VLAN summary block then the IP/MAC detail table.
+
+    Returns the next free row below the detail table.
+    """
+    title = ws.cell(row=1, column=1, value=IP_MAC_SUMMARY_TITLE)
+    title.font = Font(bold=True, name="Arial", size=10)
+
+    row = 2
+    for line in _ip_mac_summary_lines(report):
+        ws.cell(row=row, column=1, value=line)
+        row += 1
+
+    row += 1  # blank row before the detail table
+    header_font, header_fill, header_align, header_border = get_header_styles()
+    data_font, data_align, data_border = get_data_styles()
+
+    hdr_row = row
+    for col, (header, width) in enumerate(zip(IP_MAC_HEADERS, IP_MAC_COL_WIDTHS), start=1):
+        c = ws.cell(row=hdr_row, column=col, value=header)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = header_align
+        c.border = header_border
+        ws.column_dimensions[get_column_letter(col)].width = width
+    ws.freeze_panes = f"A{hdr_row + 1}"
+
+    for i, r in enumerate(report.rows):
+        data_row = hdr_row + 1 + i
+        values = [r.switch, r.stack_member, r.interface, r.vlan, r.ip,
+                  r.mac, r.state, r.age, r.notes]
+        flagged = bool(r.notes)
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=data_row, column=col, value=value)
+            cell.font = Font(name="Arial", size=10, bold=True) if flagged else data_font
+            cell.alignment = data_align
+            cell.border = data_border
+            if flagged:
+                cell.fill = PatternFill("solid", start_color=IP_MAC_FLAG_COLOUR)
+
+    end_row = hdr_row + len(report.rows)
+    last_col = get_column_letter(len(IP_MAC_HEADERS))
+    ws.auto_filter.ref = f"A{hdr_row}:{last_col}{end_row}"
+    return end_row + 1
+
+
+def write_ip_mac_report_excel(report, outpath: str) -> tuple[bool, str]:
+    """Write the IP/MAC per VLAN report to a single-sheet Excel workbook."""
+    if not report.rows:
+        return False, "No IP/MAC bindings found for the requested VLAN(s)"
+
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "IP-MAC Per VLAN"
+        write_ip_mac_report_sheet(ws, report)
+        wb.save(outpath)
+        return True, f"✓ Saved: {outpath} ({len(report.rows)} IP/MAC binding(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"

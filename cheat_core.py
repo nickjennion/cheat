@@ -49,6 +49,11 @@ LINK_STATE_COMMANDS = ["show logging", "show clock"]
 
 AV_MAC_COMMANDS = ["show mac address-table", "show cdp neighbors detail"]
 
+# SISF binding table (Catalyst 9000-class IOS-XE): IP, MAC, interface, VLAN and
+# reachability state on one line. Older platforms reject it — ip_mac_report
+# detects that and reports which switches could not run it.
+DEVICE_TRACKING_COMMANDS = ["show device-tracking database"]
+
 
 def build_command_list(link_state: bool) -> list:
     """Base report commands, plus link-state commands when enabled."""

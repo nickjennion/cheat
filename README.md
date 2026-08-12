@@ -27,6 +27,19 @@ topology layout (**Options → `K`**, `auto` vs `pyramid` distribution/access/de
 | `port_utilisation.py` | **Port usage analyser.** Reads a CHEAT Excel report and calculates per-switch port utilisation statistics: counts copper ports (GiX/0/X, TeX/0/X) with recent traffic vs. idle ports based on the "Last Input" column. Supports a configurable threshold (default 42 days). Outputs a readable stdout summary table and a timestamped summary Excel file. Includes an **unscanned Cisco switches** block listing CDP neighbours (with mgmt IP) not scanned in the session. |
 | `unscanned_switches.py` | **Coverage gap finder.** From CDP data and the set of scanned hostnames, computes the list of Cisco switches seen as CDP neighbours but never explicitly scanned in the session ("rogue" switches). Feeds the unscanned-switches block in the port-utilisation report. |
 
+### VLAN Exports (Menu 5 `m` and `d`)
+
+Two per-VLAN exports built on the same three-layer split — a pure parser, a pure
+correlator, then an Excel writer in `excel_generator.py`. Both reuse the switch
+selection already made in Menu 4 and flag ambiguity rather than resolving it.
+
+| File | Purpose |
+|------|---------|
+| `mac_table.py` | **`show mac address-table` parser.** Pure parsing into per-switch MAC/port entries. Skips `All`-VLAN and CPU rows (control-plane MACs, not end devices) and lower-cases MACs so cross-switch comparison works. |
+| `av_mac_report.py` | **MAC/port correlator (Menu 5 `m`).** Correlates MAC tables with `show cdp neighbors detail` across a switch group, dropping any interface whose CDP neighbour is itself a switch/router — that collapses the same MAC learned on every uplink between the AV device and the top of the stack. Flags a port holding several MACs (`possible unmanaged switch`) and a MAC surviving on several switches (`Ambiguous`). |
+| `device_tracking.py` | **`show device-tracking database` parser.** Pure parsing of the SISF binding table (Catalyst 9000-class IOS-XE) into IP/MAC/interface/VLAN/state records. Returns local (`L`) and static (`S`) rows for the caller to decide on, counts IPv6 bindings rather than dropping them silently, and detects the `% Invalid input` reply from pre-SISF platforms. |
+| `ip_mac_report.py` | **IP/MAC correlator (Menu 5 `d`).** Filters bindings to the requested VLANs and drops the switch's own `L`/`S` rows (counting them), giving a per-VLAN inventory of devices and the addresses they hold. Flags one IP held by several MACs (an address conflict) and one MAC seen on several switches. Records which switches could not run the command versus which ran it and returned nothing, so a part-9000 fleet never looks like an empty result. |
+
 ### CDP Topology
 
 | File | Purpose |

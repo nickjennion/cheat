@@ -2,6 +2,45 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-08-12 — IP/MAC per VLAN export (device tracking)
+
+**New Menu 5 entry `d) IP/MAC per VLAN export (device tracking)`** — the
+layer-3 companion to `m)`. Answers "which devices are in this VLAN and what
+addresses do they hold", which `show mac address-table` cannot.
+
+- **Runs `show device-tracking database`** on the switches already selected in
+  Menu 4, at the menu's concurrency. This is the SISF binding table on
+  Catalyst 9000-class IOS-XE — IP, MAC, interface, VLAN and reachability state
+  on one line.
+- **The switch's own rows are excluded.** Codes `L` (local) and `S` (static)
+  describe the switch, not an attached device, so they are dropped and the count
+  reported — on screen and in the workbook — rather than dropped silently.
+- **Flags, never collapses**, matching `m)`'s principle:
+  - `Duplicate IP — held by N MACs` — one address claimed by several MACs, i.e.
+    a genuine conflict.
+  - `Seen on multiple switches` — one MAC at more than one switch/port.
+  Flags are computed *after* the `L`/`S` drop, so a switch's own SVI address can
+  never read as a conflict.
+- **Coverage gaps are visible.** A pre-SISF switch (3560/3850) answers
+  `% Invalid input detected`; those switches are listed separately from switches
+  that ran the command but held no bindings in the requested VLANs, so a
+  part-9000 fleet doesn't look like an empty result.
+- **IPv6 bindings** (`ND`/`DH6`) are counted and reported, not included — this
+  export is IPv4.
+- Columns: Switch, Stack Member, Interface, VLAN, IP Address, MAC Address,
+  State, Age, Notes. Rows sort by switch, interface, then IP compared as octets
+  so `.9` precedes `.10`. Flagged rows are bold on gold, as in `m)`.
+- **Implementation** follows the `m)` split: `device_tracking.py` (pure parser,
+  peer of `mac_table.py`), `ip_mac_report.py` (pure correlator, peer of
+  `av_mac_report.py`), `write_ip_mac_report_excel` in `excel_generator.py`,
+  `DEVICE_TRACKING_COMMANDS` in `cheat_core.py`, `action_ip_mac_export` in
+  `main_latest.py`.
+- **Refactor while in here:** `_prompt_vlans()` and
+  `_timestamped_excel_path()` extracted in `main_latest.py` and used by both
+  `m)` and `d)`, removing ~40 lines that would otherwise have been duplicated.
+- The four VLAN-export modules are now documented in the README, which had
+  never picked up `mac_table.py` / `av_mac_report.py`.
+
 ## 2026-08-12 — Dual DNAC credentials + splash de-brand
 
 ### Menu 1 — two controllers
