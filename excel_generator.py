@@ -6,6 +6,7 @@ One sheet per device with color-coded interface inventory.
 """
 
 from typing import Optional
+import csv
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -478,9 +479,19 @@ def write_client_search_excel(clients: list, outpath: str) -> tuple[bool, str]:
 # ============================================================================
 
 AV_MAC_SUMMARY_TITLE = "AV VLANs Found On These Switches"
-AV_MAC_HEADERS = ["Switch", "Stack Member", "Interface", "VLAN", "MAC Address", "Type", "Notes"]
-AV_MAC_COL_WIDTHS = [28, 13, 14, 8, 20, 10, 40]
+AV_MAC_HEADERS = ["Switch", "Stack Member", "Interface", "VLAN", "MAC Address", "Type", "Device Type", "Notes"]
+AV_MAC_COL_WIDTHS = [28, 13, 14, 8, 20, 10, 16, 40]
 AV_MAC_FLAG_COLOUR = "FFFFD700"
+
+
+def _av_summary_line(report, vlan):
+    """Summary line for one VLAN: found switches (with per-VLAN MAC count)."""
+    switches = report.vlan_stacks.get(vlan, [])
+    if not switches:
+        return f"VLAN {vlan}: not found on any selected switch"
+    count = report.vlan_counts.get(vlan, 0)
+    count_txt = f" ({count} MAC(s))" if count else ""
+    return f"VLAN {vlan}: {', '.join(switches)}{count_txt}"
 
 
 def write_av_mac_report_sheet(ws, report) -> int:
@@ -493,9 +504,7 @@ def write_av_mac_report_sheet(ws, report) -> int:
 
     row = 2
     for vlan in sorted(report.vlan_stacks, key=int):
-        switches = report.vlan_stacks[vlan]
-        found = ", ".join(switches) if switches else "not found on any selected switch"
-        ws.cell(row=row, column=1, value=f"VLAN {vlan}: {found}")
+        ws.cell(row=row, column=1, value=_av_summary_line(report, vlan))
         row += 1
 
     row += 1  # blank row before the detail table
@@ -514,7 +523,7 @@ def write_av_mac_report_sheet(ws, report) -> int:
 
     for i, r in enumerate(report.rows):
         data_row = hdr_row + 1 + i
-        values = [r.switch, r.stack_member, r.interface, r.vlan, r.mac, r.type, r.notes]
+        values = [r.switch, r.stack_member, r.interface, r.vlan, r.mac, r.type, r.device_type, r.notes]
         flagged = bool(r.notes)
         for col, value in enumerate(values, start=1):
             cell = ws.cell(row=data_row, column=col, value=value)
@@ -525,7 +534,7 @@ def write_av_mac_report_sheet(ws, report) -> int:
                 cell.fill = PatternFill("solid", start_color=AV_MAC_FLAG_COLOUR)
 
     end_row = hdr_row + len(report.rows)
-    ws.auto_filter.ref = f"A{hdr_row}:G{end_row}"
+    ws.auto_filter.ref = f"A{hdr_row}:{get_column_letter(len(AV_MAC_HEADERS))}{end_row}"
     return end_row + 1
 
 
@@ -543,6 +552,22 @@ def write_av_mac_report_excel(report, outpath: str) -> tuple[bool, str]:
         return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC/port mapping(s))"
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"
+
+
+def write_av_mac_report_csv(report, outpath: str) -> tuple[bool, str]:
+    """Write the AV MAC/port report to a CSV file (same detail rows as Excel)."""
+    if not report.rows:
+        return False, "No matching MAC addresses found for the requested VLAN(s)"
+    try:
+        with open(outpath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(AV_MAC_HEADERS)
+            for r in report.rows:
+                writer.writerow([r.switch, r.stack_member, r.interface, r.vlan,
+                                 r.mac, r.type, r.device_type, r.notes])
+        return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC/port mapping(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write CSV: {e}"
 
 
 # ============================================================================
@@ -645,3 +670,101 @@ def write_ip_mac_report_excel(report, outpath: str) -> tuple[bool, str]:
         return True, f"✓ Saved: {outpath} ({len(report.rows)} IP/MAC binding(s))"
     except Exception as e:
         return False, f"✗ Failed to write Excel: {e}"
+
+
+# ============================================================================
+# MAC address table — all VLANs by port (incl. child switches) export
+# ============================================================================
+
+MAC_BY_PORT_SUMMARY_TITLE = "MACs Found On These Switches (All VLANs)"
+MAC_BY_PORT_HEADERS = ["Switch", "Stack Member", "Interface", "VLAN", "MAC Address",
+                       "Type", "Device Type", "Neighbour", "Notes"]
+MAC_BY_PORT_COL_WIDTHS = [28, 13, 14, 8, 20, 10, 16, 32, 40]
+MAC_BY_PORT_FLAG_COLOUR = "FFFFD700"
+
+
+def write_mac_by_port_report_sheet(ws, report) -> int:
+    """Write the VLAN summary block then the per-port MAC detail table.
+
+    Returns the next free row below the detail table.
+    """
+    title = ws.cell(row=1, column=1, value=MAC_BY_PORT_SUMMARY_TITLE)
+    title.font = Font(bold=True, name="Arial", size=10)
+
+    row = 2
+    for vlan in sorted(report.vlan_stacks, key=lambda v: (not v.isdigit(), v)):
+        switches = report.vlan_stacks[vlan]
+        count = report.vlan_counts.get(vlan, 0)
+        line = f"VLAN {vlan}: {', '.join(switches)} ({count} MAC(s))"
+        ws.cell(row=row, column=1, value=line)
+        row += 1
+
+    if report.uplink_rows:
+        ws.cell(row=row, column=1,
+                value=f"{report.uplink_rows} MAC(s) learned via child-switch uplinks "
+                      f"(shown under the child switch's port)")
+        row += 1
+
+    row += 1  # blank row before the detail table
+    header_font, header_fill, header_align, header_border = get_header_styles()
+    data_font, data_align, data_border = get_data_styles()
+
+    hdr_row = row
+    for col, (header, width) in enumerate(zip(MAC_BY_PORT_HEADERS, MAC_BY_PORT_COL_WIDTHS), start=1):
+        c = ws.cell(row=hdr_row, column=col, value=header)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = header_align
+        c.border = header_border
+        ws.column_dimensions[get_column_letter(col)].width = width
+    ws.freeze_panes = f"A{hdr_row + 1}"
+
+    for i, r in enumerate(report.rows):
+        data_row = hdr_row + 1 + i
+        values = [r.switch, r.stack_member, r.interface, r.vlan, r.mac, r.type,
+                  r.device_type, r.neighbour, r.notes]
+        flagged = bool(r.notes)
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=data_row, column=col, value=value)
+            cell.font = Font(name="Arial", size=10, bold=True) if flagged else data_font
+            cell.alignment = data_align
+            cell.border = data_border
+            if flagged:
+                cell.fill = PatternFill("solid", start_color=MAC_BY_PORT_FLAG_COLOUR)
+
+    end_row = hdr_row + len(report.rows)
+    last_col = get_column_letter(len(MAC_BY_PORT_HEADERS))
+    ws.auto_filter.ref = f"A{hdr_row}:{last_col}{end_row}"
+    return end_row + 1
+
+
+def write_mac_by_port_report_excel(report, outpath: str) -> tuple[bool, str]:
+    """Write the all-MACs-by-port report to a single-sheet Excel workbook."""
+    if not report.rows:
+        return False, "No MAC address-table entries found"
+
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "MACs By Port"
+        write_mac_by_port_report_sheet(ws, report)
+        wb.save(outpath)
+        return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC entry(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"
+
+
+def write_mac_by_port_report_csv(report, outpath: str) -> tuple[bool, str]:
+    """Write the all-MACs-by-port report to a CSV file (same rows as Excel)."""
+    if not report.rows:
+        return False, "No MAC address-table entries found"
+    try:
+        with open(outpath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(MAC_BY_PORT_HEADERS)
+            for r in report.rows:
+                writer.writerow([r.switch, r.stack_member, r.interface, r.vlan,
+                                 r.mac, r.type, r.device_type, r.neighbour, r.notes])
+        return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC entry(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write CSV: {e}"

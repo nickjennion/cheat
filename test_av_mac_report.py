@@ -160,6 +160,7 @@ def test_write_av_mac_report_excel_writes_summary_and_detail(tmp_path):
 
     report = AvMacReport(
         vlan_stacks={"900": ["acc1"]},
+        vlan_counts={"900": 2},
         rows=[
             AvMacRow(switch="acc1", stack_member="1", interface="Gi1/0/24",
                      vlan="900", mac="0011.2233.4455", type="DYNAMIC", notes=""),
@@ -174,15 +175,16 @@ def test_write_av_mac_report_excel_writes_summary_and_detail(tmp_path):
 
     ws = openpyxl.load_workbook(out)["AV MAC-Port Export"]
     assert ws.cell(row=1, column=1).value == "AV VLANs Found On These Switches"
-    assert ws.cell(row=2, column=1).value == "VLAN 900: acc1"
+    assert ws.cell(row=2, column=1).value == "VLAN 900: acc1 (2 MAC(s))"
 
     header_row = next(r for r in range(1, ws.max_row + 1)
                        if ws.cell(row=r, column=1).value == "Switch")
-    assert [ws.cell(row=header_row, column=c).value for c in range(1, 8)] == [
-        "Switch", "Stack Member", "Interface", "VLAN", "MAC Address", "Type", "Notes"
+    assert [ws.cell(row=header_row, column=c).value for c in range(1, 9)] == [
+        "Switch", "Stack Member", "Interface", "VLAN", "MAC Address", "Type",
+        "Device Type", "Notes"
     ]
     assert ws.cell(row=header_row + 1, column=5).value == "0011.2233.4455"
-    assert ws.cell(row=header_row + 2, column=7).value == "Multiple MACs — possible unmanaged switch"
+    assert ws.cell(row=header_row + 2, column=8).value == "Multiple MACs — possible unmanaged switch"
 
 
 def test_write_av_mac_report_excel_fails_on_empty_rows(tmp_path):

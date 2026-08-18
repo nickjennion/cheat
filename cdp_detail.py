@@ -46,6 +46,30 @@ def is_access_point(neighbor: CdpNeighbor) -> bool:
     return "-ap" in neighbor.device.lower()
 
 
+def classify_neighbor(neighbor: CdpNeighbor) -> str:
+    """Human device-type label from a CDP neighbour record, or '' when unknown.
+
+    Order matters: the AP name marker (-ap) beats the switch capability (APs
+    often advertise Router/Switch/IGMP), and phone platforms beat the generic
+    host fallback. SEP<MAC> phone device-ids are caught via the platform string.
+    """
+    if neighbor is None:
+        return ""
+    dev = (neighbor.device or "").lower()
+    plat = (neighbor.platform or "").lower()
+    if is_access_point(neighbor):
+        return "Access point"
+    if is_switch(neighbor):
+        return "Switch/router"
+    if "phone" in plat or dev.startswith("sep"):
+        return "IP phone"
+    if "camera" in plat:
+        return "Camera"
+    if "printer" in plat:
+        return "Printer"
+    return ""
+
+
 def _clean_platform(s: str) -> str:
     s = re.sub(r"^\s*cisco\s+", "", s.strip(), flags=re.IGNORECASE)
     s = re.sub(r"\s*\(PID:[^)]*\)\s*$", "", s)

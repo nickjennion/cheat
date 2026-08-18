@@ -28,10 +28,14 @@ from cheat_core import (
 from excel_generator import (
     write_client_search_excel,
     write_av_mac_report_excel,
+    write_av_mac_report_csv,
     write_ip_mac_report_excel,
+    write_mac_by_port_report_excel,
+    write_mac_by_port_report_csv,
 )
 from av_mac_report import build_av_mac_report
 from ip_mac_report import build_ip_mac_report
+from mac_by_port import build_mac_by_port_report
 from port_utilisation import is_copper_port
 from drawio_generator import generate_drawio
 import ap_monitor
@@ -322,6 +326,12 @@ def _timestamped_excel_path(filename) -> str:
     excel_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
     return str(excel_dir / f"{Path(filename).stem}-{ts}.xlsx")
+
+
+def _csv_path(xlsx_path: str) -> str:
+    """Sibling CSV for an .xlsx path: <same name>.csv."""
+    p = Path(xlsx_path)
+    return str(p.with_suffix(".csv"))
 
 
 # ============================================================================
@@ -1346,6 +1356,7 @@ def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
     Runs `show mac address-table` + `show cdp neighbors detail` on the
     already-selected switch group, then correlates them into a flagged
     MAC-to-physical-port report (see av_mac_report.build_av_mac_report).
+    Writes both a styled Excel workbook and a matching CSV.
     """
     print("\n  AV MAC/port export")
     vlans = _prompt_vlans()
@@ -1373,8 +1384,54 @@ def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
         pause()
         return
 
-    ok, msg = write_av_mac_report_excel(report, _timestamped_excel_path(filename))
+    xlsx = _timestamped_excel_path(filename)
+    ok, msg = write_av_mac_report_excel(report, xlsx)
     print(f"\n  {msg}")
+    csv_ok, csv_msg = write_av_mac_report_csv(report, _csv_path(xlsx))
+    print(f"  {csv_msg}")
+    pause()
+
+
+def action_mac_by_port_export(selected_devices, client, concurrency=DEFAULT_CONCURRENCY):
+    """Menu 5 'e': full MAC address table, all VLANs, listed by port.
+
+    Runs `show mac address-table` + `show cdp neighbors detail` on the
+    already-selected switch group and lists every learned MAC grouped by port.
+    Unlike the AV export ('m'), no VLAN filter is applied and uplink ports to
+    child switches are kept and labelled, so MACs learned beyond a downstream
+    switch remain visible. Device type is derived from each port's CDP
+    neighbour (IP phone, AP, switch/router, ...). Writes Excel + CSV.
+    """
+    print("\n  MAC address table — all VLANs by port (incl. child switches)")
+    outputs = run_commands(selected_devices, client, AV_MAC_COMMANDS, concurrency=concurrency)
+    if not outputs:
+        pause()
+        return
+
+    report = build_mac_by_port_report(outputs)
+    if not report.rows:
+        print("\n  No MAC address-table entries found.")
+        pause()
+        return
+
+    print(f"\n  {len(report.rows)} MAC entries across {len(outputs)} switch(es), "
+          f"{len(report.vlan_stacks)} VLAN(s)")
+    if report.uplink_rows:
+        print(f"  {report.uplink_rows} entry(s) on child-switch uplink ports")
+    flagged = sum(1 for r in report.rows if r.notes)
+    print(f"  ({flagged} flagged for review)")
+
+    filename = _prompt_filename()
+    if not filename:
+        print("  Cancelled.")
+        pause()
+        return
+
+    xlsx = _timestamped_excel_path(filename)
+    ok, msg = write_mac_by_port_report_excel(report, xlsx)
+    print(f"\n  {msg}")
+    csv_ok, csv_msg = write_mac_by_port_report_csv(report, _csv_path(xlsx))
+    print(f"  {csv_msg}")
     pause()
 
 
@@ -1455,6 +1512,7 @@ def menu_5(selected_devices, client, host, username):
         print("  6) MAC prefix search  (Assurance /clients, wildcard)")
         print("  7) IP address search  (Assurance /clients, wildcard)")
         print("  m) MAC/port export (for AV)")
+        print("  e) MAC table — all VLANs by port (incl. child switches)")
         print("  d) IP/MAC per VLAN export (device tracking)")
         print("  s) Toggle slow mode")
         print("  p) Toggle copper only")
@@ -1464,7 +1522,7 @@ def menu_5(selected_devices, client, host, username):
         print("  r) Re-auth token")
         print("  8) Back")
         print()
-        choice = input("  Select [1-9 / d / m / r / s / p / l / c]: ").strip().lower()
+        choice = input("  Select [1-9 / d / e / m / r / s / p / l / c]: ").strip().lower()
 
         if choice == "8":
             return
@@ -1549,6 +1607,9 @@ def menu_5(selected_devices, client, host, username):
 
         elif choice == "m":
             action_av_mac_export(selected_devices, client, concurrency)
+
+        elif choice == "e":
+            action_mac_by_port_export(selected_devices, client, concurrency)
 
         elif choice == "d":
             action_ip_mac_export(selected_devices, client, concurrency)

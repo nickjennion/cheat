@@ -130,7 +130,7 @@ def test_find_dot_none(monkeypatch):
     assert cheat_core._find_dot() is None
 
 
-def test_generate_cdp_topology_stencil_icons(tmp_path, monkeypatch):
+def test_generate_cdp_topology_uses_plain_rectangles(tmp_path, monkeypatch):
     import shutil
     if shutil.which("dot") is None:
         import pytest
@@ -140,7 +140,10 @@ def test_generate_cdp_topology_stencil_icons(tmp_path, monkeypatch):
     ok, _ = cheat_core.generate_cdp_topology(_raw(), _raw().keys(), "s", icons="stencil")
     assert ok is True
     xml = open(glob.glob("drawio_exports/*.drawio")[0], encoding="utf-8").read()
-    assert "mxgraph.cisco.switches.workgroup_switch" in xml
+    # The icons style param is currently inert: nodes always render as plain
+    # rectangles with the scanned-switch green fill, never Cisco stencil shapes.
+    assert "#d5e8d4" in xml                       # green scanned-switch fill
+    assert "mxgraph.cisco" not in xml             # no stencil shapes emitted
 
 
 def test_default_prefs_has_device_icons():
