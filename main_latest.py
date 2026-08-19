@@ -32,10 +32,14 @@ from excel_generator import (
     write_ip_mac_report_excel,
     write_mac_by_port_report_excel,
     write_mac_by_port_report_csv,
+    write_ise_endpoint_excel,
+    write_ise_endpoint_csv,
 )
 from av_mac_report import build_av_mac_report
 from ip_mac_report import build_ip_mac_report
 from mac_by_port import build_mac_by_port_report
+from ise_client import ISEClient, ISEConfig, ISESDKMissingError
+from ise_parser import parse_endpoints
 from port_utilisation import is_copper_port
 from drawio_generator import generate_drawio
 import ap_monitor
@@ -46,6 +50,8 @@ ENV_FILE = Path("dnac.env")          # legacy DNA Center credentials
 ENV_FILE_NEW = Path("dnac2.env")     # new DNA Center credentials (same keys)
 SAMPLE_FILE = Path("sample_dnac.env")
 ALL_DEVICES_FILE = Path("all_devices.json")
+
+ISE_DEFAULT_VERSION = "3.3_patch_1"  # latest ISE API version
 
 
 # ============================================================================
@@ -209,6 +215,8 @@ def load_credentials_from_env(env_file: Path = ENV_FILE):
 
     Never falls back to another file: a missing dnac2.env must not silently hand
     back the legacy credentials, which would target the wrong controller.
+    Also captures an optional `ISE_HOST=` line — the same env file can carry the
+    ISE controller address for the ISE endpoint inventory feature.
     """
     if not env_file.exists():
         return None
@@ -229,6 +237,32 @@ def load_credentials_from_env(env_file: Path = ENV_FILE):
     except Exception as e:
         print(f"  Warning: could not read {env_file}: {e}")
     return None
+
+
+def load_ise_settings_from_env(env_file: Path = ENV_FILE) -> tuple[str, str]:
+    """(ISE_HOST, ISE_VERSION) lines from the credential file, '' when absent."""
+    host = version = ""
+    if not env_file.exists():
+        return host, version
+    try:
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            key = k.strip().upper()
+            if key == "ISE_HOST":
+                host = v.strip()
+            elif key == "ISE_VERSION":
+                version = v.strip()
+    except Exception:
+        pass
+    return host, version
+
+
+def load_ise_host_from_env(env_file: Path = ENV_FILE) -> str:
+    """ISE_HOST line from the credential file, or '' when absent."""
+    return load_ise_settings_from_env(env_file)[0]
 
 
 def save_credentials_to_env(host, username, password, env_file: Path = ENV_FILE):
@@ -339,7 +373,7 @@ def _csv_path(xlsx_path: str) -> str:
 # ============================================================================
 
 def menu_1():
-    """Returns (host, username, password) once credentials are confirmed."""
+    """Returns (host, username, password, ise_host, ise_version) once confirmed."""
     while True:
         show_splash("Menu 1 · Credentials", [
             "1) Use Legacy DNAC",
@@ -356,10 +390,16 @@ def menu_1():
             result = load_credentials_from_env(env_file)
             if result:
                 host, username, _ = result
+                ise_host, ise_version = load_ise_settings_from_env(env_file)
                 print(f"\n  ✓ Loaded from {env_file}")
                 print(f"    Host: {host}  |  User: {username}")
+                if ise_host:
+                    print(f"    ISE host: {ise_host}"
+                          + (f"  |  version: {ise_version}" if ise_version else ""))
+                else:
+                    print("    ISE host: (not configured — ISE will prompt)")
                 pause()
-                return result
+                return (*result, ise_host, ise_version)
             else:
                 print(f"\n  ✗ {env_file} not found or incomplete.")
                 if SAMPLE_FILE.exists():
@@ -375,12 +415,12 @@ def menu_1():
                 if save_credentials_to_env(*creds, env_file=env_file):
                     print(f"\n  ✓ Saved to {env_file}")
                 pause()
-                return creds
+                return (*creds, "", "")
 
         elif choice == "4":  # Enter manually · forget (session only, never written)
             creds = _prompt_manual_credentials()
             if creds:
-                return creds
+                return (*creds, "", "")
 
         elif choice == "5":  # View credential files
             print()
@@ -637,6 +677,73 @@ def action_ap_monitor(host, username, password):
     ap_monitor.run(client, aps)
 
 
+def action_ise_endpoints(host, username, password, ise_host="", ise_version=""):
+    """Menu 2 → 5: pull the full ISE endpoint inventory into Excel + CSV.
+
+    Reuses the credentials chosen on Menu 1; the ISE controller host (and
+    optional API version) come from the ISE_HOST / ISE_VERSION lines in the
+    same env file, or are prompted for when absent.
+    """
+    print("\n  ISE — Endpoint Inventory")
+    if not ise_host:
+        raw = input("    ISE host (FQDN or IP, no https://): ").strip()
+        if not raw:
+            print("    Cancelled.")
+            pause()
+            return
+        ise_host = raw
+    if not ise_version:
+        raw = input(f"    ISE API version [{ISE_DEFAULT_VERSION}]: ").strip()
+        if raw:
+            ise_version = raw
+
+    version = ise_version or ISE_DEFAULT_VERSION
+    config = ISEConfig(host=ise_host, username=username, password=password,
+                       version=version)
+    try:
+        client = ISEClient(config)
+    except ISESDKMissingError as e:
+        print(f"  ✗ {e}")
+        pause()
+        return
+
+    print(f"\n  Connecting to ISE ({ise_host})...")
+    try:
+        resources = client.get_endpoints()
+    except Exception as e:
+        print(f"  ✗ ISE query failed: {e}")
+        pause()
+        return
+
+    if not resources:
+        print("  No endpoints returned from ISE.")
+        pause()
+        return
+
+    # Resolve distinct endpoint-group ids to names (best-effort, once each).
+    group_names = {}
+    for r in resources:
+        gid = getattr(r, "groupId", None)
+        if gid and gid not in group_names:
+            group_names[gid] = client.get_endpoint_group_name(gid) or gid
+
+    endpoints = parse_endpoints(resources, group_names)
+    print(f"\n  ✓ {len(endpoints)} endpoint(s) loaded.")
+
+    filename = _prompt_filename()
+    if not filename:
+        print("  Cancelled.")
+        pause()
+        return
+
+    xlsx = _timestamped_excel_path(filename)
+    ok, msg = write_ise_endpoint_excel(endpoints, xlsx)
+    print(f"\n  {msg}")
+    csv_ok, csv_msg = write_ise_endpoint_csv(endpoints, _csv_path(xlsx))
+    print(f"  {csv_msg}")
+    pause()
+
+
 def _site_type(site: dict) -> str:
     for info in (site.get("additionalInfo") or []):
         t = (info.get("attributes") or {}).get("type", "")
@@ -827,19 +934,23 @@ def action_get_version(host, username, password):
     pause()
 
 
-def menu_2(host, username, password):
+def menu_2(host, username, password, ise_host="", ise_version=""):
     """Action menu. Returns when user selects Back."""
     while True:
         theme_clear()
-        print(f"  Host: {host}  |  User: {username}\n")
+        ise_label = ise_host or "(not configured)"
+        if ise_host and ise_version:
+            ise_label += f" v{ise_version}"
+        print(f"  Host: {host}  |  User: {username}  |  ISE: {ise_label}\n")
         print("  Menu 2 — Actions\n")
         print("  1) Auth & Get Devices (All)")
         print("  2) Auth & Get DNAC Version")
         print("  3) Auth & Get Sites")
         print("  4) Access Point — Monitor Physical Movements")
+        print("  5) ISE — Endpoint Inventory")
         print("  0) Back")
         print()
-        choice = input("  Select [0-4]: ").strip()
+        choice = input("  Select [0-5]: ").strip()
 
         if choice == "0":
             return
@@ -855,6 +966,8 @@ def menu_2(host, username, password):
                 menu_sites(sites, client, host, username)
         elif choice == "4":
             action_ap_monitor(host, username, password)
+        elif choice == "5":
+            action_ise_endpoints(host, username, password, ise_host, ise_version)
         else:
             print("\n  Invalid selection.")
             pause()
@@ -1627,9 +1740,8 @@ def main():
     theme_init()
     try:
         while True:
-            creds = menu_1()
-            host, username, password = creds
-            menu_2(host, username, password)
+            host, username, password, ise_host, ise_version = menu_1()
+            menu_2(host, username, password, ise_host, ise_version)
     except KeyboardInterrupt:
         print("\n\nExiting.")
     finally:

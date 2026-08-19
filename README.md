@@ -10,11 +10,13 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 
 | File | Purpose |
 |------|---------|
-| `main_latest.py` | **Interactive menu launcher (current development entry point).** Two-stage menu flow: credentials (Legacy DNAC `dnac.env` / New DNAC `dnac2.env` / manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. UI-centric: delegates the main port-report run/parse/Excel path to `cheat_core.py`; MAC/IP client searches, the AV and IP/MAC VLAN exports, and the AP monitor are handled directly in the menu layer. Persists preferences to `prefs.env` (**Options** menu): slow mode, output dir, filename prefix, auto-consolidation, colours, email, AI, logging, splash style/logo, and topology layout (**Options → `K`**, `auto` vs `pyramid` distribution/access/desk). Session-scoped toggles on Menu 5 (slow mode, copper-only, link-state) are not persisted; command concurrency (Menu 5 `c`, 1–5) is **session-only** and is *not* saved to `prefs.env`. |
+| `main_latest.py` | **Interactive menu launcher (current development entry point).** Two-stage menu flow: credentials (Legacy DNAC `dnac.env` / New DNAC `dnac2.env` / manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Menu 2 also hosts the ISE endpoint inventory (option 5), which reuses the DNAC credentials plus an optional `ISE_HOST=` line from the same env file. UI-centric: delegates the main port-report run/parse/Excel path to `cheat_core.py`; MAC/IP client searches, the AV and IP/MAC VLAN exports, the MAC-by-port export, the AP monitor, and ISE are handled directly in the menu layer. Persists preferences to `prefs.env` (**Options** menu): slow mode, output dir, filename prefix, auto-consolidation, colours, email, AI, logging, splash style/logo, and topology layout (**Options → `K`**, `auto` vs `pyramid` distribution/access/desk). Session-scoped toggles on Menu 5 (slow mode, copper-only, link-state) are not persisted; command concurrency (Menu 5 `c`, 1–5) is **session-only** and is *not* saved to `prefs.env`. |
 | `main.py` | **Original CLI entry point.** Argparse-driven workflow: authenticate, fetch inventory, filter by hostname wildcard, execute five diagnostic commands via Command Runner, parse output, generate combined Excel report. Imports shared constants and execution logic from `cheat_core.py`. |
 | `main_debug.py` | **Debug variant of main.py.** Identical workflow with verbose logging enabled (`DEBUG = True`). Prints stack traces on errors, logs partial auth tokens, shows poll-by-poll task progress, and dumps raw JSON responses. **Note:** logs the username and first 30 characters of the bearer token to stdout — do not redirect output to shared files in this mode. Unlike `main.py` it does **not** import `cheat_core.py` — it carries its own copies of the constants and uses `show cdp neighbors` (no `detail`) in its command list. |
 | `cheat_core.py` | **Shared execution and reporting module.** UI-agnostic. Provides `run_commands()` (execute/poll/save loop), `parse_outputs()` (parse loop wrapper), `generate_excel()` (modes: separate-per-device, one-workbook, combined-with-utilisation), `generate_cdp_topology()` (Graphviz `.drawio` export), and all shared constants (`DNAC_COMMANDS`, `COMMAND_RUNNER_DIR`, `EXCEL_DIR`, polling timeouts, concurrency helpers). Import this from any entry point. |
 | `ap_monitor.py` | **Access Point movement monitor (Menu 2 → 4).** Filters/selects Unified APs, then live-refreshes a table comparing previous upstream (Assurance events, 24h) vs current upstream (physical topology), flags moved APs, and exports to Excel. |
+| `ise_client.py` | **ISE REST API client (Menu 2 → 5).** Thin wrapper over Cisco's official `ciscoisesdk`: an `ISEConfig` dataclass mirroring the credential-file keys and an `ISEClient` that queries all ISE endpoints (paginated via the SDK generator) and resolves endpoint-group names. The SDK import is deferred, so CHEAT runs without `ciscoisesdk` installed — ISE use reports a clear install message. An `api` may be injected for offline tests. |
+| `ise_parser.py` | **ISE endpoint parser.** Pure normalisation of SDK endpoint resources into flat `IseEndpoint` records (name, MAC, description, profile/group IDs, portal user, static-assignment flags), resolving group ids to names. Feeds the ISE endpoint inventory Excel/CSV writers. |
 | `dnac_client.py` | **DNAC REST API client.** Provides the `DNACClient` class wrapping the DNAC API: auth token acquisition (`/auth/token`), paginated device listing and hostname-filtered query (`/network-device`), client search (`/clients`), client detail (`/client-detail`), site hierarchy (`/site`), Unified AP inventory, AP topology and Assurance events, command execution submission (`/network-device-poller/cli/read-request`), task polling (`/task/{id}`), and file retrieval (`/file/{id}`). Persists the auth token to `token.env` on every successful authentication. Includes exponential backoff retry on all calls. SSL verification is disabled by default for lab/self-signed DNAC instances. |
 
 ### Parsing & Reporting
@@ -22,7 +24,7 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 | File | Purpose |
 |------|---------|
 | `interface_parser.py` | **CLI output parser.** Parses concatenated output from `show hardware`, `show interfaces`, `show interfaces status`, `show interface counters`, `show cdp neighbors`, and — for the link-state column — `show logging` / `show clock`. Extracts stack member metadata, interface state/protocol/VLAN/description/counters/last-input, CDP neighbor mappings, computes a `suspect` flag indicating whether an interface has ever seen traffic, and derives a per-interface last-link-change age from UPDOWN syslog lines. Returns sorted `InterfaceRecord` objects and a `StackMember` dictionary. |
-| `excel_generator.py` | **Excel + CSV report writer.** Takes parsed `InterfaceRecord`/`StackMember` data and produces a multi-sheet `.xlsx` workbook. One sheet per device, color-coded by interface state (green=connected, yellow=notconnect, gray=disabled, red=err-disabled), gold highlight for interfaces with traffic, orange for stack members with <42 days uptime. Freeze panes and auto-filter enabled. Also hosts the combined-workbook writer, the client-search export, and the AV MAC, MAC-by-port, and IP/MAC report writers — each with a matching CSV export. |
+| `excel_generator.py` | **Excel + CSV report writer.** Takes parsed `InterfaceRecord`/`StackMember` data and produces a multi-sheet `.xlsx` workbook. One sheet per device, color-coded by interface state (green=connected, yellow=notconnect, gray=disabled, red=err-disabled), gold highlight for interfaces with traffic, orange for stack members with <42 days uptime. Freeze panes and auto-filter enabled. Also hosts the combined-workbook writer, the client-search export, and the AV MAC, MAC-by-port, IP/MAC, and ISE endpoint report writers — each with a matching CSV export. |
 | `consolidate_report.py` | **Report flattener.** Reads a multi-sheet port report produced by the main tool and consolidates every port from every device into a single "All Ports" sheet in a new workbook. Preserves all column styling, color coding, and formatting. Expects the standard `HEADERS` layout from `excel_generator.py` (18 columns; 19 when link-state is enabled) and skips the `All Ports`/`Port Utilisation` summary sheets. |
 | `port_utilisation.py` | **Port usage analyser.** Reads a CHEAT Excel report and calculates per-switch port utilisation statistics: counts copper ports (stacked `GiX/Y/Z`/`TeX/Y/Z` and non-stacked `GiX/Y`/`FaX/Y`) with recent traffic vs. idle ports based on the "Last Input" column. Supports a configurable threshold (default 42 days). Outputs a readable stdout summary table and a timestamped summary Excel file. Includes an **unscanned Cisco switches** block listing CDP neighbours (with mgmt IP) not scanned in the session. |
 | `unscanned_switches.py` | **Coverage gap finder.** From CDP data and the set of scanned hostnames, computes the list of Cisco switches seen as CDP neighbours but never explicitly scanned in the session ("rogue" switches). Feeds the unscanned-switches block in the port-utilisation report and the rogue nodes in the CDP topology. |
@@ -88,49 +90,20 @@ The remaining `test_*.py` files are offline unit tests (pytest, no network) exer
 | `test_ip_mac_export_wiring.py` | `main_latest.py` — Menu 5 `d` wiring |
 | `test_main_latest_concurrency.py` | `main_latest.py` — concurrency helpers and param wiring |
 | `test_splash_rich.py` | `splash_rich.py` — logo alignment regression |
+| `test_ise_client.py` | `ise_client.py` — endpoint paging, injected fake api, SDK-missing error |
+| `test_ise_parser.py` | `ise_parser.py` + ISE Excel/CSV writers — field normalisation, group-name resolution |
+| `test_ise_wiring.py` | `main_latest.py` — Menu 2 ISE action wiring |
 
 ### Configuration & Dependencies
 
 | File | Purpose |
 |------|---------|
-| `requirements.txt` | **Python dependencies.** Declares `requests>=2.25.0` (HTTP client), `urllib3>=1.26.0` (transport layer), `openpyxl>=3.0.0` (Excel read/write), `colorama>=0.4.6` (ANSI colour on legacy Windows consoles), and `rich>=13.0.0` (progress bars, styled output, splash). |
+| `requirements.txt` | **Python dependencies.** Declares `requests>=2.25.0` (HTTP client), `urllib3>=1.26.0` (transport layer), `openpyxl>=3.0.0` (Excel read/write), `colorama>=0.4.6` (ANSI colour on legacy Windows consoles), `rich>=13.0.0` (progress bars, styled output, splash), and `ciscoisesdk>=2.4.5` (ISE REST client — only needed for the ISE endpoint inventory). |
 | `.gitignore` | **Git exclusion rules.** Excludes Python bytecode, build artifacts, generated outputs (`all_devices.json`, `command_output_*.txt`, `*.xlsx`), IDE config (`.vscode/`, `.idea/`), `.DS_Store`, and all `.env` credential files. Files with `sample` in the filename are exempt from xlsx and env exclusions. **Note:** `.drawio` files are *not* ignored — `drawio_exports/` is committed. |
-| `dnac.env` | **Optional credential file — legacy DNA Center.** Not tracked in git (never commit — contains plaintext credentials). If created with `DNAC_HOST=`, `DNAC_USERNAME=`, `DNAC_PASSWORD=`, **Menu 1 → `1) Use Legacy DNAC`** loads credentials from it instead of prompting interactively. |
-| `dnac2.env` | **Optional credential file — new DNA Center.** Same three keys and same rules as `dnac.env`; loaded by **Menu 1 → `2) Use New DNAC`**. A missing `dnac2.env` never falls back to `dnac.env` — the tool reports the miss rather than silently targeting the wrong controller. `Enter manually · remember` asks which of the two files to write, and `View credential files` shows both with the password masked. |
+| `dnac.env` | **Optional credential file — legacy DNA Center.** Not tracked in git (never commit — contains plaintext credentials). If created with `DNAC_HOST=`, `DNAC_USERNAME=`, `DNAC_PASSWORD=`, **Menu 1 → `1) Use Legacy DNAC`** loads credentials from it instead of prompting interactively. May also carry optional `ISE_HOST=` and `ISE_VERSION=` lines for the ISE endpoint inventory (**Menu 2 → 5**), which reuses the same username/password. |
+| `dnac2.env` | **Optional credential file — new DNA Center.** Same keys and same rules as `dnac.env` (including the optional `ISE_HOST=` / `ISE_VERSION=` lines); loaded by **Menu 1 → `2) Use New DNAC`**. A missing `dnac2.env` never falls back to `dnac.env` — the tool reports the miss rather than silently targeting the wrong controller. `Enter manually · remember` asks which of the two files to write, and `View credential files` shows both with the password masked. |
 | `token.env` | **Runtime artifact.** Written by `dnac_client.py` on every successful authentication. Contains the raw bearer token as `DNAC_TOKEN=<value>`. Gitignored but persists across sessions. **Treat as a live credential — grants full DNAC API access until expiry. Delete after use; never copy to shared systems.** |
-| `sample_dnac.env` | **Credential template.** Tracked example of `dnac.env` with placeholder values (`localhost` / `your_username` / `your_password`). Referenced by Menu 1 when a credential file is missing. |
-
-### Artifacts Directory (`artifacts/`)
-
-Contains two independent sub-projects plus archived documentation and reference images.
-
-#### A. OpenFlights Data Pipeline
-
-| File | Purpose |
-|------|---------|
-| `artifacts/convert.py` | **Data converter.** Reads the three `.dat` flat files, indexes them by IATA code, filters to valid airports with lat/lon coordinates, and writes three `.json` files for frontend consumption. Runs offline. |
-| `artifacts/airports.dat` | OpenFlights airport database (CSV). 6,072 airports with name, city, country, IATA, ICAO, lat/lon. Source material for `convert.py`. |
-| `artifacts/airlines.dat` | OpenFlights airline database (CSV). Airline name, IATA code, ICAO code, country, active flag. |
-| `artifacts/routes.dat` | OpenFlights route database (CSV). 66,934 routes (2014 data) with airline, source/destination IATA, codeshare flag, stops, equipment. |
-| `artifacts/airports-indexed.json` | **Generated output.** Airports keyed by IATA code with name, city, country, lat/lon. Deployed to the  web server. |
-| `artifacts/airlines-indexed.json` | **Generated output.** Airlines keyed by IATA code with name, country, active status. |
-| `artifacts/routes-indexed.json` | **Generated output.** Routes keyed by source IATA, each entry lists destination, airline, codeshare, stops, equipment. |
-
-#### B. Session Notes (Historical Record)
-
-| File | Purpose |
-|------|---------|
-| `artifacts/modifications_20260308_154207.md` | Deployment log from 2026-03-08. Records files deployed to the `` web server (Cisco DevNet sandbox), nginx configuration changes, OAuth2 collector setup, Caddy allowlist updates, and cron schedules. |
-| `artifacts/SESSION-2026-03-09.md` | Development session summary from 2026-03-09. Documents the OpenSky route collector build, .com scraper, route data collected (1,264 airports across 19+ countries), and frontend feature additions (scope filters, color-coded map, flight search popups). **Note:** contains server IPs and deployment paths. |
-
-#### C. Archived Documentation & Reference Images
-
-| File | Purpose |
-|------|---------|
-| `artifacts/DNAC_README.md` | **Archived user guide.** Earlier usage instructions superseded by this README. Retained for historical reference. |
-| `artifacts/TESTING.md` | **Archived testing guide.** Earlier step-by-step instructions for running the test suite against Cisco DevNet sandbox. |
-| `artifacts/1772937758fe9b.png` | Screenshot/image (788×450 PNG, 429 KB). UI reference or documentation image. |
-| `artifacts/Unsaved Image 1.jpg` | Screenshot/image (2249×1304 JPEG, 860 KB). UI reference or documentation image. |
+| `sample_dnac.env` | **Credential template.** Tracked example of `dnac.env` with placeholder values (`localhost` / `your_username` / `your_password`). Referenced by Menu 1 when a credential file is missing. Documents the optional `ISE_HOST=` / `ISE_VERSION=` lines. |
 
 ### Documentation
 
@@ -138,7 +111,6 @@ Contains two independent sub-projects plus archived documentation and reference 
 |------|---------|
 | `README.md` | **This file.** Master reference for every file in the repository. |
 | `CHANGELOG.md` | **Change log.** Chronological record of features, fixes, and refactors by date. |
-| `sources.md` | **Data source attribution.** Records all third-party data sources, APIs, and libraries used in the  flight route module. Includes AI tool attribution (Claude, Gemini). |
 
 ---
 

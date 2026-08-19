@@ -768,3 +768,76 @@ def write_mac_by_port_report_csv(report, outpath: str) -> tuple[bool, str]:
         return True, f"✓ Saved: {outpath} ({len(report.rows)} MAC entry(s))"
     except Exception as e:
         return False, f"✗ Failed to write CSV: {e}"
+
+
+# ============================================================================
+# ISE Endpoint inventory export
+# ============================================================================
+
+ISE_ENDPOINT_TITLE = "ISE Endpoints"
+ISE_ENDPOINT_HEADERS = ["Name", "MAC", "Description", "Profile ID", "Group",
+                        "Portal User", "Static Group", "Static Profile"]
+ISE_ENDPOINT_COL_WIDTHS = [32, 20, 36, 16, 24, 20, 14, 14]
+
+
+def write_ise_endpoint_sheet(ws, endpoints: list) -> int:
+    """Write ISE endpoint records to a worksheet. Returns row count."""
+    header_font, header_fill, header_align, header_border = get_header_styles()
+    data_font, data_align, data_border = get_data_styles()
+
+    for col, (header, width) in enumerate(zip(ISE_ENDPOINT_HEADERS, ISE_ENDPOINT_COL_WIDTHS), start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = header_border
+        ws.column_dimensions[get_column_letter(col)].width = width
+
+    ws.row_dimensions[1].height = 30
+    ws.freeze_panes = "A2"
+
+    for i, e in enumerate(endpoints, start=2):
+        values = [e.name, e.mac, e.description, e.profile_id,
+                  e.group_name or e.group_id, e.portal_user,
+                  e.static_group, e.static_profile]
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=i, column=col, value=value)
+            cell.font = data_font
+            cell.alignment = data_align
+            cell.border = data_border
+
+    ws.auto_filter.ref = ws.dimensions
+    return len(endpoints)
+
+
+def write_ise_endpoint_excel(endpoints: list, outpath: str) -> tuple[bool, str]:
+    """Write the ISE endpoint inventory to a single-sheet Excel workbook."""
+    if not endpoints:
+        return False, "No ISE endpoints to export"
+
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = ISE_ENDPOINT_TITLE
+        count = write_ise_endpoint_sheet(ws, endpoints)
+        wb.save(outpath)
+        return True, f"✓ Saved: {outpath} ({count} endpoint(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write Excel: {e}"
+
+
+def write_ise_endpoint_csv(endpoints: list, outpath: str) -> tuple[bool, str]:
+    """Write the ISE endpoint inventory to a CSV file (same columns as Excel)."""
+    if not endpoints:
+        return False, "No ISE endpoints to export"
+    try:
+        with open(outpath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(ISE_ENDPOINT_HEADERS)
+            for e in endpoints:
+                writer.writerow([e.name, e.mac, e.description, e.profile_id,
+                                 e.group_name or e.group_id, e.portal_user,
+                                 e.static_group, e.static_profile])
+        return True, f"✓ Saved: {outpath} ({len(endpoints)} endpoint(s))"
+    except Exception as e:
+        return False, f"✗ Failed to write CSV: {e}"

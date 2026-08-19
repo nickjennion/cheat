@@ -3,6 +3,7 @@ urllib3>=1.26.0
 openpyxl>=3.0.0
 colorama>=0.4.6  # enables ANSI colour on legacy Windows consoles
 rich>=13.0.0  # terminal progress bars, tables, styled output
+ciscoisesdk>=2.4.5  # ISE REST API client (optional: ISE endpoint inventory only)
 
 # System dependency (NOT pip): Graphviz provides the `dot` binary used to lay
 # out the CDP physical topology diagram. Install it separately — see README.

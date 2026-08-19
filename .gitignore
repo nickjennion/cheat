@@ -30,7 +30,10 @@ command_output_*.txt
 .DS_Store
 .vscode/
 .idea/
+# Generated draw.io exports from live sandbox sessions (tracked samples kept)
+drawio_exports/sandbox-sites.drawio
 
 # Superpowers subagent-driven-development scratch
 .worktrees/
 .superpowers/
+docs/superpowers/specs/dsp

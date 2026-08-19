@@ -67,6 +67,66 @@ def test_load_returns_none_when_a_key_is_missing(tmp_path, monkeypatch):
     assert main_latest.load_credentials_from_env(main_latest.ENV_FILE_NEW) is None
 
 
+# ---------------------------------------------------------------------- ISE host
+
+ISE_TEXT = (
+    "DNAC_HOST=legacy.example.net\n"
+    "DNAC_USERNAME=legacy-user\n"
+    "DNAC_PASSWORD=legacy-secret\n"
+    "ISE_HOST=ise.example.net\n"
+)
+
+ISE_TEXT_WITH_VERSION = (
+    "DNAC_HOST=legacy.example.net\n"
+    "DNAC_USERNAME=legacy-user\n"
+    "DNAC_PASSWORD=legacy-secret\n"
+    "ISE_HOST=ise.example.net\n"
+    "ISE_VERSION=3.2_1\n"
+)
+
+
+def test_load_ise_host_from_env_reads_optional_line(tmp_path, monkeypatch):
+    import main_latest
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dnac.env").write_text(ISE_TEXT)
+    assert main_latest.load_ise_host_from_env() == "ise.example.net"
+
+
+def test_load_ise_settings_from_env_reads_host_and_version(tmp_path, monkeypatch):
+    import main_latest
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dnac.env").write_text(ISE_TEXT_WITH_VERSION)
+    assert main_latest.load_ise_settings_from_env() == ("ise.example.net", "3.2_1")
+
+
+def test_load_ise_settings_from_env_version_blank_when_absent(tmp_path, monkeypatch):
+    import main_latest
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dnac.env").write_text(ISE_TEXT)
+    assert main_latest.load_ise_settings_from_env() == ("ise.example.net", "")
+
+
+def test_load_ise_host_from_env_blank_when_absent(tmp_path, monkeypatch):
+    import main_latest
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dnac.env").write_text(LEGACY_TEXT)
+    assert main_latest.load_ise_host_from_env() == ""
+
+
+def test_load_ise_host_from_env_blank_when_missing_file(tmp_path, monkeypatch):
+    import main_latest
+    monkeypatch.chdir(tmp_path)
+    assert main_latest.load_ise_host_from_env(main_latest.ENV_FILE_NEW) == ""
+
+
+def test_load_credentials_ignores_ise_lines(tmp_path, monkeypatch):
+    import main_latest
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dnac.env").write_text(ISE_TEXT_WITH_VERSION)
+    # the extra ISE_* lines must not break the 3-tuple credential contract
+    assert main_latest.load_credentials_from_env() == LEGACY_CREDS
+
+
 # -------------------------------------------------------------------- saving
 
 def test_save_writes_only_the_named_file(tmp_path, monkeypatch):
