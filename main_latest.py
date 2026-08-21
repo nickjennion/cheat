@@ -155,7 +155,7 @@ def show_splash(menu_header, options):
     # Rich splash only when interactive and selected; always fall back to classic.
     prefs = load_prefs()  # single read; pass the chosen design straight through
     if _COLOR_ON and prefs.get("SPLASH_STYLE", "rich") == "rich":
-        if _show_splash_rich(menu_header, options, prefs.get("SPLASH_DESIGN", "mark")):
+        if _show_splash_rich(menu_header, options, "generic"):
             return
     for line in splash.build_lines(SPLASH_TITLE, SPLASH_SUBTITLE, menu_header, options):
         print("  " + line)
@@ -464,21 +464,9 @@ DEFAULT_PREFS = {
     "LOGGING": "off",
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
-    "SPLASH_DESIGN": "mark",    # logo: "mark" | "lockup" | "stacked" | "generic"
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
     "TOPOLOGY_LAYOUT": "auto",  # topology ranks: "auto" (Graphviz) or "pyramid" (dist/access/desk)
 }
-
-
-# Options → J cycles the splash logo. "mark" was called "burger" before the
-# co-brand was de-branded; load_prefs migrates the old value.
-SPLASH_DESIGN_CYCLE = {"mark": "lockup", "lockup": "stacked",
-                       "stacked": "generic", "generic": "mark"}
-
-
-def next_splash_design(design: str) -> str:
-    """Next logo in the Options → J cycle. Unrecognised values reset to 'mark'."""
-    return SPLASH_DESIGN_CYCLE.get(design, "mark")
 
 
 def load_prefs():
@@ -491,12 +479,11 @@ def load_prefs():
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 k, v = line.split("=", 1)
+                if k.strip() == "SPLASH_DESIGN":
+                    continue  # removed legacy co-brand preference
                 prefs[k.strip()] = v.strip()
         except Exception as e:
             print(f"  Warning: could not read {PREFS_FILE}: {e}")
-    # Migrate the pre-de-brand logo name so Options → J shows a live value.
-    if prefs.get("SPLASH_DESIGN") == "burger":
-        prefs["SPLASH_DESIGN"] = "mark"
     return prefs
 
 
@@ -529,7 +516,6 @@ def menu_options():
         print(f"  G) Logging              [{prefs['LOGGING']}]")
         print(f"  H) Splash style         [{prefs['SPLASH_STYLE']}]")
         print(f"  I) Topology icons       [{prefs['DEVICE_ICONS']}]")
-        print(f"  J) Co-brand logo        [{prefs['SPLASH_DESIGN']}]")
         print(f"  K) Topology layout      [{prefs['TOPOLOGY_LAYOUT']}]  (auto | pyramid: dist/access/desk)")
         print()
         print("  0) Back")
@@ -573,8 +559,6 @@ def menu_options():
             prefs["SPLASH_STYLE"] = "classic" if prefs["SPLASH_STYLE"] == "rich" else "rich"
         elif choice == "I":
             prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
-        elif choice == "J":
-            prefs["SPLASH_DESIGN"] = next_splash_design(prefs["SPLASH_DESIGN"])
         elif choice == "K":
             prefs["TOPOLOGY_LAYOUT"] = "pyramid" if prefs["TOPOLOGY_LAYOUT"] == "auto" else "auto"
         else:
