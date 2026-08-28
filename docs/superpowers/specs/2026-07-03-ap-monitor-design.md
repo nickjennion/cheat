@@ -1,7 +1,7 @@
 # Design: Access Point — Monitor Physical Movements
 
 **Date:** 2026-07-03
-**Scope:** `dnac_client.py`, `ap_monitor.py` (new), `main_latest.py`
+**Scope:** `dnac_client.py`, `ap_monitor.py` (new), `main.py`
 
 ---
 
@@ -25,7 +25,7 @@ Three new/modified components:
 |-----------|--------|
 | `ap_monitor.py` | New module — filter/select screen, results table, display logic |
 | `dnac_client.py` | Three new methods: `get_ap_devices()`, `get_ap_topology()`, `get_ap_events()` |
-| `main_latest.py` | New `action_ap_monitor()` function; menu_2 gains option 4 |
+| `main.py` | New `action_ap_monitor()` function; menu_2 gains option 4 |
 
 ---
 
@@ -103,7 +103,7 @@ Filters by device IDs and time window (`startTime = now - hours`, `endTime = now
 Select [0-4]:
 ```
 
-`action_ap_monitor(host, username, password)` in `main_latest.py` authenticates, calls `ap_monitor.run(client)`, and returns when the user exits.
+`action_ap_monitor(host, username, password)` in `main.py` authenticates, calls `ap_monitor.run(client)`, and returns when the user exits.
 
 ---
 
@@ -123,7 +123,7 @@ Select [0-4]:
 |------|--------|
 | `ap_monitor.py` | New — filter/select screen, results table renderer, `run()` entry point |
 | `dnac_client.py` | Add `get_ap_devices()`, `get_ap_topology()`, `get_ap_events()` |
-| `main_latest.py` | Add `action_ap_monitor()`; add option 4 to menu_2; update prompt to `[0-4]` |
+| `main.py` | Add `action_ap_monitor()`; add option 4 to menu_2; update prompt to `[0-4]` |
 
 ---
 

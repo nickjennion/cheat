@@ -1,7 +1,7 @@
 # Design: Copper-Only Filter + Menu Label Improvements
 
 **Date:** 2026-07-03
-**Scope:** `main_latest.py`, `cheat_core.py`
+**Scope:** `main.py`, `cheat_core.py`
 
 ---
 
@@ -65,7 +65,7 @@ When `copper_only` is active, `_exec_and_report` prints a line before running so
 
 | File | Change |
 |------|--------|
-| `main_latest.py` | Add `copper_only` toggle; update menu labels and prompt string; print filter notice; pass flag to `_exec_and_report` |
+| `main.py` | Add `copper_only` toggle; update menu labels and prompt string; print filter notice; pass flag to `_exec_and_report` |
 | `cheat_core.py` | Add `copper_only: bool = False` parameter to `_exec_and_report`; apply filter after `parse_outputs` |
 
 ---

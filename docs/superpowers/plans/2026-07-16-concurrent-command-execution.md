@@ -343,8 +343,8 @@ git commit -m "feat: run device commands concurrently with bounded pool"
 ### Task 3: Menu 5 control + wiring
 
 **Files:**
-- Modify: `main_latest.py` (cheat_core import block; `_exec_and_report`; the Menu 5 loop)
-- Test: `test_main_latest_concurrency.py`
+- Modify: `main.py` (cheat_core import block; `_exec_and_report`; the Menu 5 loop)
+- Test: `test_main_concurrency.py`
 
 **Interfaces:**
 - Consumes: `run_commands(..., concurrency=...)` (Task 2), `next_concurrency`, `DEFAULT_CONCURRENCY` (Task 1).
@@ -352,34 +352,34 @@ git commit -m "feat: run device commands concurrently with bounded pool"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `test_main_latest_concurrency.py`:
+Create `test_main_concurrency.py`:
 
 ```python
 import inspect
 
 
 def test_exec_and_report_has_concurrency_param():
-    import main_latest
-    sig = inspect.signature(main_latest._exec_and_report)
+    import main
+    sig = inspect.signature(main._exec_and_report)
     assert "concurrency" in sig.parameters
-    assert sig.parameters["concurrency"].default == main_latest.DEFAULT_CONCURRENCY
+    assert sig.parameters["concurrency"].default == main.DEFAULT_CONCURRENCY
 
 
-def test_concurrency_helpers_imported_in_main_latest():
-    import main_latest
-    assert main_latest.DEFAULT_CONCURRENCY == 2
-    assert main_latest.next_concurrency(5) == 1
-    assert main_latest.next_concurrency(2) == 3
+def test_concurrency_helpers_imported_in_main():
+    import main
+    assert main.DEFAULT_CONCURRENCY == 2
+    assert main.next_concurrency(5) == 1
+    assert main.next_concurrency(2) == 3
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `python3 -m pytest test_main_latest_concurrency.py -q`
-Expected: FAIL — `AttributeError: module 'main_latest' has no attribute 'DEFAULT_CONCURRENCY'` (and `_exec_and_report` lacks the param).
+Run: `python3 -m pytest test_main_concurrency.py -q`
+Expected: FAIL — `AttributeError: module 'main' has no attribute 'DEFAULT_CONCURRENCY'` (and `_exec_and_report` lacks the param).
 
 - [ ] **Step 3: Write minimal implementation**
 
-**(a)** In `main_latest.py`, extend the `from cheat_core import (...)` block to add two names:
+**(a)** In `main.py`, extend the `from cheat_core import (...)` block to add two names:
 
 ```python
 from cheat_core import (
@@ -532,7 +532,7 @@ with:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `python3 -m pytest test_main_latest_concurrency.py -q`
+Run: `python3 -m pytest test_main_concurrency.py -q`
 Expected: PASS (2 passed)
 
 - [ ] **Step 5: Run the full suite**
@@ -543,7 +543,7 @@ Expected: feature and existing suites pass; only the pre-existing `test_mock_dna
 - [ ] **Step 6: Commit**
 
 ```bash
-git add main_latest.py test_main_latest_concurrency.py
+git add main.py test_main_concurrency.py
 git commit -m "feat: Menu 5 concurrency control (1-5, default 2) wired through run paths"
 ```
 
@@ -558,6 +558,6 @@ git commit -m "feat: Menu 5 concurrency control (1-5, default 2) wired through r
 - Thread-safety boundaries (enable_slow_mode before pool; no auth from workers) → respected: `run_commands` never calls `enable_slow_mode`; `_exec_and_report` still calls it before `run_commands` as today. No code change needed there.
 - Out-of-scope items (batching, per-device bars, persistence) → correctly absent.
 
-**Placeholder scan:** No TBD/TODO/vague steps — every code step is complete, with exact old→new snippets for the `main_latest.py` edits.
+**Placeholder scan:** No TBD/TODO/vague steps — every code step is complete, with exact old→new snippets for the `main.py` edits.
 
 **Type consistency:** `concurrency` is an `int` everywhere; `DEFAULT_CONCURRENCY`/`MAX_CONCURRENCY`/`clamp_concurrency`/`next_concurrency` names match across tasks; `run_commands(..., concurrency=DEFAULT_CONCURRENCY)` and `_exec_and_report(..., concurrency=DEFAULT_CONCURRENCY)` defaults agree; the returned `dict` shape (`{hostname: output_text}`) is unchanged from today, so `parse_outputs` consumers are unaffected.

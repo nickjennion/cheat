@@ -123,7 +123,7 @@ ports with no event fall back to `unknown`.
   flag (default False). When True, append the "Last Link Change" header + width
   and the per-row value. `write_excel` / `write_combined_excel` thread the flag
   through.
-- **`main_latest.py`**: menu 5 gains the `l` toggle, status-line label, and
+- **`main.py`**: menu 5 gains the `l` toggle, status-line label, and
   passes both the extended command list and the flag into `_exec_and_report` for
   options 1–3.
 

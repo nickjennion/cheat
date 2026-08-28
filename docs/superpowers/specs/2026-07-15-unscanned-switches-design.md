@@ -17,9 +17,9 @@ known estate.
 
 ## Scope
 
-- Wired into the `main_latest.py` bulk-scan path only (the primary flow), via
+- Wired into the `main.py` bulk-scan path only (the primary flow), via
   `cheat_core.generate_excel` → `excel_generator.write_combined_excel` (mode 3).
-- `main.py` / `main_debug.py` call `write_combined_excel` directly and will
+- `main_cli.py` / `main_debug.py` call `write_combined_excel` directly and will
   simply omit the block until later — a trivial follow-up, explicitly out of
   scope here.
 - Combined report only (no changes to the standalone `port_utilisation.py`
@@ -102,13 +102,13 @@ class SwitchNeighbour:
   raw_outputs=None)` — for mode 3, compute
   `unscanned = find_unscanned_switches(raw_outputs, devices_data.keys())` when
   `raw_outputs` is provided, else pass `None`.
-- `main_latest.py` passes its existing `outputs` dict:
+- `main.py` passes its existing `outputs` dict:
   `generate_excel(devices_data, mode, stem, threshold, raw_outputs=outputs)`.
 
 ## Data flow
 
 ```
-main_latest: outputs (raw text) ──┐
+main: outputs (raw text) ──┐
                                   ├─> parse_outputs ─> devices_data (scanned set = keys)
                                   │
                                   └─> generate_excel(devices_data, ..., raw_outputs=outputs)

@@ -4,7 +4,7 @@
 
 **Goal:** On every combined-report scan, also write a `.drawio` physical switch topology from CDP data, with unscanned (rogue) switches drawn in red.
 
-**Architecture:** A new pure module `cdp_topology.py` builds an undirected switch graph from the already-collected CDP output and computes a layered tree layout. `drawio_generator.py` gains a renderer that turns that graph + positions into draw.io XML (reusing its existing cell/edge helpers and Cisco switch shape). `cheat_core.generate_cdp_topology` orchestrates build→layout→render→write, and `main_latest.py` calls it after the combined report.
+**Architecture:** A new pure module `cdp_topology.py` builds an undirected switch graph from the already-collected CDP output and computes a layered tree layout. `drawio_generator.py` gains a renderer that turns that graph + positions into draw.io XML (reusing its existing cell/edge helpers and Cisco switch shape). `cheat_core.generate_cdp_topology` orchestrates build→layout→render→write, and `main.py` calls it after the combined report.
 
 **Tech Stack:** Python 3.9+, `xml.etree.ElementTree`, pytest.
 
@@ -16,7 +16,7 @@
 - Graph identity is the normalised name (`_norm_host`): domain-stripped + case-folded. Display names keep the first-seen original string.
 - Deterministic output: nodes sorted `(is_rogue, name)`, edges sorted `(a, a_port, b, b_port)`, adjacency iterated in sorted order, roots chosen by `(-degree, name)`.
 - Rogue node style is red: `fillColor=#f8cecc; strokeColor=#b85450`. Scanned nodes use the existing grey `DEVICE_STYLES["edge"]`.
-- Scanned set = the hostnames we ran commands on = `raw_outputs.keys()` (passed by `main_latest.py`).
+- Scanned set = the hostnames we ran commands on = `raw_outputs.keys()` (passed by `main.py`).
 - Output file: `drawio_exports/<stem>-<YYYY-MM-DD-HH-MM>-cdp-topology.drawio`.
 - Run tests with `python3 -m pytest` from the repo root. Pre-existing collection errors in `test_mock_dnac.py`, `test_dnac.py`, `test_sandbox.py` (fixture-arg / live-integration) are unrelated — ignore them.
 
@@ -428,7 +428,7 @@ git commit -m "feat: render CDP switch topology to draw.io"
 
 **Files:**
 - Modify: `cheat_core.py` (imports near line 24-26; add `DRAWIO_DIR` constant near `EXCEL_DIR`; add `generate_cdp_topology`)
-- Modify: `main_latest.py` (import; call after `generate_excel`, around line 961)
+- Modify: `main.py` (import; call after `generate_excel`, around line 961)
 - Test: `test_cdp_topology.py`
 
 **Interfaces:**
@@ -516,7 +516,7 @@ def generate_cdp_topology(
     )
 ```
 
-In `main_latest.py`, extend the `cheat_core` import to include `generate_cdp_topology` (it is imported alongside `parse_outputs`, `generate_excel` — add the name to that import list), then update the scan-action tail (currently at lines 961-964):
+In `main.py`, extend the `cheat_core` import to include `generate_cdp_topology` (it is imported alongside `parse_outputs`, `generate_excel` — add the name to that import list), then update the scan-action tail (currently at lines 961-964):
 
 ```python
     results = generate_excel(devices_data, mode, stem, threshold, raw_outputs=outputs)
@@ -541,7 +541,7 @@ Expected: the feature and existing suites pass; only the pre-existing `test_mock
 - [ ] **Step 6: Commit**
 
 ```bash
-git add cdp_topology.py drawio_generator.py cheat_core.py main_latest.py test_cdp_topology.py
+git add cdp_topology.py drawio_generator.py cheat_core.py main.py test_cdp_topology.py
 git commit -m "feat: write CDP topology diagram alongside combined report"
 ```
 
@@ -553,7 +553,7 @@ git commit -m "feat: write CDP topology diagram alongside combined report"
 - `cdp_topology.py` build + layout (pure) → Tasks 1, 2.
 - Switch-only filter, rogue classification, bidirectional dedup, deterministic ordering → Task 1 (tests assert phone exclusion, dedup to one edge, rogue flag/platform).
 - Renderer with rogue-red styling, edge port labels, legend → Task 3.
-- Orchestrator + `main_latest` wiring (mode 3, `outputs.keys()` scanned set), no-scanned skip, per-host best-effort parsing → Task 4.
+- Orchestrator + `main` wiring (mode 3, `outputs.keys()` scanned set), no-scanned skip, per-host best-effort parsing → Task 4.
 - Filename `drawio_exports/<stem>-<ts>-cdp-topology.drawio` → Task 4 (test asserts suffix and file written).
 - Out-of-scope items (mgmt IP, non-switch neighbours, geographic placement) → correctly absent.
 

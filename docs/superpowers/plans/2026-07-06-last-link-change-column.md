@@ -600,7 +600,7 @@ git commit -m "feat: append Last Link Change column to interface sheet when popu
 
 **Files:**
 - Modify: `cheat_core.py` (add `LINK_STATE_COMMANDS`)
-- Modify: `main_latest.py` (`menu_5` toggle, status line, extended command list)
+- Modify: `main.py` (`menu_5` toggle, status line, extended command list)
 
 **Interfaces:**
 - Consumes: `DNAC_COMMANDS`, `LINK_STATE_COMMANDS`, `_exec_and_report`
@@ -645,7 +645,7 @@ Expected: PASS (2 tests). (Constant + builder already added in Step 1.)
 
 - [ ] **Step 4: Wire the toggle into `menu_5`**
 
-In `main_latest.py`, locate `menu_5`. Add a `link_state` state variable initialised alongside the existing `slow_mode` / `copper_only` locals (search for where `copper_only` is initialised in `menu_5` and add `link_state = False` next to it).
+In `main.py`, locate `menu_5`. Add a `link_state` state variable initialised alongside the existing `slow_mode` / `copper_only` locals (search for where `copper_only` is initialised in `menu_5` and add `link_state = False` next to it).
 
 Update the status line (the `print(f"  Host: ... Copper only: {copper_label}\n")` line) to append a link-state label. Just before that print, add:
 
@@ -672,7 +672,7 @@ Update the report dispatch to pass the extended command list. Ensure `build_comm
 
 - [ ] **Step 5: Verify the module imports and menu renders**
 
-Run: `python3 -c "import main_latest; print('import OK')"`
+Run: `python3 -c "import main; print('import OK')"`
 Expected: `import OK` (no syntax/import errors).
 
 Run: `python3 -m pytest test_cheat_core.py test_interface_parser.py test_excel_generator.py test_port_utilisation.py -v`
@@ -681,7 +681,7 @@ Expected: PASS (all).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add cheat_core.py main_latest.py test_cheat_core.py
+git add cheat_core.py main.py test_cheat_core.py
 git commit -m "feat: menu-5 link-state toggle appends show logging/show clock"
 ```
 

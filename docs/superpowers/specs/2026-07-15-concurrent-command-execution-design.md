@@ -93,7 +93,7 @@ def next_concurrency(n: int) -> int:
   under concurrency the wall-clock ceiling stays ≈ one device's poll window, not
   a per-batch multiple. Do not scale `poll_timeout` by `concurrency`.
 
-### `main_latest.py`
+### `main.py`
 
 - Import `next_concurrency` (and `DEFAULT_CONCURRENCY`) from `cheat_core`.
 - In the Menu 5 loop, add state `concurrency = DEFAULT_CONCURRENCY` alongside
@@ -105,7 +105,7 @@ def next_concurrency(n: int) -> int:
   - `_exec_and_report(..., concurrency=concurrency)` for options 1–3.
   - the option-4 custom-commands `run_commands(..., concurrency=concurrency)`.
 
-### `_exec_and_report` (in `main_latest.py`)
+### `_exec_and_report` (in `main.py`)
 
 - New parameter `concurrency: int = DEFAULT_CONCURRENCY`.
 - Pass `concurrency=concurrency` to `run_commands` in **both** the slow-mode and

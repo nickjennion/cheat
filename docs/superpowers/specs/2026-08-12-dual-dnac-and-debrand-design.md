@@ -1,7 +1,7 @@
 # Design: Dual DNAC Credentials + Splash De-brand
 
 **Date:** 2026-08-12
-**Scope:** `main_latest.py`, `splash_rich.py`, `splash_generic.py`, `splash_preview.py`, tests
+**Scope:** `main.py`, `splash_rich.py`, `splash_generic.py`, `splash_preview.py`, tests
 
 ---
 
@@ -67,7 +67,7 @@ is excluded from git with no ignore-file change.
 
 ### Code changes
 
-All in `main_latest.py`:
+All in `main.py`:
 
 | Change | Location |
 |---|---|
@@ -83,7 +83,7 @@ Both existing functions keep a default argument, so no call site outside
 
 ### Out of scope for Part 1
 
-`main.py` and `main_debug.py` each carry their own independent
+`main_cli.py` and `main_debug.py` each carry their own independent
 `load_credentials_from_env()` reading `dnac.env` directly, and have no menu.
 They stay legacy-only and are not modified.
 
@@ -119,10 +119,10 @@ mark alone, beside the bars.
 | `splash_rich.py:80–81` | `_BURGER_COUNTS_LARGE/SMALL` → `_MARK_COUNTS_LARGE/SMALL` |
 | `splash_rich.py:84–102` | `_hu_burger_rows` → `_mark_rows`, `_hu_lockup_rows` → `_lockup_rows`, `_hu_stacked_rows` → `_stacked_rows` |
 | `splash_rich.py:70–144, 192` | comments referring to "Hamburger University" / "HU mark" / "burger" de-branded |
-| `main_latest.py:108` | `_show_splash_rich(..., design="mark")` |
-| `main_latest.py:141` | `prefs.get("SPLASH_DESIGN", "mark")` |
-| `main_latest.py:351` | `DEFAULT_PREFS["SPLASH_DESIGN"] = "mark"`; comment lists `mark \| lockup \| stacked \| generic` |
-| `main_latest.py:447–449` | J-cycle becomes `mark → lockup → stacked → generic → mark`; `.get` default `"mark"` |
+| `main.py:108` | `_show_splash_rich(..., design="mark")` |
+| `main.py:141` | `prefs.get("SPLASH_DESIGN", "mark")` |
+| `main.py:351` | `DEFAULT_PREFS["SPLASH_DESIGN"] = "mark"`; comment lists `mark \| lockup \| stacked \| generic` |
+| `main.py:447–449` | J-cycle becomes `mark → lockup → stacked → generic → mark`; `.get` default `"mark"` |
 | `splash_generic.py` | frozen pre-co-brand snapshot — comments only, no visible strings to change |
 
 The Options → `J) Co-brand logo` row therefore displays `[mark]` by default.
@@ -188,9 +188,9 @@ below, following the existing `test_av_mac_export_wiring.py` style.
 | File | Change |
 |---|---|
 | `test_splash_rich.py:12, 15, 43, 45, 48–49, 52–54, 58, 65, 70, 75–77, 85–89` | `"burger"` → `"mark"`, `"Hamburger University"` → `"Generic University"`; rename `test_invalid_design_falls_back_to_burger` → `..._to_mark` and `test_generic_has_no_burger_dots` → `..._no_mark_dots`; `test_cobrand_designs_render_the_hu_burger` → `..._render_the_mark` |
-| `test_main_latest_concurrency.py:19–28` | `test_load_prefs_supplies_splash_design_default_for_old_prefs` expects `"mark"` |
+| `test_main_concurrency.py:19–28` | `test_load_prefs_supplies_splash_design_default_for_old_prefs` expects `"mark"` |
 
-### New prefs assertions — `test_main_latest_concurrency.py`
+### New prefs assertions — `test_main_concurrency.py`
 
 This file already owns the prefs default/migration tests, so the rename's prefs
 behaviour is tested alongside them rather than in the credentials file:
@@ -220,13 +220,13 @@ updated splash assertions still green.
 
 | File | Change |
 |---|---|
-| `main_latest.py` | `ENV_FILE_NEW`; path parameters on the loader/saver; `_print_env_file`; `_prompt_save_target`; `menu_1` rewrite; `SPLASH_DESIGN` rename + migration in `load_prefs()`; J-cycle |
+| `main.py` | `ENV_FILE_NEW`; path parameters on the loader/saver; `_print_env_file`; `_prompt_save_target`; `menu_1` rewrite; `SPLASH_DESIGN` rename + migration in `load_prefs()`; J-cycle |
 | `splash_rich.py` | de-branded visible strings, helper/constant renames, `mark` design key, preview stub |
 | `splash_generic.py` | comment de-brand; preview stub menu labels |
 | `splash_preview.py` | preview stub menu labels |
 | `test_credential_files.py` | new |
 | `test_splash_rich.py` | assertions updated for `mark` / "Generic University" |
-| `test_main_latest_concurrency.py` | `SPLASH_DESIGN` default expectation, plus new `burger → mark` migration and J-cycle assertions |
+| `test_main_concurrency.py` | `SPLASH_DESIGN` default expectation, plus new `burger → mark` migration and J-cycle assertions |
 
 No changes to `cheat_core.py`, `dnac_client.py`, any parser, or any emitter.
 `.gitignore` needs no change.

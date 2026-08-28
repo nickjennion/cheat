@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-12
 **Scope:** `device_tracking.py` (new), `ip_mac_report.py` (new), `excel_generator.py`,
-`cheat_core.py`, `main_latest.py`
+`cheat_core.py`, `main.py`
 
 ---
 
@@ -58,7 +58,7 @@ so each layer is independently testable and carries no knowledge of the others.
 | `ip_mac_report.py` *(new)* | Correlator. Filters to the requested VLANs, drops local/static rows, flags duplicates → `IpMacReport`. Peer of `av_mac_report.py`. |
 | `excel_generator.py` | `write_ip_mac_report_sheet` / `write_ip_mac_report_excel`, beside the AV equivalents. |
 | `cheat_core.py` | `DEVICE_TRACKING_COMMANDS = ["show device-tracking database"]`. |
-| `main_latest.py` | `action_ip_mac_export()` plus the `d)` menu entry. |
+| `main.py` | `action_ip_mac_export()` plus the `d)` menu entry. |
 
 ---
 
@@ -230,7 +230,7 @@ lines. Two small helpers are extracted and **both** actions use them:
   input, returns `[]` when cancelled. Identical logic in both actions today.
 - `_timestamped_excel_path(filename)` — `excel_reports/<stem>-<ts>.xlsx`, with
   the directory created. This block is currently repeated four times in
-  `main_latest.py`.
+  `main.py`.
 
 Scope is deliberately limited to these two: `action_mac_search` /
 `action_ip_search` share a larger duplicated display block, but that is unrelated
@@ -290,7 +290,7 @@ headers and one flagged row.
 - **Uplink suppression** — device-tracking is a per-switch binding table;
   duplicates are flagged rather than dropped, so no CDP collection is needed and
   no real endpoint can be lost to a wrong uplink guess.
-- `main.py` / `main_debug.py` — no menu, unchanged.
+- `main_cli.py` / `main_debug.py` — no menu, unchanged.
 
 ---
 

@@ -16,7 +16,7 @@ drawn in red so they stand out against the known switches.
 
 ## Scope
 
-- Produced by the `main_latest.py` scan flow, alongside the combined report
+- Produced by the `main.py` scan flow, alongside the combined report
   (mode 3), written to `drawio_exports/<stem>-cdp-topology.drawio`. Auto-written,
   no prompt.
 - **Switches only** (CDP Capability contains `S`) — reuses
@@ -120,7 +120,7 @@ class Topology:
   - Write to `drawio_exports/<filename_stem>-<ts>-cdp-topology.drawio`
     (`drawio_exports/` created if missing), return `(True, path-message)`.
 
-### `main_latest.py` (wiring)
+### `main.py` (wiring)
 
 - In the scan action, after the `generate_excel(...)` call, when the combined
   report (mode 3) was chosen, call

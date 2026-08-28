@@ -152,7 +152,7 @@ excel_generator.py     ←  imports interface_parser (unchanged)
 
 ### Item 8 — `--dry-run` Flag
 
-**File:** `main.py`
+**File:** `main_cli.py`
 
 **Rationale:** Currently there is no way to preview what the tool will do without actually executing commands on devices. A dry-run mode allows safe discovery and planning.
 
@@ -203,7 +203,7 @@ excel_generator.py     ←  imports interface_parser (unchanged)
 
 4. In `main()`: `OUTPUT_DIR` is read from `args.output_dir` instead of the hardcoded constant.
 
-5. `main_debug.py` — identical argparse additions. In a future refactor this should be merged into `main.py` with `--debug`, but for now keep parity.
+5. `main_debug.py` — identical argparse additions. In a future refactor this should be merged into `main_cli.py` with `--debug`, but for now keep parity.
 
 **Behaviour matrix:**
 
@@ -217,7 +217,7 @@ excel_generator.py     ←  imports interface_parser (unchanged)
 
 **Sandbox test:**
 ```bash
-python main.py --host sandboxdnacenter.cisco.com --username admin --dry-run
+python main_cli.py --host sandboxdnacenter.cisco.com --username admin --dry-run
 ```
 Expected: authenticates, fetches devices, enters interactive filter/select loop, on selection prints "Would execute..." block, loops back. No files created in `output/`. No Command Runner API calls made.
 
@@ -225,11 +225,11 @@ Expected: authenticates, fetches devices, enters interactive filter/select loop,
 
 ### Item 9 — Wire Port Utilisation into Main Workflow
 
-**Files:** `main.py` (modify), `port_utilisation.py` (no changes)
+**Files:** `main_cli.py` (modify), `port_utilisation.py` (no changes)
 
 **Rationale:** Port utilisation analysis currently requires a separate manual invocation of `python port_utilisation.py <report.xlsx>`. The main workflow generates the Excel report and knows its exact path — it can offer this analysis as a natural final step.
 
-**Changes in `main.py`:**
+**Changes in `main_cli.py`:**
 
 1. Add imports:
 
@@ -286,7 +286,7 @@ Expected: authenticates, fetches devices, enters interactive filter/select loop,
 
 **Sandbox test:**
 ```bash
-python main.py --host sandboxdnacenter.cisco.com --username admin --filter cat9k --batch 1 --port-util
+python main_cli.py --host sandboxdnacenter.cisco.com --username admin --filter cat9k --batch 1 --port-util
 ```
 Expected: full end-to-end flow, Excel generated, port utilisation summary printed, summary Excel written. Verify copper port counts match manual inspection of the generated report.
 
@@ -298,8 +298,8 @@ Expected: full end-to-end flow, Excel generated, port utilisation summary printe
 |------|------|-----------|----------------|
 | 1 | Retry/backoff | None | `dnac_client.py` |
 | 2 | Unify time parsing | None | `time_utils.py` (new), `interface_parser.py`, `port_utilisation.py` |
-| 3 | `--dry-run` + argparse | Step 1 | `main.py`, `main_debug.py` |
-| 4 | Wire port utilisation | Step 3 | `main.py` |
+| 3 | `--dry-run` + argparse | Step 1 | `main_cli.py`, `main_debug.py` |
+| 4 | Wire port utilisation | Step 3 | `main_cli.py` |
 
 Steps 1 and 2 are independent and can be developed in parallel. Steps 3 and 4 are sequential (4 needs the argparse infrastructure from 3).
 
@@ -325,7 +325,7 @@ Steps 1 and 2 are independent and can be developed in parallel. Steps 3 and 4 ar
 | Unified time parser produces different results | Low | Same tests fed through both old and new functions with assertion comparison |
 | argparse breaks interactive prompts when no flags given | Low | All argparse arguments are optional with `default=None`; no behaviour change when omitted |
 | Port utilisation calls fail on non-standard Excel layouts | Low | `analyse_workbook()` already handles missing columns and empty sheets gracefully |
-| `main_debug.py` drifts from `main.py` | Medium | Apply identical argparse changes to both; document need for future merge |
+| `main_debug.py` drifts from `main_cli.py` | Medium | Apply identical argparse changes to both; document need for future merge |
 
 ---
 
@@ -335,7 +335,7 @@ After all four items are implemented:
 
 ```bash
 # Test 1: Dry-run with CLI args
-python main.py \
+python main_cli.py \
   --host sandboxdnacenter.cisco.com \
   --username admin \
   --filter cat9k \
@@ -345,7 +345,7 @@ python main.py \
 # Verify: no output/ files created, no Command Runner API calls in Wireshark/logs.
 
 # Test 2: Full run with port utilisation
-python main.py \
+python main_cli.py \
   --host sandboxdnacenter.cisco.com \
   --username admin \
   --filter cat9k \

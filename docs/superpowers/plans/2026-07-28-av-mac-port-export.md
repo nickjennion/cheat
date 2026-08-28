@@ -4,7 +4,7 @@
 
 **Goal:** Add a Menu 5 report that maps AV-VLAN MAC addresses to physical switch ports across a nominated switch hierarchy, for MAB provisioning during the SDA cutover.
 
-**Architecture:** Two new pure-parsing/correlation modules (`mac_table.py`, `av_mac_report.py`) mirroring the existing `cdp_detail.py`/`unscanned_switches.py` split — one module parses a single command's raw output, the other correlates that with CDP data across all selected switches and applies the two safety flags. A new writer function in `excel_generator.py` renders the result. `main_latest.py` wires it into Menu 5 as a new interactive action, following the existing `action_mac_search`/`action_ip_search` pattern.
+**Architecture:** Two new pure-parsing/correlation modules (`mac_table.py`, `av_mac_report.py`) mirroring the existing `cdp_detail.py`/`unscanned_switches.py` split — one module parses a single command's raw output, the other correlates that with CDP data across all selected switches and applies the two safety flags. A new writer function in `excel_generator.py` renders the result. `main.py` wires it into Menu 5 as a new interactive action, following the existing `action_mac_search`/`action_ip_search` pattern.
 
 **Tech Stack:** Python 3, openpyxl, pytest. No new dependencies.
 
@@ -26,8 +26,8 @@
 - `test_av_mac_report.py` (new) — correlation/dedupe/flagging tests, plus the Excel-writer tests (mirrors how `test_unscanned_switches.py` covers both `unscanned_switches.py` and its `excel_generator.py` writer together).
 - `excel_generator.py` (modify) — add `AV_MAC_HEADERS`, `AV_MAC_COL_WIDTHS`, `AV_MAC_FLAG_COLOUR`, `AV_MAC_SUMMARY_TITLE` constants, `write_av_mac_report_sheet(ws, report)`, `write_av_mac_report_excel(report, outpath)`.
 - `cheat_core.py` (modify) — add `AV_MAC_COMMANDS` constant next to `DNAC_COMMANDS`.
-- `main_latest.py` (modify) — add `action_av_mac_export(selected_devices, client, concurrency)`, wire it into `menu_5` as choice `m`.
-- `test_av_mac_export_wiring.py` (new) — thin signature/wiring checks, matching the existing `test_main_latest_concurrency.py` style (this codebase doesn't unit-test interactive `input()`-driven action functions like `action_mac_search`; wiring is checked at the signature/constant level instead).
+- `main.py` (modify) — add `action_av_mac_export(selected_devices, client, concurrency)`, wire it into `menu_5` as choice `m`.
+- `test_av_mac_export_wiring.py` (new) — thin signature/wiring checks, matching the existing `test_main_concurrency.py` style (this codebase doesn't unit-test interactive `input()`-driven action functions like `action_mac_search`; wiring is checked at the signature/constant level instead).
 
 ---
 
@@ -624,12 +624,12 @@ git commit -m "feat: write AV MAC/port report to Excel"
 
 **Files:**
 - Modify: `cheat_core.py` (add `AV_MAC_COMMANDS` near `DNAC_COMMANDS`, `cheat_core.py:40-48`)
-- Modify: `main_latest.py` (imports at `main_latest.py:7-29`, new action function before `menu_5` at `main_latest.py:1262`, menu print/dispatch inside `menu_5` at `main_latest.py:1262-1376`)
+- Modify: `main.py` (imports at `main.py:7-29`, new action function before `menu_5` at `main.py:1262`, menu print/dispatch inside `menu_5` at `main.py:1262-1376`)
 - Test: `test_av_mac_export_wiring.py`
 
 **Interfaces:**
-- Consumes: `run_commands` (existing, `cheat_core.py`), `build_av_mac_report` (Task 2), `write_av_mac_report_excel` (Task 3), `_prompt_filename`, `pause`, `EXCEL_DIR`, `DEFAULT_CONCURRENCY` (all already available in `main_latest.py`).
-- Produces: `cheat_core.AV_MAC_COMMANDS: list[str]`, `main_latest.action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURRENCY) -> None`.
+- Consumes: `run_commands` (existing, `cheat_core.py`), `build_av_mac_report` (Task 2), `write_av_mac_report_excel` (Task 3), `_prompt_filename`, `pause`, `EXCEL_DIR`, `DEFAULT_CONCURRENCY` (all already available in `main.py`).
+- Produces: `cheat_core.AV_MAC_COMMANDS: list[str]`, `main.action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURRENCY) -> None`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -644,11 +644,11 @@ def test_av_mac_commands_defined():
 
 
 def test_action_av_mac_export_exists_with_expected_signature():
-    import main_latest
-    assert callable(main_latest.action_av_mac_export)
-    sig = inspect.signature(main_latest.action_av_mac_export)
+    import main
+    assert callable(main.action_av_mac_export)
+    sig = inspect.signature(main.action_av_mac_export)
     assert list(sig.parameters) == ["selected_devices", "client", "concurrency"]
-    assert sig.parameters["concurrency"].default == main_latest.DEFAULT_CONCURRENCY
+    assert sig.parameters["concurrency"].default == main.DEFAULT_CONCURRENCY
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -674,9 +674,9 @@ LINK_STATE_COMMANDS = ["show logging", "show clock"]
 AV_MAC_COMMANDS = ["show mac address-table", "show cdp neighbors detail"]
 ```
 
-- [ ] **Step 4: Wire up `main_latest.py`**
+- [ ] **Step 4: Wire up `main.py`**
 
-Update the import block (`main_latest.py:7-26`):
+Update the import block (`main.py:7-26`):
 
 ```python
 import getpass
@@ -707,7 +707,7 @@ import ap_monitor
 import splash
 ```
 
-Add the new action function immediately before `def menu_5(...)` (`main_latest.py:1262`):
+Add the new action function immediately before `def menu_5(...)` (`main.py:1262`):
 
 ```python
 def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURRENCY):
@@ -761,7 +761,7 @@ def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
     pause()
 ```
 
-In `menu_5`, add the menu line right after the IP-search line (`main_latest.py:1282`, `print("  7) IP address search  (Assurance /clients, wildcard)")`):
+In `menu_5`, add the menu line right after the IP-search line (`main.py:1282`, `print("  7) IP address search  (Assurance /clients, wildcard)")`):
 
 ```python
         print("  7) IP address search  (Assurance /clients, wildcard)")
@@ -769,13 +769,13 @@ In `menu_5`, add the menu line right after the IP-search line (`main_latest.py:1
         print("  s) Toggle slow mode")
 ```
 
-Update the input prompt (`main_latest.py:1291`):
+Update the input prompt (`main.py:1291`):
 
 ```python
         choice = input("  Select [1-9 / m / r / s / p / l / c]: ").strip().lower()
 ```
 
-Add the dispatch branch right after the existing `choice == "7"` branch (`main_latest.py:1371-1372`):
+Add the dispatch branch right after the existing `choice == "7"` branch (`main.py:1371-1372`):
 
 ```python
         elif choice == "7":
@@ -798,7 +798,7 @@ Expected: same pass/fail counts as the pre-existing baseline (the repo has a han
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cheat_core.py main_latest.py test_av_mac_export_wiring.py
+git add cheat_core.py main.py test_av_mac_export_wiring.py
 git commit -m "feat: wire AV MAC/port export into Menu 5 (m)"
 ```
 
@@ -807,5 +807,5 @@ git commit -m "feat: wire AV MAC/port export into Menu 5 (m)"
 ## Self-Review Notes
 
 - **Spec coverage:** Data collection (Task 4, `AV_MAC_COMMANDS` + single mac-table command regardless of VLAN count) · Parsing (Task 1) · Correlation & filtering incl. both flags (Task 2) · Excel output incl. summary + detail + highlighting (Task 3) · Menu integration (Task 4) · Testing (all tasks, TDD) — all spec sections have a task.
-- **Type consistency:** `MacTableEntry` (Task 1) → consumed unchanged by `av_mac_report.py` (Task 2). `AvMacRow`/`AvMacReport` (Task 2) → consumed duck-typed by `excel_generator.py` (Task 3) and directly by `main_latest.py` (Task 4, `report.rows`, `r.notes`). Field names (`switch`, `stack_member`, `interface`, `vlan`, `mac`, `type`, `notes`) are identical across all four tasks.
+- **Type consistency:** `MacTableEntry` (Task 1) → consumed unchanged by `av_mac_report.py` (Task 2). `AvMacRow`/`AvMacReport` (Task 2) → consumed duck-typed by `excel_generator.py` (Task 3) and directly by `main.py` (Task 4, `report.rows`, `r.notes`). Field names (`switch`, `stack_member`, `interface`, `vlan`, `mac`, `type`, `notes`) are identical across all four tasks.
 - **Non-goal check:** no draw.io/diagram code appears anywhere in this plan, matching the spec's explicit deferral.

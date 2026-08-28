@@ -211,11 +211,11 @@ The downstream `< threshold_days` comparison in `_compute_utilisation` evaluates
 
 ---
 
-### Finding 4 — `main.py` / `main_debug.py`: `--host X --username Y` silently connects to wrong server
+### Finding 4 — `main_cli.py` / `main_debug.py`: `--host X --username Y` silently connects to wrong server
 
 **Severity:** High — operational error; CLI flags silently ignored, session opens against a different DNAC host.
 
-**File:** `main.py:124` (and identical code in `main_debug.py`)
+**File:** `main_cli.py:124` (and identical code in `main_debug.py`)
 
 #### What went wrong
 
@@ -237,7 +237,7 @@ The documented contract (in the function docstring) is: *"If args provides host+
 Operator has `dnac.env` containing dev-lab credentials. They run:
 
 ```
-python main.py --host prod-dnac.corp.local --username admin
+python main_cli.py --host prod-dnac.corp.local --username admin
 ```
 
 Before fix: `dnac.env` loads `DNAC_HOST=lab-dnac.corp.local`, `DNAC_USERNAME=testuser`, `DNAC_PASSWORD=labpass123`. The session opens against the lab, no error is raised, and a report is generated from the wrong device inventory. The operator sees "Authentication successful" and proceeds.
@@ -276,7 +276,7 @@ if cli_host and cli_username:
 
 This correctly implements the contract for all three cases, including the previously broken "host+username given, no --password flag" case.
 
-Applied to both `main.py` and `main_debug.py`.
+Applied to both `main_cli.py` and `main_debug.py`.
 
 **Verified:** `parse_args()` called with `['--host', 'h', '--username', 'u', '--password']` returns sentinel; called without `--password` returns `None` — both now handled by the same `else` branch which prompts via `getpass`.
 
@@ -401,7 +401,7 @@ The same dedup block exists in both `write_excel()` and `write_combined_excel()`
 | 1 | `consolidate_report.py:52` | High | "All Ports" sheet has identical headers → included in consolidation | Fixed — `SKIP_TITLES` guard |
 | 2 | `port_utilisation.py:73` | High | "All Ports" sheet has matching columns → counted twice | Fixed — `SKIP_TITLES` guard |
 | 3 | `time_utils.py:47` | High | `total > 0` rejects `0.0` → active ports classified as idle | Fixed — removed guard, `return total` |
-| 4 | `main.py:124` / `main_debug.py` | High | `sys.argv` scan ambiguous → CLI host silently discarded | Fixed — `_PASSWORD_PROMPT` sentinel |
+| 4 | `main_cli.py:124` / `main_debug.py` | High | `sys.argv` scan ambiguous → CLI host silently discarded | Fixed — `_PASSWORD_PROMPT` sentinel |
 | 5 | `requirements.txt` | Medium | No `urllib3>=1.26` pin → `allowed_methods=` TypeError | Fixed — pin added |
 | 6 | `excel_generator.py:181,261` | Low | `for` loop no `else` → silent sheet misname at 99+ duplicates | Fixed — `for/else` raises `ValueError` |
 

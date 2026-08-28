@@ -4,7 +4,7 @@
 
 **Goal:** Add "Access Point — Monitor Physical Movements" to menu_2, allowing users to filter/select Unified APs and view a live-refreshed table comparing previous (24h via Assurance events) and current (physical topology) upstream switch+port.
 
-**Architecture:** Three new DNACClient methods fetch AP inventory, current topology, and historical Assurance events. A new `ap_monitor.py` module contains all filter/select/display logic. `main_latest.py` gets a thin `action_ap_monitor()` wrapper and a new menu_2 option.
+**Architecture:** Three new DNACClient methods fetch AP inventory, current topology, and historical Assurance events. A new `ap_monitor.py` module contains all filter/select/display logic. `main.py` gets a thin `action_ap_monitor()` wrapper and a new menu_2 option.
 
 **Tech Stack:** Python 3.13, openpyxl, requests, unittest.mock
 
@@ -963,10 +963,10 @@ git commit -m "feat: ap_monitor results screen, Excel export, run() entry point"
 
 ---
 
-### Task 5: `main_latest.py` — wire into menu_2
+### Task 5: `main.py` — wire into menu_2
 
 **Files:**
-- Modify: `main_latest.py` — import `ap_monitor`, add `action_ap_monitor()`, update `menu_2`
+- Modify: `main.py` — import `ap_monitor`, add `action_ap_monitor()`, update `menu_2`
 
 **Interfaces:**
 - Consumes:
@@ -977,7 +977,7 @@ git commit -m "feat: ap_monitor results screen, Excel export, run() entry point"
 
 ---
 
-- [ ] **Step 1: Add import at top of `main_latest.py`**
+- [ ] **Step 1: Add import at top of `main.py`**
 
 Find the existing import block:
 
@@ -1092,7 +1092,7 @@ def menu_2(host, username, password):
 - [ ] **Step 4: Syntax check**
 
 ```bash
-python3 -c "import ast; ast.parse(open('/home/nickjennion/ai/cheat/main_latest.py').read()); print('syntax OK')"
+python3 -c "import ast; ast.parse(open('/home/nickjennion/ai/cheat/main.py').read()); print('syntax OK')"
 ```
 
 Expected: `syntax OK`
@@ -1108,7 +1108,7 @@ Expected: all tests PASS.
 - [ ] **Step 6: Commit and push**
 
 ```bash
-git add main_latest.py
+git add main.py
 git commit -m "feat: wire AP Monitor into menu_2 option 4"
 git push
 ```

@@ -4,7 +4,7 @@
 
 **Goal:** Add a block to the combined report's Port Utilisation sheet listing every Cisco switch seen via CDP that was not scanned this session.
 
-**Architecture:** A new pure-Python module `unscanned_switches.py` parses the brief `show cdp neighbors` output (already collected — no new command) into switch neighbours and diffs them against the set of scanned hosts. `excel_generator.py` renders the result as a block appended under the Port Utilisation table. `cheat_core.generate_excel` computes the list and `main_latest.py` feeds it the raw command outputs.
+**Architecture:** A new pure-Python module `unscanned_switches.py` parses the brief `show cdp neighbors` output (already collected — no new command) into switch neighbours and diffs them against the set of scanned hosts. `excel_generator.py` renders the result as a block appended under the Port Utilisation table. `cheat_core.generate_excel` computes the list and `main.py` feeds it the raw command outputs.
 
 **Tech Stack:** Python 3.9+, openpyxl, pytest.
 
@@ -535,7 +535,7 @@ git commit -m "feat: append unscanned switches block under port utilisation"
 
 **Files:**
 - Modify: `cheat_core.py:24-25` (import), `cheat_core.py:214-253` (`generate_excel`)
-- Modify: `main_latest.py:961` (pass `raw_outputs`)
+- Modify: `main.py:961` (pass `raw_outputs`)
 - Test: `test_unscanned_switches.py`
 
 **Interfaces:**
@@ -602,7 +602,7 @@ def generate_excel(
         results.append((ok, msg))
 ```
 
-In `main_latest.py`, update the call (line 961) to pass the raw outputs dict (the `outputs` variable is in scope):
+In `main.py`, update the call (line 961) to pass the raw outputs dict (the `outputs` variable is in scope):
 
 ```python
     results = generate_excel(devices_data, mode, stem, threshold, raw_outputs=outputs)
@@ -621,7 +621,7 @@ Expected: all pass except the 3 pre-existing `test_mock_dnac.py` fixture-arg err
 - [ ] **Step 6: Commit**
 
 ```bash
-git add cheat_core.py main_latest.py test_unscanned_switches.py
+git add cheat_core.py main.py test_unscanned_switches.py
 git commit -m "feat: compute unscanned switches on bulk scan and write to report"
 ```
 
@@ -633,8 +633,8 @@ git commit -m "feat: compute unscanned switches on bulk scan and write to report
 - New `unscanned_switches.py` with `parse_cdp_switch_neighbors` + `find_unscanned_switches` → Tasks 1, 2.
 - Capability `S` filter, domain-strip/case-fold matching, per-sighting dedupe/sort → Tasks 1, 2 (tests assert phone exclusion, FQDN/case, dedupe).
 - Renderer + placement under Port Utilisation, "None detected" path, `unscanned=None` omission → Tasks 3, 4.
-- `generate_excel` raw_outputs wiring + `main_latest.py` pass-through → Task 5.
-- Scope note (mains out of scope): unchanged — `main.py`/`main_debug.py` still call `write_combined_excel` without `unscanned`, so the optional-default omits the block. No task needed.
+- `generate_excel` raw_outputs wiring + `main.py` pass-through → Task 5.
+- Scope note (mains out of scope): unchanged — `main_cli.py`/`main_debug.py` still call `write_combined_excel` without `unscanned`, so the optional-default omits the block. No task needed.
 - Refinement vs spec: scanned set uses `raw_outputs.keys()` (all scanned hosts) rather than `devices_data.keys()`, so a parse-failed/copper-filtered host is still treated as known. Captured in Task 5 + Global Constraints.
 
 **Placeholder scan:** No TBD/TODO/"handle edge cases" — every code step is complete.

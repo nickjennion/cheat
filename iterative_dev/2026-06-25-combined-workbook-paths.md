@@ -4,7 +4,7 @@
 
 **Goal:** Collapse the three-output workflow (per-stack xlsx + consolidated xlsx + utilisation xlsx) into a single combined workbook, restructure output folders, and fix path handling for Windows compatibility.
 
-**Architecture:** `excel_generator.write_combined_excel()` owns the single-workbook output (Sheet 1: All Ports, Sheet 2: Port Utilisation, Sheets 3–N: per-stack tabs), computing consolidation and utilisation directly from in-memory records. `main.py` prompts for threshold and filename prefix after device selection, before execution. Standalone scripts (`consolidate_report.py`, `port_utilisation.py`) are retained for re-running against old files and updated to use `Path.resolve()` throughout.
+**Architecture:** `excel_generator.write_combined_excel()` owns the single-workbook output (Sheet 1: All Ports, Sheet 2: Port Utilisation, Sheets 3–N: per-stack tabs), computing consolidation and utilisation directly from in-memory records. `main_cli.py` prompts for threshold and filename prefix after device selection, before execution. Standalone scripts (`consolidate_report.py`, `port_utilisation.py`) are retained for re-running against old files and updated to use `Path.resolve()` throughout.
 
 **Tech Stack:** Python 3.10+, openpyxl, pathlib.Path
 
@@ -19,7 +19,7 @@
 - `--filename` CLI arg skips the interactive filename prefix prompt; if absent, prompt with default `"port-information"`
 - Timestamp format for Excel filenames: `%Y-%m-%d-%H-%M` (unchanged)
 - `consolidate_report.py` and `port_utilisation.py` remain functional as standalone scripts
-- Apply all `main.py` changes identically to `main_debug.py`
+- Apply all `main_cli.py` changes identically to `main_debug.py`
 
 ---
 
@@ -27,8 +27,8 @@
 
 | File | Change |
 |------|--------|
-| `main.py` | Rename `OUTPUT_DIR` → `COMMAND_RUNNER_DIR`, add `EXCEL_DIR`, remove `--port-util`/`--no-port-util` flags, add `--filename` flag, add threshold + filename prompts, call `write_combined_excel()` |
-| `main_debug.py` | Identical changes to `main.py` |
+| `main_cli.py` | Rename `OUTPUT_DIR` → `COMMAND_RUNNER_DIR`, add `EXCEL_DIR`, remove `--port-util`/`--no-port-util` flags, add `--filename` flag, add threshold + filename prompts, call `write_combined_excel()` |
+| `main_debug.py` | Identical changes to `main_cli.py` |
 | `excel_generator.py` | Add `_compute_utilisation()`, add `write_combined_excel()`, keep `write_excel()` for standalone compatibility |
 | `port_utilisation.py` | Add `write_utilisation_sheet(ws, results, threshold_days)` helper |
 | `consolidate_report.py` | Replace string path construction with `Path.resolve()` |
@@ -38,20 +38,20 @@
 ### Task 1: Folder restructure and path constants
 
 **Files:**
-- Modify: `main.py`
+- Modify: `main_cli.py`
 - Modify: `main_debug.py`
 - Modify: `consolidate_report.py`
 - Modify: `port_utilisation.py`
 
 **Interfaces:**
-- Produces: `COMMAND_RUNNER_DIR = "command_runner_outputs"` and `EXCEL_DIR = "excel_reports"` constants in `main.py` and `main_debug.py`; Tasks 2 and 3 rely on `EXCEL_DIR`
+- Produces: `COMMAND_RUNNER_DIR = "command_runner_outputs"` and `EXCEL_DIR = "excel_reports"` constants in `main_cli.py` and `main_debug.py`; Tasks 2 and 3 rely on `EXCEL_DIR`
 
-- [ ] **Step 1: Update constants and path construction in `main.py`**
+- [ ] **Step 1: Update constants and path construction in `main_cli.py`**
 
 Replace the `OUTPUT_DIR` constant and all its usages:
 
 ```python
-# Replace this at the top of main.py:
+# Replace this at the top of main_cli.py:
 OUTPUT_DIR = "output"
 
 # With:
@@ -178,7 +178,7 @@ else:
 
 ```bash
 cd /home/nickjennion/ai/cheat
-python3 -m py_compile main.py main_debug.py consolidate_report.py port_utilisation.py
+python3 -m py_compile main_cli.py main_debug.py consolidate_report.py port_utilisation.py
 echo "All compile OK"
 ```
 
@@ -187,7 +187,7 @@ Expected: `All compile OK`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add main.py main_debug.py consolidate_report.py port_utilisation.py
+git add main_cli.py main_debug.py consolidate_report.py port_utilisation.py
 git commit -m "refactor: rename output/ to command_runner_outputs/, add excel_reports/ dir, use Path.resolve() throughout"
 ```
 
@@ -205,7 +205,7 @@ git commit -m "refactor: rename output/ to command_runner_outputs/, add excel_re
 - Consumes: `parse_duration_days(value)` from `time_utils.py` (unchanged)
 - Produces: `write_utilisation_sheet(ws, results, threshold_days) -> None` in `port_utilisation.py`
 - Produces: `write_combined_excel(devices_data, threshold_days, outpath) -> tuple[bool, str]` in `excel_generator.py`
-- Task 3 calls `write_combined_excel()` and removes the `write_excel()` call from `main.py`
+- Task 3 calls `write_combined_excel()` and removes the `write_excel()` call from `main_cli.py`
 
 - [ ] **Step 1: Add `write_utilisation_sheet()` to `port_utilisation.py`**
 
@@ -432,18 +432,18 @@ git commit -m "feat: add write_combined_excel() — single workbook with All Por
 
 ---
 
-### Task 3: Prompts, argparse cleanup, and wire up in `main.py` / `main_debug.py`
+### Task 3: Prompts, argparse cleanup, and wire up in `main_cli.py` / `main_debug.py`
 
 **Files:**
-- Modify: `main.py`
+- Modify: `main_cli.py`
 - Modify: `main_debug.py`
 
 **Interfaces:**
 - Consumes: `write_combined_excel(devices_data, threshold_days, outpath)` from Task 2
 - Consumes: `EXCEL_DIR` constant from Task 1
-- The `write_excel` import from `excel_generator` is no longer called from `main.py` — remove it
+- The `write_excel` import from `excel_generator` is no longer called from `main_cli.py` — remove it
 
-- [ ] **Step 1: Update imports in `main.py`**
+- [ ] **Step 1: Update imports in `main_cli.py`**
 
 ```python
 # Remove:
@@ -453,7 +453,7 @@ from excel_generator import write_excel
 from excel_generator import write_combined_excel
 ```
 
-Remove the `port_utilisation` imports (no longer called from `main.py` directly — `write_combined_excel` handles it internally):
+Remove the `port_utilisation` imports (no longer called from `main_cli.py` directly — `write_combined_excel` handles it internally):
 ```python
 # Remove these three lines:
 from port_utilisation import analyse_workbook, print_summary, write_summary_excel
@@ -604,7 +604,7 @@ if args.filter and args.batch:
 Search `main()` for any remaining references to `args.port_util` or `args.no_port_util` and remove them. Run:
 
 ```bash
-grep -n "port_util" /home/nickjennion/ai/cheat/main.py
+grep -n "port_util" /home/nickjennion/ai/cheat/main_cli.py
 ```
 
 Expected: only `args.port_util_threshold` references remain.
@@ -617,14 +617,14 @@ Repeat Steps 1–6 for `main_debug.py`. The changes are identical.
 
 ```bash
 cd /home/nickjennion/ai/cheat
-python3 -m py_compile main.py main_debug.py
-python3 main.py --help
+python3 -m py_compile main_cli.py main_debug.py
+python3 main_cli.py --help
 ```
 
 Expected: `--port-util` and `--no-port-util` are gone; `--port-util-threshold`, `--filename`, `--command-runner-dir`, `--excel-dir` are present.
 
 ```bash
-grep -c "port.util" <(python3 main.py --help) || true
+grep -c "port.util" <(python3 main_cli.py --help) || true
 ```
 
 Expected: 1 (only `--port-util-threshold` remains).
@@ -652,7 +652,7 @@ Expected: prints an absolute path, `Path is absolute: OK`.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add main.py main_debug.py
+git add main_cli.py main_debug.py
 git commit -m "feat: combined workbook wired into main workflow — threshold + filename prompts, remove port-util flags"
 ```
 
@@ -664,6 +664,6 @@ git commit -m "feat: combined workbook wired into main workflow — threshold + 
 |------|-----------|------|
 | Task 1 (folders + paths) | None | Low — constants and path construction only |
 | Task 2 (combined workbook) | None | Medium — new functions, openpyxl sheet ordering |
-| Task 3 (main.py wiring) | Tasks 1 and 2 | Medium — touches interactive flow |
+| Task 3 (main_cli.py wiring) | Tasks 1 and 2 | Medium — touches interactive flow |
 
 Tasks 1 and 2 are independent and can be developed in parallel. Task 3 depends on both.
