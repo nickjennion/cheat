@@ -2,7 +2,7 @@
 CHEAT splash rendering — Cisco DNA Center branding.
 
 Pure layout only (returns a list of text lines); colour/theming is applied by
-the caller. Shared by main_latest.py (the live app) and splash_preview.py.
+the caller. Shared by main.py (the live app) and splash_preview.py.
 
 The 9-bar Cisco "bridge" logo (S·M·T·M·S·M·T·M·S — two tall peaks) is measured
 from the real mark: heights top% 52/30/0, baseline 84%, peaks to 100%. Half-block

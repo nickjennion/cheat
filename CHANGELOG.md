@@ -2,6 +2,23 @@
 
 All notable feature work on CHEAT. Newest first.
 
+## 2026-08-28 — Entry-point rename; single-branch cleanup
+
+- **`main_latest.py` → `main.py`.** The interactive menu launcher is now the
+  primary entry point under its obvious name — `python main.py` starts the
+  menus. It had been the only actively developed entry point since June; the
+  `_latest` suffix was historical.
+- **Old `main.py` → `main_cli.py`.** The argparse-driven, non-interactive
+  workflow is unchanged and still scriptable, just renamed out of the way.
+- **Removed `main_debug.py`.** A drifted copy of the old `main.py` that carried
+  its own duplicated constants, still used `show cdp neighbors` without
+  `detail`, and logged the username plus the first 30 characters of the bearer
+  token to stdout. Use `main_cli.py`; the file remains in git history.
+- **`test_main_latest_concurrency.py` → `test_main_concurrency.py`**, and the
+  six test modules that imported `main_latest` now import `main`.
+- Branch cleanup: `latest`, `splash-options-ux`, and `topology-pyramid-layout`
+  deleted (all fully merged); `main` is the only remaining branch.
+
 ## 2026-08-12 — IP/MAC per VLAN export (device tracking)
 
 **New Menu 5 entry `d) IP/MAC per VLAN export (device tracking)`** — the

@@ -2,7 +2,7 @@
 CHEAT — shared execution, parsing, and reporting logic.
 
 This module is UI-agnostic. Import it from any entry point (main.py,
-main_latest.py, test harnesses) without pulling in CLI or menu code.
+main_cli.py, test harnesses) without pulling in CLI or menu code.
 """
 
 import json

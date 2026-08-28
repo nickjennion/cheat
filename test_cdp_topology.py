@@ -147,8 +147,8 @@ def test_generate_cdp_topology_uses_plain_rectangles(tmp_path, monkeypatch):
 
 
 def test_default_prefs_has_device_icons():
-    import main_latest
-    assert main_latest.DEFAULT_PREFS.get("DEVICE_ICONS") == "stencil"
+    import main
+    assert main.DEFAULT_PREFS.get("DEVICE_ICONS") == "stencil"
 
 
 def test_generate_cdp_topology_falls_back_when_primary_fails(tmp_path, monkeypatch):

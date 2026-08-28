@@ -4,8 +4,6 @@ CHEAT UNPLUGGED — Network port discovery and inventory tool.
 
 Queries DNAC for devices, executes diagnostics via Command Runner,
 parses outputs, and generates Excel reports for cable management workflows.
-
-DEBUG VERSION - Enhanced logging for troubleshooting
 """
 
 import argparse
@@ -21,35 +19,13 @@ from typing import Optional
 from dnac_client import DNACClient
 from interface_parser import parse_output
 from excel_generator import write_combined_excel
-
-
-# ============================================================================
-# Constants
-# ============================================================================
-
-DNAC_COMMANDS = [
-    "show hardware",
-    "show interfaces",
-    "show interfaces status",
-    "show interface counters",
-    "show cdp neighbors"
-]
-
-# Generated command-runner outputs and reports are written here.
-COMMAND_RUNNER_DIR = "command_runner_outputs"
-EXCEL_DIR = "excel_reports"
-
-COMMAND_POLLING_TIMEOUT_SECONDS = 30
-COMMAND_POLLING_INTERVAL_SECONDS = 1
-DEBUG = True  # Enable debug output
-# TODO: merge into main.py with --debug flag
-
-
-def debug_print(msg: str):
-    """Print debug message if DEBUG is enabled."""
-    if DEBUG:
-        print(f"[DEBUG] {msg}")
-
+from cheat_core import (
+    DNAC_COMMANDS,
+    COMMAND_RUNNER_DIR,
+    EXCEL_DIR,
+    COMMAND_POLLING_TIMEOUT_SECONDS,
+    COMMAND_POLLING_INTERVAL_SECONDS,
+)
 
 # ============================================================================
 # Argument Parsing
@@ -61,7 +37,7 @@ _PASSWORD_PROMPT = object()
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="CHEAT UNPLUGGED — Network port discovery and inventory (DEBUG)"
+        description="CHEAT UNPLUGGED — Network port discovery and inventory"
     )
     parser.add_argument("--host", help="DNAC server hostname/IP")
     parser.add_argument("--username", help="DNAC username")
@@ -91,7 +67,6 @@ def load_credentials_from_env() -> Optional[tuple[str, str, str]]:
     env_file = Path("dnac.env")
 
     if not env_file.exists():
-        debug_print("No dnac.env file found")
         return None
 
     try:
@@ -111,13 +86,9 @@ def load_credentials_from_env() -> Optional[tuple[str, str, str]]:
 
         if host and username and password:
             print("✓ Loaded credentials from dnac.env")
-            debug_print(f"Credentials: host={host}, username={username}")
             return host, username, password
-        else:
-            debug_print("dnac.env missing required fields")
     except Exception as e:
         print(f"Warning: Failed to load dnac.env: {e}")
-        debug_print(f"Exception loading dnac.env: {e}")
 
     return None
 
@@ -129,7 +100,7 @@ def get_credentials(args=None) -> tuple[str, str, str]:
     If args provides host+username and password is None, interactive getpass is called.
     """
     print("=" * 60)
-    print("CHEAT UNPLUGGED — Network Port Discovery (DEBUG MODE)")
+    print("CHEAT UNPLUGGED — Network Port Discovery")
     print("=" * 60)
     print()
 
@@ -142,7 +113,6 @@ def get_credentials(args=None) -> tuple[str, str, str]:
         if cli_host and cli_username:
             if cli_password_raw is not None and cli_password_raw is not _PASSWORD_PROMPT:
                 # --password VALUE was given explicitly
-                debug_print(f"Using CLI credentials: host={cli_host}, username={cli_username}")
                 print("✓ Using CLI credentials")
                 return cli_host, cli_username, cli_password_raw
             else:
@@ -152,10 +122,9 @@ def get_credentials(args=None) -> tuple[str, str, str]:
                 if not cli_password:
                     print("Error: password is required")
                     sys.exit(1)
-                debug_print(f"Using CLI credentials (interactive password): host={cli_host}, username={cli_username}")
                 return cli_host, cli_username, cli_password
 
-    # Try to load from environment file first
+    # Try to load from environment file
     env_creds = load_credentials_from_env()
     if env_creds:
         return env_creds
@@ -186,8 +155,6 @@ def get_credentials(args=None) -> tuple[str, str, str]:
 def authenticate_and_fetch(host: str, username: str, password: str) -> Optional[tuple[list[dict], DNACClient]]:
     """Authenticate with DNAC and fetch all devices."""
     print("\nAuthenticating...")
-    debug_print(f"Connecting to: {host}")
-
     client = DNACClient(host, username, password)
 
     if not client.authenticate():
@@ -195,7 +162,6 @@ def authenticate_and_fetch(host: str, username: str, password: str) -> Optional[
         return None
 
     print("✓ Authentication successful")
-    debug_print(f"Token: {client.token[:30]}..." if client.token else "No token")
     print("\nFetching devices...")
 
     devices = client.get_devices()
@@ -204,7 +170,6 @@ def authenticate_and_fetch(host: str, username: str, password: str) -> Optional[
         return None
 
     print(f"✓ Found {len(devices)} devices")
-    debug_print(f"Device count: {len(devices)}")
     return devices, client
 
 
@@ -214,7 +179,6 @@ def save_devices(devices: list[dict], filename: str = "all_devices.json") -> boo
         with open(filename, "w") as f:
             json.dump(devices, f, indent=2)
         print(f"✓ Saved {len(devices)} devices to {filename}")
-        debug_print(f"Saved to: {Path(filename).absolute()}")
         return True
     except IOError as e:
         print(f"✗ Error saving devices: {e}")
@@ -229,9 +193,7 @@ def filter_devices_by_hostname(devices: list[dict], hostname_filter: str) -> lis
     Examples: xyz*3850 matches xyz-wsx-3850.fqdn.com
     """
     pattern = f"*{hostname_filter.lower()}*"
-    filtered = [d for d in devices if fnmatch.fnmatch((d.get("hostname") or "").lower(), pattern)]
-    debug_print(f"Filter '{hostname_filter}' matched {len(filtered)} of {len(devices)} devices")
-    return filtered
+    return [d for d in devices if fnmatch.fnmatch((d.get("hostname") or "").lower(), pattern)]
 
 
 def display_devices(devices: list[dict]) -> None:
@@ -319,9 +281,7 @@ def select_devices(devices: list[dict]) -> Optional[list[dict]]:
             try:
                 idx = int(device_num) - 1
                 if 0 <= idx < len(devices):
-                    selected = [devices[idx]]
-                    debug_print(f"Selected single device: {selected[0].get('hostname')}")
-                    return selected
+                    return [devices[idx]]
                 else:
                     print(f"✗ Invalid device number (1-{len(devices)})")
             except ValueError:
@@ -333,7 +293,6 @@ def select_devices(devices: list[dict]) -> Optional[list[dict]]:
             device_indices = parse_device_numbers(device_nums, len(devices))
             if device_indices:
                 selected = [devices[num - 1] for num in device_indices]
-                debug_print(f"Selected {len(selected)} devices: {[d.get('hostname') for d in selected]}")
                 return selected
             else:
                 print("✗ No valid devices selected")
@@ -364,46 +323,30 @@ def execute_on_devices(
 
         print(f"\n{'='*60}")
         print(f"Device: {hostname}")
-        print(f"Device ID: {device_id}")
         print(f"{'='*60}")
-
-        debug_print(f"Starting command execution on {hostname} (ID: {device_id})")
 
         # Execute commands
         print(f"Executing {len(DNAC_COMMANDS)} commands via Command Runner...")
-        debug_print(f"Commands: {DNAC_COMMANDS}")
-
         task_id = client.execute_commands(device_id, DNAC_COMMANDS)
 
         if not task_id:
             print(f"✗ Failed to start command execution on {hostname}")
-            debug_print(f"execute_commands() returned None for {hostname}")
             failed_devices.append(hostname)
             continue
 
         print(f"Task ID: {task_id}")
-        debug_print(f"Received task ID: {task_id}")
         print(f"Polling for results ({COMMAND_POLLING_TIMEOUT_SECONDS}s timeout)...")
 
         # Poll for results
         result = None
-        poll_attempt = 0
         for i in range(COMMAND_POLLING_TIMEOUT_SECONDS):
             time.sleep(COMMAND_POLLING_INTERVAL_SECONDS)
-            poll_attempt += 1
-
-            debug_print(f"Poll attempt {poll_attempt}/{COMMAND_POLLING_TIMEOUT_SECONDS} for task {task_id}")
-
             task_result = client.get_task_result(task_id)
-            debug_print(f"Poll result type: {type(task_result)}, keys: {task_result.keys() if task_result else 'None'}")
 
-            if task_result:
-                debug_print(f"Task result: {json.dumps(task_result, indent=2, default=str)[:500]}...")
-                if task_result.get("endTime"):
-                    result = task_result
-                    print(f"✓ Commands completed in {i+1} seconds")
-                    debug_print(f"Task completed after {i+1} seconds")
-                    break
+            if task_result and task_result.get("endTime"):
+                result = task_result
+                print(f"✓ Commands completed")
+                break
 
             remaining = COMMAND_POLLING_TIMEOUT_SECONDS - (i + 1)
             if remaining > 0 and remaining % 5 == 0:
@@ -411,7 +354,6 @@ def execute_on_devices(
 
         if not result:
             print(f"✗ Command execution timed out on {hostname}")
-            debug_print(f"Timeout waiting for task {task_id}")
             failed_devices.append(hostname)
             continue
 
@@ -420,47 +362,35 @@ def execute_on_devices(
         try:
             progress_json = json.loads(result.get("progress", "{}"))
             file_id = progress_json.get("fileId")
-            debug_print(f"Extracted from progress JSON: fileId={file_id}")
 
             if file_id:
                 print(f"Fetching output file: {file_id}")
-                debug_print(f"Calling get_file_output({file_id})")
                 output_text = client.get_file_output(file_id)
 
                 if not output_text:
                     print(f"✗ Failed to fetch output file")
-                    debug_print(f"get_file_output({file_id}) returned empty")
                     failed_devices.append(hostname)
                     continue
-
-                debug_print(f"Output text length: {len(output_text)} bytes")
-                debug_print(f"Output preview: {output_text[:200]}...")
             else:
                 print(f"✗ No fileId found in task result")
-                debug_print(f"No fileId in progress JSON: {result.get('progress')}")
                 failed_devices.append(hostname)
                 continue
         except json.JSONDecodeError as e:
             print(f"✗ Failed to parse progress JSON: {e}")
-            debug_print(f"JSON parse error: {e}, progress={result.get('progress')}")
             failed_devices.append(hostname)
             continue
 
         # Parse JSON if needed and extract command responses
         try:
             response_data = json.loads(output_text)
-            debug_print(f"Output is JSON, parsing commandResponses")
             if isinstance(response_data, list) and len(response_data) > 0:
                 cmd_responses = response_data[0].get("commandResponses", {}).get("SUCCESS", {})
                 if cmd_responses:
-                    debug_print(f"Found {len(cmd_responses)} command responses")
                     concatenated_output = ""
                     for cmd, output in cmd_responses.items():
                         concatenated_output += output + "\n\n"
                     output_text = concatenated_output
-                    debug_print(f"Concatenated output length: {len(output_text)} bytes")
-        except (json.JSONDecodeError, IndexError, KeyError, TypeError) as e:
-            debug_print(f"Not JSON or parsing failed ({type(e).__name__}), treating as plain text")
+        except (json.JSONDecodeError, IndexError, KeyError, TypeError):
             pass
 
         # Save output to file
@@ -472,10 +402,8 @@ def execute_on_devices(
                 f.write(output_text)
             outputs[hostname] = output_text
             print(f"✓ Output saved: {filename}")
-            debug_print(f"Saved output to: {Path(filename).absolute()}")
         except IOError as e:
             print(f"✗ Failed to save output: {e}")
-            debug_print(f"File save error: {e}")
             failed_devices.append(hostname)
 
     # Report summary
@@ -511,22 +439,16 @@ def parse_and_generate_excel(
 
     for hostname, output_text in outputs.items():
         print(f"\nParsing {hostname}...", end=" ")
-        debug_print(f"Parsing output from {hostname} ({len(output_text)} bytes)")
         try:
             records, stack_members = parse_output(output_text, hostname)
-            debug_print(f"Parsed {len(records)} interfaces, {len(stack_members)} stack members")
             if not records:
                 print(f"⚠ No interfaces found (parsing may have failed)")
-                debug_print(f"No interfaces extracted from {hostname}")
                 parse_failures.append(hostname)
                 continue
             devices_data[hostname] = (records, stack_members)
             print(f"✓ {len(records)} interfaces")
         except Exception as e:
             print(f"✗ Parsing error: {e}")
-            debug_print(f"Exception parsing {hostname}: {e}")
-            import traceback
-            debug_print(traceback.format_exc())
             parse_failures.append(hostname)
 
     if parse_failures:
@@ -540,10 +462,9 @@ def parse_and_generate_excel(
     excel_dir.mkdir(exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
     excel_filename = str(excel_dir / f"{filename_prefix}-{date_str}.xlsx")
-    debug_print(f"Generating Excel: {excel_filename}")
+
     success, message = write_combined_excel(devices_data, threshold_days, excel_filename)
     print(f"\n{message}")
-    debug_print(f"Excel generation result: {success}, message: {message}")
     return success, excel_filename if success else None
 
 
@@ -591,7 +512,6 @@ def main():
         save_devices(devices)
 
         session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        debug_print(f"Session timestamp: {session_timestamp}")
 
         # Pre-populate from CLI args for one-shot / non-interactive use
         cli_filter = getattr(args, 'filter', None)
@@ -678,9 +598,6 @@ def main():
         sys.exit(0)
     except Exception as e:
         print(f"\n✗ Unexpected error: {e}")
-        debug_print(f"Fatal exception: {e}")
-        import traceback
-        debug_print(traceback.format_exc())
         sys.exit(1)
 
 

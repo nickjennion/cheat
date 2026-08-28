@@ -10,9 +10,8 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 
 | File | Purpose |
 |------|---------|
-| `main_latest.py` | **Interactive menu launcher (current development entry point).** Two-stage menu flow: credentials (Legacy DNAC `dnac.env` / New DNAC `dnac2.env` / manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Menu 2 also hosts the ISE endpoint inventory (option 5), which reuses the DNAC credentials plus an optional `ISE_HOST=` line from the same env file. UI-centric: delegates the main port-report run/parse/Excel path to `cheat_core.py`; MAC/IP client searches, the AV and IP/MAC VLAN exports, the MAC-by-port export, the AP monitor, and ISE are handled directly in the menu layer. Persists preferences to `prefs.env` (**Options** menu): slow mode, output dir, filename prefix, auto-consolidation, colours, email, AI, logging, splash style/logo, and topology layout (**Options → `K`**, `auto` vs `pyramid` distribution/access/desk). Session-scoped toggles on Menu 5 (slow mode, copper-only, link-state) are not persisted; command concurrency (Menu 5 `c`, 1–5) is **session-only** and is *not* saved to `prefs.env`. |
-| `main.py` | **Original CLI entry point.** Argparse-driven workflow: authenticate, fetch inventory, filter by hostname wildcard, execute five diagnostic commands via Command Runner, parse output, generate combined Excel report. Imports shared constants and execution logic from `cheat_core.py`. |
-| `main_debug.py` | **Debug variant of main.py.** Identical workflow with verbose logging enabled (`DEBUG = True`). Prints stack traces on errors, logs partial auth tokens, shows poll-by-poll task progress, and dumps raw JSON responses. **Note:** logs the username and first 30 characters of the bearer token to stdout — do not redirect output to shared files in this mode. Unlike `main.py` it does **not** import `cheat_core.py` — it carries its own copies of the constants and uses `show cdp neighbors` (no `detail`) in its command list. |
+| `main.py` | **Interactive menu launcher (primary entry point).** Two-stage menu flow: credentials (Legacy DNAC `dnac.env` / New DNAC `dnac2.env` / manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Menu 2 also hosts the ISE endpoint inventory (option 5), which reuses the DNAC credentials plus an optional `ISE_HOST=` line from the same env file. UI-centric: delegates the main port-report run/parse/Excel path to `cheat_core.py`; MAC/IP client searches, the AV and IP/MAC VLAN exports, the MAC-by-port export, the AP monitor, and ISE are handled directly in the menu layer. Persists preferences to `prefs.env` (**Options** menu): slow mode, output dir, filename prefix, auto-consolidation, colours, email, AI, logging, splash style/logo, and topology layout (**Options → `K`**, `auto` vs `pyramid` distribution/access/desk). Session-scoped toggles on Menu 5 (slow mode, copper-only, link-state) are not persisted; command concurrency (Menu 5 `c`, 1–5) is **session-only** and is *not* saved to `prefs.env`. |
+| `main_cli.py` | **Non-interactive CLI entry point.** Argparse-driven workflow: authenticate, fetch inventory, filter by hostname wildcard, execute five diagnostic commands via Command Runner, parse output, generate combined Excel report. Imports shared constants and execution logic from `cheat_core.py`. |
 | `cheat_core.py` | **Shared execution and reporting module.** UI-agnostic. Provides `run_commands()` (execute/poll/save loop), `parse_outputs()` (parse loop wrapper), `generate_excel()` (modes: separate-per-device, one-workbook, combined-with-utilisation), `generate_cdp_topology()` (Graphviz `.drawio` export), and all shared constants (`DNAC_COMMANDS`, `COMMAND_RUNNER_DIR`, `EXCEL_DIR`, polling timeouts, concurrency helpers). Import this from any entry point. |
 | `ap_monitor.py` | **Access Point movement monitor (Menu 2 → 4).** Filters/selects Unified APs, then live-refreshes a table comparing previous upstream (Assurance events, 24h) vs current upstream (physical topology), flags moved APs, and exports to Excel. |
 | `ise_client.py` | **ISE REST API client (Menu 2 → 5).** Thin wrapper over Cisco's official `ciscoisesdk`: an `ISEConfig` dataclass mirroring the credential-file keys and an `ISEClient` that queries all ISE endpoints (paginated via the SDK generator) and resolves endpoint-group names. The SDK import is deferred, so CHEAT runs without `ciscoisesdk` installed — ISE use reports a clear install message. An `api` may be injected for offline tests. |
@@ -52,7 +51,7 @@ switch selection already made in Menu 4 and flag ambiguity rather than resolving
 | `cdp_topology.py` | **Topology graph builder.** Turns parsed CDP data into a graph of `TopologyNode` objects (hostname, model, mgmt IP, rogue flag, feeding-port description), distinguishing scanned switches from unscanned "rogue" neighbours. |
 | `topology_dot.py` | **Graphviz DOT generator + layout parser.** Emits the topology as a Graphviz `dot` graph (tree ranking, aggregation-on-top, A3 sizing, selectable spline mode; or the `pyramid` distribution/access/desk three-tier ranking by hostname model), parses `dot -Tplain` output back into coordinates, detects aggregation switches, and splits large sites into multiple pages. |
 | `drawio_generator.py` | **draw.io / mxGraph XML emitter.** Two jobs. (1) Renders the laid-out CDP topology pages into a multi-page `.drawio` file: curved edges, aggregated port labels near the downstream switch, and colour-coded nodes (green=scanned switch, red=rogue/unscanned, blue ellipse=access point). The `icons` style parameter is currently inert — nodes always render as plain rectangles. (2) `generate_drawio()` builds the SDA site-hierarchy, per-building fabric topology, and per-floor AP-layout pages for Menu 2's site export, using Cisco stencil shapes. |
-| `splash.py` | **Base ASCII splash layout.** Pure text layout (no colour) — renders the 9-bar Cisco "bridge" logo, wordmark, title/subtitle, and menu options into a framed block. Shared by `main_latest.py` (classic splash fallback) and `splash_preview.py`. |
+| `splash.py` | **Base ASCII splash layout.** Pure text layout (no colour) — renders the 9-bar Cisco "bridge" logo, wordmark, title/subtitle, and menu options into a framed block. Shared by `main.py` (classic splash fallback) and `splash_preview.py`. |
 | `splash_rich.py` | **Rich splash banner.** Cisco-only truecolour-gradient variant of the splash (per-character gradients, rounded menu panel), falling back to `splash.py` when Rich is unavailable. |
 | `splash_generic.py` | **Cisco-only Rich splash.** Standalone preview/reference implementation of the Cisco splash. |
 | `splash_preview.py` | **Splash preview harness.** Standalone script to eyeball the splash layout/colours (`python splash_preview.py`, `--plain` for no colour). |
@@ -85,14 +84,14 @@ The remaining `test_*.py` files are offline unit tests (pytest, no network) exer
 | `test_port_utilisation.py` | `port_utilisation.py` — utilisation sheet & analysis |
 | `test_ap_client.py` | `dnac_client.py` — AP inventory/topology/events methods |
 | `test_ap_monitor.py` | `ap_monitor.py` — table-row building |
-| `test_credential_files.py` | `main_latest.py` — Menu 1 credential-file load/view/mask |
-| `test_av_mac_export_wiring.py` | `main_latest.py` — Menu 5 `m` wiring |
-| `test_ip_mac_export_wiring.py` | `main_latest.py` — Menu 5 `d` wiring |
-| `test_main_latest_concurrency.py` | `main_latest.py` — concurrency helpers and param wiring |
+| `test_credential_files.py` | `main.py` — Menu 1 credential-file load/view/mask |
+| `test_av_mac_export_wiring.py` | `main.py` — Menu 5 `m` wiring |
+| `test_ip_mac_export_wiring.py` | `main.py` — Menu 5 `d` wiring |
+| `test_main_concurrency.py` | `main.py` — concurrency helpers and param wiring |
 | `test_splash_rich.py` | `splash_rich.py` — logo alignment regression |
 | `test_ise_client.py` | `ise_client.py` — endpoint paging, injected fake api, SDK-missing error |
 | `test_ise_parser.py` | `ise_parser.py` + ISE Excel/CSV writers — field normalisation, group-name resolution |
-| `test_ise_wiring.py` | `main_latest.py` — Menu 2 ISE action wiring |
+| `test_ise_wiring.py` | `main.py` — Menu 2 ISE action wiring |
 
 ### Configuration & Dependencies
 
@@ -162,9 +161,9 @@ Default values used by `dnac_client.py` and `cheat_core.py`. All timeouts are in
 
 | Pattern | Source | Contents | Git status |
 |---------|--------|----------|------------|
-| `all_devices.json` | `main.py` / `main_latest.py` | Full DNAC device inventory | ignored |
+| `all_devices.json` | `main.py` / `main_cli.py` | Full DNAC device inventory | ignored |
 | `command_runner_outputs/command_output_*.txt` | `cheat_core.py` | Raw command output per device | ignored |
-| `excel_reports/port-information-*.xlsx` | `cheat_core.py` / `main.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) | ignored |
+| `excel_reports/port-information-*.xlsx` | `cheat_core.py` / `main_cli.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) | ignored |
 | `excel_reports/port_utilisation_summary_*.xlsx` | `port_utilisation.py` | Per-switch port utilisation summary (+ unscanned Cisco switches block) | ignored |
 | `drawio_exports/*-cdp-topology.drawio` | `cheat_core.py` | Multi-page draw.io CDP physical topology diagram (Graphviz-laid-out) | **committed** (no `.drawio` rule in `.gitignore`) |
 | `token.env` | `dnac_client.py` | Bearer token from last auth | ignored |
