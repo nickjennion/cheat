@@ -33,6 +33,6 @@ def test_menu_1_returns_five_tuple_with_ise_settings():
 
 
 def test_ise_exports_imported():
-    import main
-    assert callable(main.write_ise_endpoint_excel)
-    assert callable(main.write_ise_endpoint_csv)
+    from excel_generator import write_ise_endpoint_excel, write_ise_endpoint_csv
+    assert callable(write_ise_endpoint_excel)
+    assert callable(write_ise_endpoint_csv)

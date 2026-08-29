@@ -3,6 +3,9 @@ CHEAT — shared execution, parsing, and reporting logic.
 
 This module is UI-agnostic. Import it from any entry point (main.py,
 main_cli.py, test harnesses) without pulling in CLI or menu code.
+
+Heavy dependencies (rich, openpyxl, graphviz) are imported lazily inside the
+functions that use them so that merely importing cheat_core is fast.
 """
 
 import json
@@ -15,69 +18,28 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
+# Re-export all constants / pure helpers so existing ``from cheat_core import
+# EXCEL_DIR, ...`` statements continue to work unchanged.
+from cheat_constants import (          # noqa: F401 — re-exported
+    DNAC_COMMANDS,
+    LINK_STATE_COMMANDS,
+    AV_MAC_COMMANDS,
+    DEVICE_TRACKING_COMMANDS,
+    COMMAND_RUNNER_DIR,
+    EXCEL_DIR,
+    DRAWIO_DIR,
+    COMMAND_POLLING_TIMEOUT_SECONDS,
+    COMMAND_POLLING_INTERVAL_SECONDS,
+    DEFAULT_CONCURRENCY,
+    MAX_CONCURRENCY,
+    build_command_list,
+    clamp_concurrency,
+    next_concurrency,
 )
 
+# Lightweight parsers — no expensive transitive deps.
 from interface_parser import parse_output
-from excel_generator import write_excel, write_combined_excel
 from unscanned_switches import find_unscanned_switches, _norm_host
-from cdp_topology import build_topology
-from topology_dot import build_pages, to_dot, parse_plain
-from drawio_generator import generate_cdp_topology_drawio
-
-
-# ============================================================================
-# Constants
-# ============================================================================
-
-DNAC_COMMANDS = [
-    "show hardware",
-    "show interfaces",
-    "show interfaces status",
-    "show interface counters",
-    "show cdp neighbors detail",
-]
-
-LINK_STATE_COMMANDS = ["show logging", "show clock"]
-
-AV_MAC_COMMANDS = ["show mac address-table", "show cdp neighbors detail"]
-
-# SISF binding table (Catalyst 9000-class IOS-XE): IP, MAC, interface, VLAN and
-# reachability state on one line. Older platforms reject it — ip_mac_report
-# detects that and reports which switches could not run it.
-DEVICE_TRACKING_COMMANDS = ["show device-tracking database"]
-
-
-def build_command_list(link_state: bool) -> list:
-    """Base report commands, plus link-state commands when enabled."""
-    return (DNAC_COMMANDS + LINK_STATE_COMMANDS) if link_state else list(DNAC_COMMANDS)
-
-
-COMMAND_RUNNER_DIR = "command_runner_outputs"
-EXCEL_DIR = "excel_reports"
-DRAWIO_DIR = "drawio_exports"
-COMMAND_POLLING_TIMEOUT_SECONDS = 30
-COMMAND_POLLING_INTERVAL_SECONDS = 1
-
-DEFAULT_CONCURRENCY = 2
-MAX_CONCURRENCY = 5
-
-
-def clamp_concurrency(n: int) -> int:
-    """Clamp n into [1, MAX_CONCURRENCY]: n < 1 -> 1, n > MAX -> MAX."""
-    return max(1, min(int(n), MAX_CONCURRENCY))
-
-
-def next_concurrency(n: int) -> int:
-    """Cycle 1->2->3->4->5->1 for the menu toggle."""
-    return clamp_concurrency(n) % MAX_CONCURRENCY + 1
 
 
 # ============================================================================
@@ -174,6 +136,16 @@ def run_commands(
     {hostname: output_text} for every device that succeeded, in the same order as
     `selected_devices`.
     """
+    from rich.console import Console
+    from rich.progress import (
+        BarColumn,
+        MofNCompleteColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
     concurrency = clamp_concurrency(concurrency)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     cmd_dir = Path(COMMAND_RUNNER_DIR).resolve()
@@ -274,6 +246,8 @@ def generate_excel(
 
     Returns a list of (success, message) tuples — one per file written.
     """
+    from excel_generator import write_excel, write_combined_excel
+
     excel_dir = Path(EXCEL_DIR).resolve()
     excel_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -378,6 +352,10 @@ def generate_cdp_topology(
     layout: "auto" (Graphviz BFS ranking) or "pyramid" (distribution/access/desk
     three-tier ranks by hostname model — see topology_dot.switch_tier).
     """
+    from cdp_topology import build_topology
+    from topology_dot import build_pages, to_dot, parse_plain
+    from drawio_generator import generate_cdp_topology_drawio
+
     topology = build_topology(raw_outputs, scanned_hostnames,
                               _interface_descriptions(raw_outputs))
     scanned_nodes = [n for n in topology.nodes if not n.is_rogue]

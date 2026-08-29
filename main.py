@@ -11,38 +11,15 @@ import re
 import sys
 from pathlib import Path
 
-from dnac_client import DNACClient
-from cheat_core import (
+from cheat_constants import (
     EXCEL_DIR,
     COMMAND_RUNNER_DIR,
-    build_command_list,
-    run_commands,
-    parse_outputs,
-    generate_excel,
-    generate_cdp_topology,
-    next_concurrency,
     DEFAULT_CONCURRENCY,
     AV_MAC_COMMANDS,
     DEVICE_TRACKING_COMMANDS,
+    build_command_list,
+    next_concurrency,
 )
-from excel_generator import (
-    write_client_search_excel,
-    write_av_mac_report_excel,
-    write_av_mac_report_csv,
-    write_ip_mac_report_excel,
-    write_mac_by_port_report_excel,
-    write_mac_by_port_report_csv,
-    write_ise_endpoint_excel,
-    write_ise_endpoint_csv,
-)
-from av_mac_report import build_av_mac_report
-from ip_mac_report import build_ip_mac_report
-from mac_by_port import build_mac_by_port_report
-from ise_client import ISEClient, ISEConfig, ISESDKMissingError
-from ise_parser import parse_endpoints
-from port_utilisation import is_copper_port
-from drawio_generator import generate_drawio
-import ap_monitor
 import splash
 
 
@@ -575,6 +552,7 @@ def menu_options():
 
 def _auth(host, username, password):
     """Authenticate and return DNACClient, or None on failure."""
+    from dnac_client import DNACClient
     print("\n  Authenticating...")
     client = DNACClient(host, username, password)
     if client.authenticate():
@@ -658,6 +636,7 @@ def action_ap_monitor(host, username, password):
         return
 
     print(f"\n  ✓ {len(aps)} AP(s) loaded.")
+    import ap_monitor
     ap_monitor.run(client, aps)
 
 
@@ -668,6 +647,9 @@ def action_ise_endpoints(host, username, password, ise_host="", ise_version=""):
     optional API version) come from the ISE_HOST / ISE_VERSION lines in the
     same env file, or are prompted for when absent.
     """
+    from ise_client import ISEClient, ISEConfig, ISESDKMissingError
+    from ise_parser import parse_endpoints
+
     print("\n  ISE — Endpoint Inventory")
     if not ise_host:
         raw = input("    ISE host (FQDN or IP, no https://): ").strip()
@@ -719,6 +701,8 @@ def action_ise_endpoints(host, username, password, ise_host="", ise_version=""):
         print("  Cancelled.")
         pause()
         return
+
+    from excel_generator import write_ise_endpoint_excel, write_ise_endpoint_csv
 
     xlsx = _timestamped_excel_path(filename)
     ok, msg = write_ise_endpoint_excel(endpoints, xlsx)
@@ -872,6 +856,7 @@ def menu_sites_actions(selected_sites: list, client, host: str, username: str):
         if choice == "2":
             return
         elif choice == "1":
+            from drawio_generator import generate_drawio
             filename = _prompt_filename("draw.io filename (no extension needed)")
             if not filename:
                 print("  Cancelled.")
@@ -1150,6 +1135,8 @@ def menu_6(selected_devices, commands):
 
 def _exec_and_report(selected_devices, client, commands, mode, filename, threshold=42, slow_mode=False, copper_only=False, concurrency=DEFAULT_CONCURRENCY):
     """Run commands → parse → generate Excel. Used by menu_5 options 1-3."""
+    from cheat_core import run_commands, parse_outputs, generate_excel, generate_cdp_topology
+    from port_utilisation import is_copper_port
     if slow_mode:
         client.enable_slow_mode()
         print("  [Slow mode: poll 60s / 3s interval, submit 20s, backoff×2]")
@@ -1295,6 +1282,7 @@ def action_mac_search(client):
         if filename:
             from datetime import datetime
             from pathlib import Path
+            from excel_generator import write_client_search_excel
             excel_dir = Path(EXCEL_DIR).resolve()
             excel_dir.mkdir(exist_ok=True)
             ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -1379,6 +1367,7 @@ def action_ip_search(client):
         if filename:
             from datetime import datetime
             from pathlib import Path
+            from excel_generator import write_client_search_excel
             excel_dir = Path(EXCEL_DIR).resolve()
             excel_dir.mkdir(exist_ok=True)
             ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -1455,6 +1444,10 @@ def action_av_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
     MAC-to-physical-port report (see av_mac_report.build_av_mac_report).
     Writes both a styled Excel workbook and a matching CSV.
     """
+    from cheat_core import run_commands
+    from av_mac_report import build_av_mac_report
+    from excel_generator import write_av_mac_report_excel, write_av_mac_report_csv
+
     print("\n  AV MAC/port export")
     vlans = _prompt_vlans()
     if not vlans:
@@ -1499,6 +1492,10 @@ def action_mac_by_port_export(selected_devices, client, concurrency=DEFAULT_CONC
     switch remain visible. Device type is derived from each port's CDP
     neighbour (IP phone, AP, switch/router, ...). Writes Excel + CSV.
     """
+    from cheat_core import run_commands
+    from mac_by_port import build_mac_by_port_report
+    from excel_generator import write_mac_by_port_report_excel, write_mac_by_port_report_csv
+
     print("\n  MAC address table — all VLANs by port (incl. child switches)")
     outputs = run_commands(selected_devices, client, AV_MAC_COMMANDS, concurrency=concurrency)
     if not outputs:
@@ -1541,6 +1538,10 @@ def action_ip_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
     Requires Catalyst 9000-class IOS-XE; switches that reject the command are
     reported rather than silently contributing nothing.
     """
+    from cheat_core import run_commands
+    from ip_mac_report import build_ip_mac_report
+    from excel_generator import write_ip_mac_report_excel
+
     print("\n  IP/MAC per VLAN export (device tracking)")
     vlans = _prompt_vlans()
     if not vlans:
@@ -1689,6 +1690,7 @@ def menu_5(selected_devices, client, host, username):
                 continue
             if not menu_6(selected_devices, commands):
                 continue
+            from cheat_core import run_commands
             outputs = run_commands(selected_devices, client, commands, concurrency=concurrency)
             display_command_outputs(outputs)
             pause()

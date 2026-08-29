@@ -19,7 +19,7 @@ from typing import Optional
 from dnac_client import DNACClient
 from interface_parser import parse_output
 from excel_generator import write_combined_excel
-from cheat_core import (
+from cheat_constants import (
     DNAC_COMMANDS,
     COMMAND_RUNNER_DIR,
     EXCEL_DIR,
