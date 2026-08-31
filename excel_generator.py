@@ -386,6 +386,125 @@ def write_combined_excel(
 
 
 # ============================================================================
+# Palantir — option 3 inventory enriched with MAC/IP client correlation
+# ============================================================================
+
+PALANTIR_HEADERS = [
+    "Switch", "Site", "Location", "Stack Member", "Model", "SW Version",
+    "Member Uptime (days)", "Interface", "Description", "State", "Protocol",
+    "Port VLAN", "MAC Address", "Client IP", "Client VLAN", "Tracking State",
+    "MAC Type", "Device Type", "Neighbour", "Correlation Notes", "Speed",
+    "Type", "Counters In (Octets)", "Last Input", "Suspect (Has Had Traffic)",
+    "CDP Neighbors",
+]
+PALANTIR_COL_WIDTHS = [
+    28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 10, 20, 18, 10, 16,
+    11, 16, 32, 44, 10, 12, 22, 14, 26, 44,
+]
+
+
+def write_palantir_sheet(ws, rows: list) -> int:
+    """Write enriched per-port Palantir rows to one worksheet."""
+    header_font, header_fill, header_align, header_border = get_header_styles()
+    data_font, data_align, data_border = get_data_styles()
+    include_link_state = any(row.port.last_link_change for row in rows)
+    headers = PALANTIR_HEADERS + (["Last Link Change"] if include_link_state else [])
+    widths = PALANTIR_COL_WIDTHS + ([18] if include_link_state else [])
+
+    for col, (header, width) in enumerate(zip(headers, widths), start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = header_border
+        ws.column_dimensions[get_column_letter(col)].width = width
+    ws.row_dimensions[1].height = 30
+    ws.freeze_panes = "A2"
+
+    for row_idx, row in enumerate(rows, start=2):
+        rec = row.port
+        days = uptime_days(rec.uptime)
+        site, location = site_location(rec.switch)
+        values = [
+            rec.switch, site, location, rec.stack_member, rec.model, rec.sw_version,
+            round(days, 1) if days is not None else "", rec.iface, rec.description,
+            rec.state, rec.protocol, rec.vlan, row.mac, row.client_ip,
+            row.client_vlan, row.tracking_state, row.mac_type, row.device_type,
+            row.neighbour, row.notes, rec.speed, rec.if_type, rec.counters_in,
+            rec.last_input, rec.suspect, rec.cdp_neighbors,
+        ]
+        if include_link_state:
+            values.append(rec.last_link_change)
+
+        state_colour = STATE_COLOURS.get((rec.state or "").lower(), "FFFFFFFF")
+        short_up = days is not None and days < UPTIME_THRESHOLD_DAYS
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col, value=value)
+            cell.font = data_font
+            cell.alignment = data_align
+            cell.border = data_border
+            cell.fill = PatternFill("solid", start_color=state_colour)
+            if col == 20 and row.notes:
+                cell.fill = PatternFill("solid", start_color=MAC_BY_PORT_FLAG_COLOUR)
+                cell.font = Font(name="Arial", size=10, bold=True)
+            elif col == 7 and short_up:
+                cell.fill = PatternFill("solid", start_color=UPTIME_COLOUR)
+                cell.font = Font(name="Arial", size=10, bold=True)
+            elif col == 25 and value == "YES":
+                cell.fill = PatternFill("solid", start_color=SUSPECT_COLOUR)
+                cell.font = Font(name="Arial", size=10, bold=True)
+
+    ws.auto_filter.ref = ws.dimensions
+    return len(rows)
+
+
+def write_palantir_excel(report, devices_data: dict, threshold_days: int,
+                         outpath: str, unscanned: list | None = None) -> tuple[bool, str]:
+    """Write All Ports + utilisation + one enriched sheet per selected stack."""
+    if not report.rows:
+        return False, "No Palantir port data to write"
+    try:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        ws_all = wb.create_sheet(title="All Ports")
+        write_palantir_sheet(ws_all, report.rows)
+
+        ws_util = wb.create_sheet(title="Port Utilisation")
+        util_results = _compute_utilisation(devices_data, threshold_days)
+        if util_results:
+            next_row = write_utilisation_sheet(
+                ws_util, util_results, threshold_days,
+                hardware=_compute_hardware(devices_data),
+            )
+        else:
+            ws_util.cell(row=1, column=1, value="No copper port data found")
+            next_row = 2
+        if unscanned is not None:
+            write_unscanned_switches_block(ws_util, next_row + 1, unscanned)
+
+        stack_count = 0
+        for host, rows in report.rows_by_switch.items():
+            if not rows:
+                continue
+            sheet_name = host[:31]
+            if sheet_name in wb.sheetnames:
+                for suffix in range(2, 100):
+                    candidate = f"{sheet_name[:27]}_{suffix}"
+                    if candidate not in wb.sheetnames:
+                        sheet_name = candidate
+                        break
+            write_palantir_sheet(wb.create_sheet(title=sheet_name), rows)
+            stack_count += 1
+
+        wb.save(outpath)
+        return True, (f"✓ Saved: {outpath} ({len(report.rows)} enriched port/client "
+                      f"row(s) across {stack_count} stack(s))")
+    except Exception as e:
+        return False, f"✗ Failed to write Palantir Excel: {e}"
+
+
+# ============================================================================
 # Client Search Export
 # ============================================================================
 

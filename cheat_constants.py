@@ -30,6 +30,18 @@ AV_MAC_COMMANDS = ["show mac address-table", "show cdp neighbors detail"]
 # detects that and reports which switches could not run it.
 DEVICE_TRACKING_COMMANDS = ["show device-tracking database"]
 
+# Legacy IP Device Tracking table used by Palantir mode.  The include keeps the
+# response compact while retaining physical stack ports (Gi1/0/1, etc.).
+PALANTIR_IP_TRACKING_COMMAND = "show ip device tracking all | include /0/"
+
+
+def build_palantir_command_list(link_state: bool) -> list:
+    """Option 3's inventory commands plus MAC and legacy IP tracking data."""
+    return build_command_list(link_state) + [
+        "show mac address-table",
+        PALANTIR_IP_TRACKING_COMMAND,
+    ]
+
 
 # ============================================================================
 # Paths / dirs

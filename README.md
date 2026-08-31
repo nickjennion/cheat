@@ -16,7 +16,7 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 | `ap_monitor.py` | **Access Point movement monitor (Menu 2 → 4).** Filters/selects Unified APs, then live-refreshes a table comparing previous upstream (Assurance events, 24h) vs current upstream (physical topology), flags moved APs, and exports to Excel. |
 | `ise_client.py` | **ISE REST API client (Menu 2 → 5).** Thin wrapper over Cisco's official `ciscoisesdk`: an `ISEConfig` dataclass mirroring the credential-file keys and an `ISEClient` that queries all ISE endpoints (paginated via the SDK generator) and resolves endpoint-group names. The SDK import is deferred, so CHEAT runs without `ciscoisesdk` installed — ISE use reports a clear install message. An `api` may be injected for offline tests. |
 | `ise_parser.py` | **ISE endpoint parser.** Pure normalisation of SDK endpoint resources into flat `IseEndpoint` records (name, MAC, description, profile/group IDs, portal user, static-assignment flags), resolving group ids to names. Feeds the ISE endpoint inventory Excel/CSV writers. |
-| `dnac_client.py` | **DNAC REST API client.** Provides the `DNACClient` class wrapping the DNAC API: auth token acquisition (`/auth/token`), paginated device listing and hostname-filtered query (`/network-device`), client search (`/clients`), client detail (`/client-detail`), site hierarchy (`/site`), Unified AP inventory, AP topology and Assurance events, command execution submission (`/network-device-poller/cli/read-request`), task polling (`/task/{id}`), and file retrieval (`/file/{id}`). Persists the auth token to `token.env` on every successful authentication. Includes exponential backoff retry on all calls. SSL verification is disabled by default for lab/self-signed DNAC instances. |
+| `dnac_client.py` | **DNAC REST API client.** Provides the `DNACClient` class wrapping the DNAC API: auth token acquisition (`/auth/token`), paginated device listing and hostname-filtered query (`/network-device`), client search (`/clients`), client detail (`/client-detail`), site hierarchy (`/site`), Unified AP inventory, AP topology and Assurance events, command execution submission (`/network-device-poller/cli/read-request`), task polling (`/task/{id}`), and file retrieval (`/file/{id}`). Token mint/refresh uses a fresh isolated HTTP session so stale API cookies/headers cannot affect Basic authentication, and replaces the in-memory token atomically only after a valid new token is returned. Persists successful tokens to `token.env`. Includes exponential backoff retry on all calls. SSL verification is disabled by default for lab/self-signed DNAC instances. |
 
 ### Parsing & Reporting
 
@@ -29,9 +29,9 @@ Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catal
 | `unscanned_switches.py` | **Coverage gap finder.** From CDP data and the set of scanned hostnames, computes the list of Cisco switches seen as CDP neighbours but never explicitly scanned in the session ("rogue" switches). Feeds the unscanned-switches block in the port-utilisation report and the rogue nodes in the CDP topology. |
 | `time_utils.py` | **Shared time parsing.** Provides `parse_duration_days()` converting colon (`00:00:13`), prose (`45 weeks, 3 days`), and compact (`2d3h`, `5w`) durations to fractional days. Drives the uptime highlighting and last-input/port-utilisation thresholds. |
 
-### VLAN Exports (Menu 5 `m`, `e` and `d`)
+### VLAN and client exports (Menu 5 `m`, `e`, `d` and `x`)
 
-Three per-VLAN/per-port exports built on the same three-layer split — a pure parser,
+Four per-VLAN/per-port exports built on the same three-layer split — a pure parser,
 a pure correlator, then Excel + CSV writers in `excel_generator.py`. All reuse the
 switch selection already made in Menu 4 and flag ambiguity rather than resolving it.
 
@@ -42,6 +42,7 @@ switch selection already made in Menu 4 and flag ambiguity rather than resolving
 | `mac_by_port.py` | **Full MAC-table correlator (Menu 5 `e`).** Lists **every** MAC entry (all VLANs) grouped by port, including child-switch uplinks: unlike `av_mac_report` it keeps switch/router neighbours and labels them, so MACs learned beyond a downstream switch stay visible under that port. Same per-port CDP device-type labelling and multi-MAC/ambiguous flags. Writes Excel + CSV. |
 | `device_tracking.py` | **`show device-tracking database` parser.** Pure parsing of the SISF binding table (Catalyst 9000-class IOS-XE) into IP/MAC/interface/VLAN/state records. Returns local (`L`) and static (`S`) rows for the caller to decide on, counts IPv6 bindings rather than dropping them silently, and detects the `% Invalid input` reply from pre-SISF platforms. |
 | `ip_mac_report.py` | **IP/MAC correlator (Menu 5 `d`).** Filters bindings to the requested VLANs and drops the switch's own `L`/`S` rows (counting them), giving a per-VLAN inventory of devices and the addresses they hold. Flags one IP held by several MACs (an address conflict) and one MAC seen on several switches. Records which switches could not run the command versus which ran it and returned nothing, so a part-9000 fleet never looks like an empty result. |
+| `palantir_report.py` | **Enriched port/client correlator (Menu 5 `x`, Palantir Mode).** Combines the consolidated option-3 interface inventory with option `e`'s complete MAC/CDP view and `show ip device tracking all \| include /0/`. The workbook contains an enriched **All Ports** sheet, **Port Utilisation**, and one enriched sheet per selected stack. Each client IP/MAC gets its own row; empty ports remain visible, and unmatched or VLAN-mismatched records are flagged. |
 
 ### CDP Topology
 

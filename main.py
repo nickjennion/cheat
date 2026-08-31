@@ -18,6 +18,7 @@ from cheat_constants import (
     AV_MAC_COMMANDS,
     DEVICE_TRACKING_COMMANDS,
     build_command_list,
+    build_palantir_command_list,
     next_concurrency,
 )
 import splash
@@ -1588,6 +1589,75 @@ def action_ip_mac_export(selected_devices, client, concurrency=DEFAULT_CONCURREN
     pause()
 
 
+def action_palantir_export(selected_devices, client, link_state=False,
+                           slow_mode=False, copper_only=False,
+                           concurrency=DEFAULT_CONCURRENCY):
+    """Menu 5 'x': consolidated port inventory enriched with MAC and client IP."""
+    from cheat_core import run_commands, parse_outputs
+    from excel_generator import write_palantir_excel
+    from palantir_report import build_palantir_report
+    from port_utilisation import is_copper_port
+    from unscanned_switches import find_unscanned_switches
+
+    print("\n  Palantir Mode — ports + MAC + client IP + VLAN")
+    filename = _prompt_filename()
+    if not filename:
+        print("  Cancelled.")
+        pause()
+        return
+    threshold_str = input("  Port usage threshold in days [42]: ").strip()
+    threshold = int(threshold_str) if threshold_str.isdigit() else 42
+    commands = build_palantir_command_list(link_state)
+    if not menu_6(selected_devices, commands):
+        return
+
+    if slow_mode:
+        client.enable_slow_mode()
+        print("  [Slow mode: poll 60s / 3s interval, submit 20s, backoff×2]")
+        outputs = run_commands(
+            selected_devices, client, commands, poll_timeout=60,
+            poll_interval=3, submit_timeout=20, concurrency=concurrency,
+        )
+    else:
+        outputs = run_commands(selected_devices, client, commands,
+                               concurrency=concurrency)
+    if not outputs:
+        pause()
+        return
+
+    devices_data = parse_outputs(outputs)
+    if copper_only:
+        print("  [Copper only: non-copper interfaces excluded]")
+        devices_data = {
+            host: ([record for record in records if is_copper_port(record.iface)], members)
+            for host, (records, members) in devices_data.items()
+            if any(is_copper_port(record.iface) for record in records)
+        }
+    if not devices_data:
+        print("  ✗ No interface data found after parsing/filtering.")
+        pause()
+        return
+
+    report = build_palantir_report(devices_data, outputs)
+    print(f"\n  Built {len(report.rows)} enriched row(s); "
+          f"{report.client_rows} row(s) include a tracked client IP")
+    if report.mac_rows_without_ip:
+        print(f"  ⚠ {report.mac_rows_without_ip} MAC row(s) had no IP tracking match")
+    if report.tracked_rows_without_mac_table:
+        print(f"  ⚠ {report.tracked_rows_without_mac_table} IP tracking row(s) were absent "
+              "from the MAC table")
+    for note in report.notes:
+        print(f"  ⚠ {note}")
+
+    unscanned = find_unscanned_switches(outputs, outputs.keys())
+    ok, msg = write_palantir_excel(
+        report, devices_data, threshold, _timestamped_excel_path(filename),
+        unscanned=unscanned,
+    )
+    print(f"\n  {msg}")
+    pause()
+
+
 def menu_5(selected_devices, client, host, username):
     """Command execution menu for selected devices."""
     slow_mode = False
@@ -1612,6 +1682,7 @@ def menu_5(selected_devices, client, host, username):
         print("  m) MAC/port export (for AV)")
         print("  e) MAC table — all VLANs by port (incl. child switches)")
         print("  d) IP/MAC per VLAN export (device tracking)")
+        print("  x) Palantir Mode — consolidated ports + MAC + client IP + VLAN")
         print("  s) Toggle slow mode")
         print("  p) Toggle copper only")
         print("  l) Toggle link-state column")
@@ -1620,7 +1691,7 @@ def menu_5(selected_devices, client, host, username):
         print("  r) Re-auth token")
         print("  8) Back")
         print()
-        choice = input("  Select [1-9 / d / e / m / r / s / p / l / c]: ").strip().lower()
+        choice = input("  Select [1-9 / d / e / m / x / r / s / p / l / c]: ").strip().lower()
 
         if choice == "8":
             return
@@ -1712,6 +1783,13 @@ def menu_5(selected_devices, client, host, username):
 
         elif choice == "d":
             action_ip_mac_export(selected_devices, client, concurrency)
+
+        elif choice == "x":
+            action_palantir_export(
+                selected_devices, client, link_state=link_state,
+                slow_mode=slow_mode, copper_only=copper_only,
+                concurrency=concurrency,
+            )
 
         else:
             print("\n  Invalid selection.")

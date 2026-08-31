@@ -15,36 +15,90 @@ class DNACClient:
         self.username = username
         self.password = password
         self.verify_ssl = verify_ssl
+        self.retry_total = retry_total
+        self.retry_backoff = retry_backoff
         self.token: Optional[str] = None
         self.base_url = f"https://{host}"
-        self.session = requests.Session()
-        self.session.verify = verify_ssl
+        self.session = self._new_session()
+
+    def _new_session(self) -> requests.Session:
+        """Create an independently configured API session.
+
+        Authentication uses a new instance so cookies or default headers from
+        the long-lived data session cannot contaminate a token-mint request.
+        """
+        session = requests.Session()
+        session.verify = self.verify_ssl
         retry_strategy = urllib3.Retry(
-            total=retry_total,
-            backoff_factor=retry_backoff,
+            total=self.retry_total,
+            backoff_factor=self.retry_backoff,
             status_forcelist=[500, 502, 503, 504],
             allowed_methods=["GET", "POST"]
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.session.mount("https://", adapter)
+        session.mount("https://", adapter)
+        return session
+
+    @staticmethod
+    def _auth_error_detail(response) -> str:
+        """Extract a short error description without exposing a token."""
+        try:
+            payload = response.json()
+        except (ValueError, TypeError):
+            return ""
+
+        def find_message(value):
+            if not isinstance(value, dict):
+                return ""
+            for key in ("message", "detail", "error", "errorMessage"):
+                candidate = value.get(key)
+                if isinstance(candidate, str) and candidate.strip():
+                    return candidate.strip()
+            for candidate in value.values():
+                found = find_message(candidate)
+                if found:
+                    return found
+            return ""
+
+        return " ".join(find_message(payload).split())[:300]
 
     def authenticate(self) -> bool:
-        """Get authentication token from DNAC."""
+        """Mint a DNAC token, atomically replacing the previous token."""
+        auth_session = self._new_session()
         try:
             auth_url = f"{self.base_url}/dna/system/api/v1/auth/token"
-            response = self.session.post(
+            response = auth_session.post(
                 auth_url,
                 auth=(self.username, self.password),
+                headers={"Content-Type": "application/json"},
                 timeout=10
             )
             response.raise_for_status()
-            self.token = response.json().get("Token")
-            if self.token:
-                self._save_token(self.token)
-            return bool(self.token)
+            payload = response.json()
+            new_token = payload.get("Token") if isinstance(payload, dict) else None
+            if not isinstance(new_token, str) or not new_token.strip():
+                print("Authentication failed: token endpoint returned no valid Token")
+                return False
+            new_token = new_token.strip()
+            self.token = new_token
+            self._save_token(new_token)
+            return True
         except requests.exceptions.RequestException as e:
-            print(f"Authentication failed: {e}")
+            response = getattr(e, "response", None)
+            if response is not None:
+                status = getattr(response, "status_code", "unknown")
+                reason = getattr(response, "reason", "") or ""
+                detail = self._auth_error_detail(response)
+                label = f"HTTP {status}" + (f" {reason}" if reason else "")
+                print(f"Authentication failed ({label})" + (f": {detail}" if detail else ""))
+            else:
+                print(f"Authentication failed: {e}")
             return False
+        except (ValueError, TypeError) as e:
+            print(f"Authentication failed: invalid token response ({e})")
+            return False
+        finally:
+            auth_session.close()
 
     @staticmethod
     def _save_token(token: str) -> None:
