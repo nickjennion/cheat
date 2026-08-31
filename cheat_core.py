@@ -30,6 +30,7 @@ from cheat_constants import (          # noqa: F401 — re-exported
     DRAWIO_DIR,
     COMMAND_POLLING_TIMEOUT_SECONDS,
     COMMAND_POLLING_INTERVAL_SECONDS,
+    COMMAND_RUNNER_MAX_COMMANDS,
     DEFAULT_CONCURRENCY,
     MAX_CONCURRENCY,
     build_command_list,
@@ -45,6 +46,32 @@ from unscanned_switches import find_unscanned_switches, _norm_host
 # ============================================================================
 # Command Execution
 # ============================================================================
+
+def _command_batches(commands: list, size: int = COMMAND_RUNNER_MAX_COMMANDS) -> list[list]:
+    """Split commands into Command Runner-safe, order-preserving batches."""
+    if size < 1:
+        raise ValueError("command batch size must be at least 1")
+    return [commands[i:i + size] for i in range(0, len(commands), size)]
+
+
+def _unwrap_command_output(output_text: str, commands: list) -> str:
+    """Unwrap a Command Runner file response, preserving requested order."""
+    try:
+        response_data = json.loads(output_text)
+        if not isinstance(response_data, list) or not response_data:
+            return output_text
+        responses = response_data[0].get("commandResponses", {})
+        success = responses.get("SUCCESS", {})
+        if not success:
+            return output_text
+        # Catalyst normally returns keys in request order, but use the request
+        # explicitly and then retain any unexpected response keys afterward.
+        ordered = [success[command] for command in commands if command in success]
+        ordered.extend(value for command, value in success.items() if command not in commands)
+        return "\n\n".join(ordered)
+    except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+        return output_text
+
 
 def _run_device_commands(
     device: dict,
@@ -66,52 +93,64 @@ def _run_device_commands(
     device_id = device.get("id")
     msgs: list = []
 
-    task_id = client.execute_commands(device_id, commands, timeout=submit_timeout)
-    if not task_id:
-        msgs.append(f"✗ {hostname}: failed to start command execution")
+    batches = _command_batches(commands)
+    if not batches:
+        msgs.append(f"✗ {hostname}: no commands supplied")
         return hostname, None, msgs
 
-    result = None
-    for _ in range(poll_timeout):
-        time.sleep(poll_interval)
-        task_result = client.get_task_result(task_id)
-        if task_result and task_result.get("endTime"):
-            result = task_result
-            break
-
-    if not result:
-        msgs.append(f"✗ {hostname}: timed out after {poll_timeout}s")
-        return hostname, None, msgs
-
-    output_text = None
-    try:
-        progress_json = json.loads(result.get("progress", "{}"))
-        file_id = progress_json.get("fileId")
-        if file_id:
-            output_text = client.get_file_output(file_id)
-    except Exception as e:
-        msgs.append(f"✗ {hostname}: could not extract file ID: {e}")
-
-    if not output_text:
-        msgs.append(f"✗ {hostname}: no output received")
-        return hostname, None, msgs
-
-    # Unwrap commandResponses JSON envelope if present
-    try:
-        response_data = json.loads(output_text)
-        if isinstance(response_data, list) and response_data:
-            cmd_responses = (
-                response_data[0].get("commandResponses", {}).get("SUCCESS", {})
+    batch_outputs = []
+    for batch_num, batch in enumerate(batches, start=1):
+        task_id = client.execute_commands(device_id, batch, timeout=submit_timeout)
+        if not task_id:
+            msgs.append(
+                f"✗ {hostname}: failed to start command batch "
+                f"{batch_num}/{len(batches)}"
             )
-            if cmd_responses:
-                output_text = "\n\n".join(cmd_responses.values())
-    except (json.JSONDecodeError, TypeError, KeyError):
-        pass
+            return hostname, None, msgs
+
+        result = None
+        for _ in range(poll_timeout):
+            time.sleep(poll_interval)
+            task_result = client.get_task_result(task_id)
+            if task_result and task_result.get("endTime"):
+                result = task_result
+                break
+
+        if not result:
+            msgs.append(
+                f"✗ {hostname}: command batch {batch_num}/{len(batches)} "
+                f"timed out after {poll_timeout}s"
+            )
+            return hostname, None, msgs
+
+        output_text = None
+        try:
+            progress_json = json.loads(result.get("progress", "{}"))
+            file_id = progress_json.get("fileId")
+            if file_id:
+                output_text = client.get_file_output(file_id)
+        except Exception as e:
+            msgs.append(
+                f"✗ {hostname}: could not extract file ID for command batch "
+                f"{batch_num}/{len(batches)}: {e}"
+            )
+            return hostname, None, msgs
+
+        if not output_text:
+            msgs.append(
+                f"✗ {hostname}: no output received for command batch "
+                f"{batch_num}/{len(batches)}"
+            )
+            return hostname, None, msgs
+        batch_outputs.append(_unwrap_command_output(output_text, batch))
+
+    output_text = "\n\n".join(batch_outputs)
 
     out_file = cmd_dir / f"command_output_{hostname}_{timestamp}.txt"
     try:
         out_file.write_text(output_text)
-        msgs.append(f"✓ {hostname}: saved {out_file.name}")
+        batch_note = f" in {len(batches)} batches" if len(batches) > 1 else ""
+        msgs.append(f"✓ {hostname}: saved {out_file.name}{batch_note}")
         return hostname, output_text, msgs
     except IOError as e:
         msgs.append(f"✗ {hostname}: could not save output: {e}")

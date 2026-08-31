@@ -222,6 +222,79 @@ def test_run_device_commands_unwraps_envelope(tmp_path):
     assert "commandResponses" not in out
 
 
+class _BatchStub:
+    def __init__(self):
+        self.submissions = []
+        self.task_batches = {}
+
+    def execute_commands(self, device_id, commands, timeout=10):
+        task_id = f"T{len(self.submissions) + 1}"
+        batch = list(commands)
+        self.submissions.append(batch)
+        self.task_batches[task_id] = batch
+        return task_id
+
+    def get_task_result(self, task_id):
+        return {"endTime": 1, "progress": '{"fileId": "%s"}' % task_id}
+
+    def get_file_output(self, file_id):
+        import json
+        batch = self.task_batches[file_id]
+        return json.dumps([{"commandResponses": {"SUCCESS": {
+            command: f"OUTPUT {command}" for command in batch
+        }}}])
+
+
+def test_run_device_commands_batches_more_than_five_commands(tmp_path):
+    from cheat_core import _run_device_commands
+    commands = [f"show item {i}" for i in range(1, 8)]
+    stub = _BatchStub()
+
+    host, out, msgs = _run_device_commands(
+        {"hostname": "sw-a", "id": "D1"}, stub, commands,
+        tmp_path, "TS", poll_timeout=3, poll_interval=0, submit_timeout=1,
+    )
+
+    assert host == "sw-a"
+    assert stub.submissions == [commands[:5], commands[5:]]
+    assert all(len(batch) <= 5 for batch in stub.submissions)
+    assert [out.index(f"OUTPUT {command}") for command in commands] == sorted(
+        out.index(f"OUTPUT {command}") for command in commands
+    )
+    assert "2 batches" in " ".join(msgs)
+    assert (tmp_path / "command_output_sw-a_TS.txt").read_text() == out
+
+
+def test_command_batches_handles_exact_boundary_and_empty_input():
+    from cheat_core import _command_batches
+    commands = [f"cmd-{i}" for i in range(10)]
+    assert _command_batches(commands) == [commands[:5], commands[5:]]
+    assert _command_batches([]) == []
+
+
+def test_later_batch_failure_discards_partial_device_output(tmp_path):
+    from cheat_core import _run_device_commands
+
+    class _FailSecondBatch(_BatchStub):
+        def execute_commands(self, device_id, commands, timeout=10):
+            if self.submissions:
+                self.submissions.append(list(commands))
+                return None
+            return super().execute_commands(device_id, commands, timeout)
+
+    commands = [f"show item {i}" for i in range(1, 8)]
+    stub = _FailSecondBatch()
+    host, out, msgs = _run_device_commands(
+        {"hostname": "sw-a", "id": "D1"}, stub, commands,
+        tmp_path, "TS", poll_timeout=3, poll_interval=0, submit_timeout=1,
+    )
+
+    assert host == "sw-a"
+    assert out is None
+    assert "batch 2/2" in " ".join(msgs)
+    assert not (tmp_path / "command_output_sw-a_TS.txt").exists()
+
+
 def test_dnac_commands_use_cdp_detail():
     from cheat_core import DNAC_COMMANDS
     assert "show cdp neighbors detail" in DNAC_COMMANDS

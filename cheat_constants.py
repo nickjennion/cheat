@@ -52,6 +52,9 @@ EXCEL_DIR = "excel_reports"
 DRAWIO_DIR = "drawio_exports"
 COMMAND_POLLING_TIMEOUT_SECONDS = 30
 COMMAND_POLLING_INTERVAL_SECONDS = 1
+# Catalyst Center Command Runner accepts no more than five CLI commands in one
+# read-request. Larger report command lists are split per device in cheat_core.
+COMMAND_RUNNER_MAX_COMMANDS = 5
 
 
 # ============================================================================
