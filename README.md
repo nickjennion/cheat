@@ -1,171 +1,348 @@
-# CHEAT — Cisco Homogenous Environment Awareness Tool
+# CHEAT
 
-Network port discovery, inventory, and analysis tool for Cisco DNA Center (Catalyst Center).
+**Cisco Homogeneous Environment Awareness Tool**
 
----
+CHEAT collects live switch data through Cisco DNA Center or Cisco Catalyst Center.
+It converts that data into Excel reports and draw.io topology diagrams.
 
-## File Reference
+Use CHEAT to answer these questions:
 
-### Core Application
+- Which switch ports are active, idle, disabled, or disconnected?
+- Which media access control (MAC) addresses appear on each port?
+- Which client Internet Protocol (IP) addresses map to those MAC addresses?
+- Which virtual local area networks (VLANs) contain the clients?
+- Which Cisco Discovery Protocol (CDP) neighbors connect to each port?
+- Which switches appear in CDP but were not included in the scan?
+- Which access points moved between switches?
 
-| File | Purpose |
-|------|---------|
-| `main.py` | **Interactive menu launcher (primary entry point).** Two-stage menu flow: credentials (Legacy DNAC `dnac.env` / New DNAC `dnac2.env` / manual) → device fetch → switch selection with filter → command/report selection → confirmation → execution. Menu 2 also hosts the ISE endpoint inventory (option 5), which reuses the DNAC credentials plus an optional `ISE_HOST=` line from the same env file. UI-centric: delegates the main port-report run/parse/Excel path to `cheat_core.py`; MAC/IP client searches, the AV and IP/MAC VLAN exports, the MAC-by-port export, the AP monitor, and ISE are handled directly in the menu layer. Persists preferences to `prefs.env` (**Options** menu): slow mode, output dir, filename prefix, auto-consolidation, colours, email, AI, logging, splash style/logo, and topology layout (**Options → `K`**, `auto` vs `pyramid` distribution/access/desk). Session-scoped toggles on Menu 5 (slow mode, copper-only, link-state) are not persisted; command concurrency (Menu 5 `c`, 1–5) is **session-only** and is *not* saved to `prefs.env`. |
-| `main_cli.py` | **Non-interactive CLI entry point.** Argparse-driven workflow: authenticate, fetch inventory, filter by hostname wildcard, execute five diagnostic commands via Command Runner, parse output, generate combined Excel report. Imports shared constants and execution logic from `cheat_core.py`. |
-| `cheat_core.py` | **Shared execution and reporting module.** UI-agnostic. Provides `run_commands()` (execute/poll/save loop), which splits long command lists into sequential batches of five per device while retaining cross-device concurrency; `parse_outputs()` (parse loop wrapper), `generate_excel()` (modes: separate-per-device, one-workbook, combined-with-utilisation), `generate_cdp_topology()` (Graphviz `.drawio` export), and all shared constants (`DNAC_COMMANDS`, `COMMAND_RUNNER_DIR`, `EXCEL_DIR`, polling timeouts, concurrency helpers). Import this from any entry point. |
-| `ap_monitor.py` | **Access Point movement monitor (Menu 2 → 4).** Filters/selects Unified APs, then live-refreshes a table comparing previous upstream (Assurance events, 24h) vs current upstream (physical topology), flags moved APs, and exports to Excel. |
-| `ise_client.py` | **ISE REST API client (Menu 2 → 5).** Thin wrapper over Cisco's official `ciscoisesdk`: an `ISEConfig` dataclass mirroring the credential-file keys and an `ISEClient` that queries all ISE endpoints (paginated via the SDK generator) and resolves endpoint-group names. The SDK import is deferred, so CHEAT runs without `ciscoisesdk` installed — ISE use reports a clear install message. An `api` may be injected for offline tests. |
-| `ise_parser.py` | **ISE endpoint parser.** Pure normalisation of SDK endpoint resources into flat `IseEndpoint` records (name, MAC, description, profile/group IDs, portal user, static-assignment flags), resolving group ids to names. Feeds the ISE endpoint inventory Excel/CSV writers. |
-| `dnac_client.py` | **DNAC REST API client.** Provides the `DNACClient` class wrapping the DNAC API: auth token acquisition (`/auth/token`), paginated device listing and hostname-filtered query (`/network-device`), client search (`/clients`), client detail (`/client-detail`), site hierarchy (`/site`), Unified AP inventory, AP topology and Assurance events, command execution submission (`/network-device-poller/cli/read-request`), task polling (`/task/{id}`), and file retrieval (`/file/{id}`). Token mint/refresh uses a fresh isolated HTTP session so stale API cookies/headers cannot affect Basic authentication, and replaces the in-memory token atomically only after a valid new token is returned. Persists successful tokens to `token.env`. Includes exponential backoff retry on all calls. SSL verification is disabled by default for lab/self-signed DNAC instances. |
+CHEAT uses read-only commands for network data collection.
+It writes reports and command output to the local computer.
 
-### Parsing & Reporting
+## Key benefits
 
-| File | Purpose |
-|------|---------|
-| `interface_parser.py` | **CLI output parser.** Parses concatenated output from `show hardware`, `show interfaces`, `show interfaces status`, `show interface counters`, `show cdp neighbors`, and — for the link-state column — `show logging` / `show clock`. Extracts stack member metadata, interface state/protocol/VLAN/description/counters/last-input, CDP neighbor mappings, computes a `suspect` flag indicating whether an interface has ever seen traffic, and derives a per-interface last-link-change age from UPDOWN syslog lines. Returns sorted `InterfaceRecord` objects and a `StackMember` dictionary. |
-| `excel_generator.py` | **Excel + CSV report writer.** Takes parsed `InterfaceRecord`/`StackMember` data and produces a multi-sheet `.xlsx` workbook. One sheet per device, color-coded by interface state (green=connected, yellow=notconnect, gray=disabled, red=err-disabled), gold highlight for interfaces with traffic, orange for stack members with <42 days uptime. Freeze panes and auto-filter enabled. Also hosts the combined-workbook writer, the client-search export, and the AV MAC, MAC-by-port, IP/MAC, and ISE endpoint report writers — each with a matching CSV export. |
-| `consolidate_report.py` | **Report flattener.** Reads a multi-sheet port report produced by the main tool and consolidates every port from every device into a single "All Ports" sheet in a new workbook. Preserves all column styling, color coding, and formatting. Expects the standard `HEADERS` layout from `excel_generator.py` (18 columns; 19 when link-state is enabled) and skips the `All Ports`/`Port Utilisation` summary sheets. |
-| `port_utilisation.py` | **Port usage analyser.** Reads a CHEAT Excel report and calculates per-switch port utilisation statistics: counts copper ports (stacked `GiX/Y/Z`/`TeX/Y/Z` and non-stacked `GiX/Y`/`FaX/Y`) with recent traffic vs. idle ports based on the "Last Input" column. Supports a configurable threshold (default 42 days). Outputs a readable stdout summary table and a timestamped summary Excel file. Includes an **unscanned Cisco switches** block listing CDP neighbours (with mgmt IP) not scanned in the session. |
-| `unscanned_switches.py` | **Coverage gap finder.** From CDP data and the set of scanned hostnames, computes the list of Cisco switches seen as CDP neighbours but never explicitly scanned in the session ("rogue" switches). Feeds the unscanned-switches block in the port-utilisation report and the rogue nodes in the CDP topology. |
-| `time_utils.py` | **Shared time parsing.** Provides `parse_duration_days()` converting colon (`00:00:13`), prose (`45 weeks, 3 days`), and compact (`2d3h`, `5w`) durations to fractional days. Drives the uptime highlighting and last-input/port-utilisation thresholds. |
+- **One workflow for many switches.** Select a switch group once and run multiple reports.
+- **Useful Excel output.** Filter, sort, and share the generated workbooks.
+- **Port-level context.** Combine interface state, description, VLAN, counters, MAC, IP, and CDP data.
+- **Stack-aware reports.** Create one combined sheet and one sheet for each switch stack.
+- **Coverage checks.** Find Cisco switches that CDP detects but the selected scan does not include.
+- **Topology export.** Create multi-page draw.io diagrams from live CDP data.
+- **Safe ambiguity handling.** Flag duplicate or uncertain mappings instead of selecting an unverified result.
+- **Scalable collection.** Run jobs across devices concurrently.
+- **Automatic API batching.** Split command sets into groups of five for Catalyst Center Command Runner.
 
-### VLAN and client exports (Menu 5 `m`, `e`, `d` and `x`)
+## Main reports
 
-Four per-VLAN/per-port exports built on the same three-layer split — a pure parser,
-a pure correlator, then Excel + CSV writers in `excel_generator.py`. All reuse the
-switch selection already made in Menu 4 and flag ambiguity rather than resolving it.
+| Report | Menu 5 option | Result |
+|---|---:|---|
+| Per-device port report | `1` | Create one Excel file for each device. |
+| Multi-sheet port report | `2` | Create one Excel file with one sheet for each device. |
+| Consolidated port report | `3` | Create `All Ports`, `Port Utilisation`, and per-device sheets. |
+| AV MAC and port report | `m` | Map selected VLAN MAC addresses to likely physical access ports. |
+| Full MAC report | `e` | List all MAC entries by port, including child-switch uplinks. |
+| IP and MAC report | `d` | List device-tracking bindings for selected VLANs. |
+| Palantir Mode | `x` | Combine port, MAC, client IP, VLAN, and CDP data in one workbook. |
 
-| File | Purpose |
-|------|---------|
-| `mac_table.py` | **`show mac address-table` parser.** Pure parsing into per-switch MAC/port entries. Skips `All`-VLAN and CPU rows (control-plane MACs, not end devices) and lower-cases MACs so cross-switch comparison works. |
-| `av_mac_report.py` | **MAC/port correlator (Menu 5 `m`).** Correlates MAC tables with `show cdp neighbors detail` across a switch group, dropping any interface whose CDP neighbour is itself a switch/router — that collapses the same MAC learned on every uplink between the AV device and the top of the stack. Flags a port holding several MACs (`possible unmanaged switch`) and a MAC surviving on several switches (`Ambiguous`). Each surviving row carries a `Device Type` derived from the port's CDP neighbour (IP phone, access point, etc.), and the summary block lists the MAC count per requested VLAN. Writes Excel + CSV. |
-| `mac_by_port.py` | **Full MAC-table correlator (Menu 5 `e`).** Lists **every** MAC entry (all VLANs) grouped by port, including child-switch uplinks: unlike `av_mac_report` it keeps switch/router neighbours and labels them, so MACs learned beyond a downstream switch stay visible under that port. Same per-port CDP device-type labelling and multi-MAC/ambiguous flags. Writes Excel + CSV. |
-| `device_tracking.py` | **`show device-tracking database` parser.** Pure parsing of the SISF binding table (Catalyst 9000-class IOS-XE) into IP/MAC/interface/VLAN/state records. Returns local (`L`) and static (`S`) rows for the caller to decide on, counts IPv6 bindings rather than dropping them silently, and detects the `% Invalid input` reply from pre-SISF platforms. |
-| `ip_mac_report.py` | **IP/MAC correlator (Menu 5 `d`).** Filters bindings to the requested VLANs and drops the switch's own `L`/`S` rows (counting them), giving a per-VLAN inventory of devices and the addresses they hold. Flags one IP held by several MACs (an address conflict) and one MAC seen on several switches. Records which switches could not run the command versus which ran it and returned nothing, so a part-9000 fleet never looks like an empty result. |
-| `palantir_report.py` | **Enriched port/client correlator (Menu 5 `x`, Palantir Mode).** Combines the consolidated option-3 interface inventory with option `e`'s complete MAC/CDP view and `show ip device tracking all \| include /0/`. The workbook contains an enriched **All Ports** sheet, **Port Utilisation**, and one enriched sheet per selected stack. Each client IP/MAC gets its own row; empty ports remain visible, and unmatched or VLAN-mismatched records are flagged. |
+Palantir Mode keeps empty physical ports in the report.
+It creates a separate row for each client address.
+It flags missing correlations and VLAN mismatches.
 
-### CDP Topology
+## Other functions
 
-| File | Purpose |
-|------|---------|
-| `cdp_detail.py` | **`show cdp neighbors detail` parser.** Parses the detail output into rich neighbour records carrying management IP and full platform/model string. Source of truth for both the topology diagram and the report's CDP-neighbour columns. Also provides the device-type classifier `classify_neighbor()` (IP phone / access point / switch-router / camera / printer) used by the AV MAC and MAC-by-port exports. |
-| `cdp_topology.py` | **Topology graph builder.** Turns parsed CDP data into a graph of `TopologyNode` objects (hostname, model, mgmt IP, rogue flag, feeding-port description), distinguishing scanned switches from unscanned "rogue" neighbours. |
-| `topology_dot.py` | **Graphviz DOT generator + layout parser.** Emits the topology as a Graphviz `dot` graph (tree ranking, aggregation-on-top, A3 sizing, selectable spline mode; or the `pyramid` distribution/access/desk three-tier ranking by hostname model), parses `dot -Tplain` output back into coordinates, detects aggregation switches, and splits large sites into multiple pages. |
-| `drawio_generator.py` | **draw.io / mxGraph XML emitter.** Two jobs. (1) Renders the laid-out CDP topology pages into a multi-page `.drawio` file: curved edges, aggregated port labels near the downstream switch, and colour-coded nodes (green=scanned switch, red=rogue/unscanned, blue ellipse=access point). The `icons` style parameter is currently inert — nodes always render as plain rectangles. (2) `generate_drawio()` builds the SDA site-hierarchy, per-building fabric topology, and per-floor AP-layout pages for Menu 2's site export, using Cisco stencil shapes. |
-| `splash.py` | **Base ASCII splash layout.** Pure text layout (no colour) — renders the 9-bar Cisco "bridge" logo, wordmark, title/subtitle, and menu options into a framed block. Shared by `main.py` (classic splash fallback) and `splash_preview.py`. |
-| `splash_rich.py` | **Rich splash banner.** Cisco-only truecolour-gradient variant of the splash (per-character gradients, rounded menu panel), falling back to `splash.py` when Rich is unavailable. |
-| `splash_generic.py` | **Cisco-only Rich splash.** Standalone preview/reference implementation of the Cisco splash. |
-| `splash_preview.py` | **Splash preview harness.** Standalone script to eyeball the splash layout/colours (`python splash_preview.py`, `--plain` for no colour). |
+- Search Catalyst Center Assurance for a MAC address.
+- Search Catalyst Center Assurance for an IP address.
+- Monitor access point movement.
+- Export Cisco Identity Services Engine (ISE) endpoints.
+- Export CDP topology to draw.io.
+- Export Catalyst Center site and fabric topology to draw.io.
+- Run custom read-only commands.
 
-### Testing
+## Requirements
 
-| File | Purpose |
-|------|---------|
-| `test_dnac.py` | **Live integration test suite.** Validates all components against a real Cisco DNAC instance (or DevNet sandbox). Runs five sequential tests: authentication, device discovery, command execution (60s timeout), output parsing, and Excel generation. Prompts for credentials at runtime. **Warning:** uses plain `input()` for the password (not `getpass`). Standalone — not called by any other tool. |
-| `test_mock_dnac.py` | **Offline unit test suite.** Validates parsing and Excel generation logic using hardcoded mock Cisco IOS command output (C3850 two-member stack). No network connectivity required. Tests parsing completeness, data extraction accuracy, edge cases, and Excel file creation. Standalone. |
-| `test_sandbox.py` | **Zero-config DevNet sandbox demo.** Connects to the Cisco DevNet Always-On DNAC sandbox (`sandboxdnacenter.cisco.com`) using public credentials. Credentials and host can be overridden via `DNAC_HOST`, `DNAC_USER`, `DNAC_PASS` environment variables. Useful for verifying the tool end-to-end without a private DNAC instance. |
+- Python 3.10 or later
+- Network access to Cisco DNA Center or Cisco Catalyst Center
+- A Catalyst Center account with API and Command Runner access
+- Graphviz for automatic CDP topology layout
+- Cisco ISE access for the optional ISE inventory
 
-The remaining `test_*.py` files are offline unit tests (pytest, no network) exercising a single module against fixtures:
+## Installation
 
-| Test file | Module under test |
-|-----------|-------------------|
-| `test_interface_parser.py` | `interface_parser.py` — stack/interface parsing, link-state ages |
-| `test_excel_generator.py` | `excel_generator.py` — sheet writing, link-state column presence |
-| `test_cheat_core.py` | `cheat_core.py` — `run_commands` with a stub client, `build_command_list` |
-| `test_mac_table.py` | `mac_table.py` — MAC-table row parsing, All/CPU skipping |
-| `test_av_mac_report.py` | `av_mac_report.py` — AV MAC/port correlation and flags |
-| `test_mac_by_port.py` | `mac_by_port.py` — full-MAC-table by-port correlation, uplink/device-type labels, Excel+CSV |
-| `test_device_tracking.py` | `device_tracking.py` — SISF binding-table parsing |
-| `test_ip_mac_report.py` | `ip_mac_report.py` — IP/MAC per-VLAN correlation and flags |
-| `test_ip_mac_excel.py` | `excel_generator.py` — IP/MAC export sheet output |
-| `test_cdp_detail.py` | `cdp_detail.py` — `show cdp neighbors detail` parsing |
-| `test_cdp_topology.py` | `cdp_topology.py` — topology graph building, rogue detection |
-| `test_topology_dot.py` | `topology_dot.py` + `drawio_generator.py` — DOT emission, `-Tplain` parsing, node styling |
-| `test_unscanned_switches.py` | `unscanned_switches.py` — rogue-switch discovery |
-| `test_port_utilisation.py` | `port_utilisation.py` — utilisation sheet & analysis |
-| `test_ap_client.py` | `dnac_client.py` — AP inventory/topology/events methods |
-| `test_ap_monitor.py` | `ap_monitor.py` — table-row building |
-| `test_credential_files.py` | `main.py` — Menu 1 credential-file load/view/mask |
-| `test_av_mac_export_wiring.py` | `main.py` — Menu 5 `m` wiring |
-| `test_ip_mac_export_wiring.py` | `main.py` — Menu 5 `d` wiring |
-| `test_main_concurrency.py` | `main.py` — concurrency helpers and param wiring |
-| `test_splash_rich.py` | `splash_rich.py` — logo alignment regression |
-| `test_ise_client.py` | `ise_client.py` — endpoint paging, injected fake api, SDK-missing error |
-| `test_ise_parser.py` | `ise_parser.py` + ISE Excel/CSV writers — field normalisation, group-name resolution |
-| `test_ise_wiring.py` | `main.py` — Menu 2 ISE action wiring |
+1. Clone the repository.
 
-### Configuration & Dependencies
+   ```bash
+   git clone https://github.com/nickjennion/cheat.git
+   cd cheat
+   ```
 
-| File | Purpose |
-|------|---------|
-| `requirements.txt` | **Python dependencies.** Declares `requests>=2.25.0` (HTTP client), `urllib3>=1.26.0` (transport layer), `openpyxl>=3.0.0` (Excel read/write), `colorama>=0.4.6` (ANSI colour on legacy Windows consoles), `rich>=13.0.0` (progress bars, styled output, splash), and `ciscoisesdk>=2.4.5` (ISE REST client — only needed for the ISE endpoint inventory). |
-| `.gitignore` | **Git exclusion rules.** Excludes Python bytecode, build artifacts, generated outputs (`all_devices.json`, `command_output_*.txt`, `*.xlsx`), IDE config (`.vscode/`, `.idea/`), `.DS_Store`, and all `.env` credential files. Files with `sample` in the filename are exempt from xlsx and env exclusions. **Note:** `.drawio` files are *not* ignored — `drawio_exports/` is committed. |
-| `dnac.env` | **Optional credential file — legacy DNA Center.** Not tracked in git (never commit — contains plaintext credentials). If created with `DNAC_HOST=`, `DNAC_USERNAME=`, `DNAC_PASSWORD=`, **Menu 1 → `1) Use Legacy DNAC`** loads credentials from it instead of prompting interactively. May also carry optional `ISE_HOST=` and `ISE_VERSION=` lines for the ISE endpoint inventory (**Menu 2 → 5**), which reuses the same username/password. |
-| `dnac2.env` | **Optional credential file — new DNA Center.** Same keys and same rules as `dnac.env` (including the optional `ISE_HOST=` / `ISE_VERSION=` lines); loaded by **Menu 1 → `2) Use New DNAC`**. A missing `dnac2.env` never falls back to `dnac.env` — the tool reports the miss rather than silently targeting the wrong controller. `Enter manually · remember` asks which of the two files to write, and `View credential files` shows both with the password masked. |
-| `token.env` | **Runtime artifact.** Written by `dnac_client.py` on every successful authentication. Contains the raw bearer token as `DNAC_TOKEN=<value>`. Gitignored but persists across sessions. **Treat as a live credential — grants full DNAC API access until expiry. Delete after use; never copy to shared systems.** |
-| `sample_dnac.env` | **Credential template.** Tracked example of `dnac.env` with placeholder values (`localhost` / `your_username` / `your_password`). Referenced by Menu 1 when a credential file is missing. Documents the optional `ISE_HOST=` / `ISE_VERSION=` lines. |
+2. Create a Python virtual environment.
 
-### Documentation
+   ```bash
+   python3 -m venv .venv
+   ```
 
-| File | Purpose |
-|------|---------|
-| `README.md` | **This file.** Master reference for every file in the repository. |
-| `CHANGELOG.md` | **Change log.** Chronological record of features, fixes, and refactors by date. |
+3. Activate the virtual environment.
 
----
+   Linux or macOS:
 
-## Quick Start
+   ```bash
+   source .venv/bin/activate
+   ```
 
-Requires Python 3.9+.
+   Windows PowerShell:
+
+   ```powershell
+   .venv\Scripts\Activate.ps1
+   ```
+
+4. Install the Python packages.
+
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+
+5. Start CHEAT.
+
+   ```bash
+   python main.py
+   ```
+
+## Credential setup
+
+CHEAT can request credentials at run time.
+CHEAT can also read credentials from `dnac.env` or `dnac2.env`.
+
+Copy the sample file to create the first profile:
 
 ```bash
-pip install --user -r requirements.txt
-python main.py
+cp sample_dnac.env dnac.env
 ```
 
-## Graphviz (topology diagram)
+Use this format:
 
-The CDP physical topology export (`*-cdp-topology.drawio`) uses the Graphviz
-`dot` engine to lay out and route the diagram. Graphviz is a **system
-dependency** (a binary on your PATH), not a Python package — install it
-separately:
+```dotenv
+DNAC_HOST=catalyst-center.example.com
+DNAC_USERNAME=your_username
+DNAC_PASSWORD=your_password
+ISE_HOST=ise.example.com
+ISE_VERSION=3.3_patch_1
+```
 
-- **Linux (Debian/Ubuntu):** `sudo apt install graphviz`
-- **Linux (RHEL/Fedora):** `sudo dnf install graphviz`
-- **Windows:** `winget install Graphviz.Graphviz` (or `choco install graphviz`),
-  or download the installer from graphviz.org and add its `bin\` folder to PATH.
-- **macOS:** `brew install graphviz`
+The ISE values are optional.
+The Git ignore rules exclude all `.env` files.
 
-If `dot` is not found, the tool skips the topology diagram (with a reminder) and
-all other outputs are produced normally.
+> [!WARNING]
+> Credential files contain plaintext passwords.
+> Restrict file access to the required user.
+> Do not commit credential files.
 
-## Rate & Timeout Reference
+## Basic workflow
 
-Default values used by `dnac_client.py` and `cheat_core.py`. All timeouts are in seconds.
+1. Start `main.py`.
+2. Select a Catalyst Center credential profile.
+3. Fetch the device inventory.
+4. Filter and select the required switches.
+5. Select a report from Menu 5.
+6. Review the command list and device list.
+7. Confirm the operation.
+8. Open the report in `excel_reports/`.
 
-| Operation | Parameter | Default | Slow Mode |
-|-----------|-----------|---------|-----------|
-| Authentication (`POST /auth/token`) | `timeout` | 10s | — |
-| Device listing (`GET /network-device`) | `timeout` | 30s | — |
-| Device listing page size | `limit` | 500 devices/page | — |
-| Command submission (`POST /cli/read-request`) | `submit_timeout` | 10s | 20s |
-| Commands per Command Runner request | `COMMAND_RUNNER_MAX_COMMANDS` | 5 (larger sets auto-batched) | same |
-| Task poll interval | `poll_interval` | 1s | 3s |
-| Task poll max wait | `poll_timeout` | 30s | 60s |
-| Task result (`GET /task/{id}`) | `timeout` | 10s | — |
-| File retrieval (`GET /file/{id}`) | `timeout` | 10s | — |
-| HTTP retry count | `retry_total` | 3 | — |
-| HTTP retry backoff factor | `retry_backoff` | 1 | 2 (doubled) |
+Use Menu 5 option `r` to request a new authentication token.
+The refresh request uses a new HTTP session.
+The client keeps the previous token if the refresh fails.
 
-**Slow mode** is toggled in Menu 5 (press `s`). It applies to the current execution only and does not persist across runs. (The **Options → A** setting of the same name is stored in `prefs.env` but is scaffold-only — not yet wired into execution.) The retry backoff formula is `{backoff_factor} × (2^(N-1))` seconds between attempts, so backoff factor 2 gives 2s, 4s, 8s between retries vs 1s, 2s, 4s at default.
+## Palantir Mode
 
-## Generated Outputs
+Palantir Mode sends these data requests:
 
-| Pattern | Source | Contents | Git status |
-|---------|--------|----------|------------|
-| `all_devices.json` | `main.py` / `main_cli.py` | Full DNAC device inventory | ignored |
-| `command_runner_outputs/command_output_*.txt` | `cheat_core.py` | Raw command output per device | ignored |
-| `excel_reports/port-information-*.xlsx` | `cheat_core.py` / `main_cli.py` | Combined multi-sheet Excel report (All Ports + Port Utilisation + per-stack tabs) | ignored |
-| `excel_reports/port_utilisation_summary_*.xlsx` | `port_utilisation.py` | Per-switch port utilisation summary (+ unscanned Cisco switches block) | ignored |
-| `drawio_exports/*-cdp-topology.drawio` | `cheat_core.py` | Multi-page draw.io CDP physical topology diagram (Graphviz-laid-out) | **committed** (no `.drawio` rule in `.gitignore`) |
-| `token.env` | `dnac_client.py` | Bearer token from last auth | ignored |
+- Standard interface inventory commands
+- `show cdp neighbors detail`
+- `show mac address-table`
+- `show ip device tracking all | include /0/`
+
+Catalyst Center accepts a maximum of five Command Runner commands in one request.
+CHEAT splits larger command sets into sequential batches for each device.
+CHEAT still processes different devices concurrently.
+
+Palantir Mode creates these sheets:
+
+- `All Ports`
+- `Port Utilisation`
+- One sheet for each selected stack
+
+The output can include these fields:
+
+- Switch and stack member
+- Interface and description
+- Interface state and protocol
+- Port VLAN and client VLAN
+- MAC address and MAC type
+- Client IP address
+- Device-tracking state
+- CDP device type and neighbor
+- Traffic counters and last input
+- Correlation notes
+
+The client IP fields depend on the switch device-tracking output.
+CHEAT reports switches that return no recognized device-tracking rows.
+
+## Session controls
+
+Menu 5 provides these session controls:
+
+| Control | Key | Function |
+|---|---:|---|
+| Slow mode | `s` | Use longer polling and submission times. |
+| Copper-only filter | `p` | Exclude non-copper interfaces from port reports. |
+| Link-state data | `l` | Add recent link-change information. |
+| Concurrency | `c` | Select one to five concurrent device jobs. |
+| Token refresh | `r` | Request a new Catalyst Center token. |
+
+These controls do not persist after the program exits.
+
+## Generated files
+
+| Path | Content | Git behavior |
+|---|---|---|
+| `all_devices.json` | Catalyst Center device inventory | Ignored |
+| `command_runner_outputs/command_output_*.txt` | Combined raw command output for each device | Ignored |
+| `excel_reports/*.xlsx` | Excel reports | Ignored |
+| `excel_reports/*.csv` | CSV exports | Not ignored |
+| `drawio_exports/*.drawio` | Topology diagrams | Tracked by default |
+| `token.env` | Last successful authentication token | Ignored |
+
+> [!CAUTION]
+> `token.env` contains a live access token.
+> Do not copy this file to a shared system.
+> Delete the file when you no longer require the token.
+
+CSV exports can contain network and client data.
+The Git ignore rules do not exclude CSV files.
+Review each CSV file before you add files to a commit.
+
+## Graphviz setup
+
+The CDP topology export uses the Graphviz `dot` command.
+Install Graphviz separately from the Python packages.
+
+Debian or Ubuntu:
+
+```bash
+sudo apt install graphviz
+```
+
+RHEL or Fedora:
+
+```bash
+sudo dnf install graphviz
+```
+
+macOS:
+
+```bash
+brew install graphviz
+```
+
+Windows:
+
+```powershell
+winget install Graphviz.Graphviz
+```
+
+Add the Graphviz `bin` directory to `PATH` when the installer does not add it.
+CHEAT skips the CDP diagram when it cannot find `dot`.
+Other reports continue normally.
+
+## Security notes
+
+- CHEAT sends credentials only to the configured Catalyst Center or ISE host.
+- CHEAT sends the Catalyst Center token in the `X-Auth-Token` header.
+- CHEAT uses read-only network commands.
+- CHEAT stores raw command output on the local computer.
+- CHEAT disables Transport Layer Security certificate verification by default.
+
+> [!WARNING]
+> Disabled certificate verification can expose the connection to interception.
+> Use CHEAT only on a trusted management network until certificate verification is enabled.
+
+## Test the project
+
+Run the offline automated tests:
+
+```bash
+pytest -q --ignore=test_dnac.py --ignore=test_mock_dnac.py --ignore=test_sandbox.py
+```
+
+Run the mock end-to-end harness:
+
+```bash
+python test_mock_dnac.py
+```
+
+Run `test_dnac.py` only against an authorized Catalyst Center system.
+The script requests credentials interactively.
+
+Run `test_sandbox.py` only when you want to use the Cisco DevNet sandbox.
+
+## Project structure
+
+| Area | Main files | Purpose |
+|---|---|---|
+| User interface | `main.py`, `main_cli.py` | Manage credentials, device selection, and report actions. |
+| API access | `dnac_client.py`, `ise_client.py` | Access Catalyst Center and ISE. |
+| Command execution | `cheat_core.py`, `cheat_constants.py` | Batch, run, poll, and save command jobs. |
+| Port parsing | `interface_parser.py`, `port_utilisation.py` | Parse interfaces and calculate port use. |
+| Client correlation | `mac_table.py`, `mac_by_port.py`, `device_tracking.py`, `ip_mac_report.py`, `palantir_report.py` | Correlate ports, MAC addresses, IP addresses, and VLANs. |
+| Excel export | `excel_generator.py`, `consolidate_report.py` | Create formatted workbooks and CSV files. |
+| Topology export | `cdp_detail.py`, `cdp_topology.py`, `topology_dot.py`, `drawio_generator.py` | Build CDP and site topology diagrams. |
+| Access point monitoring | `ap_monitor.py` | Detect access point movement. |
+| Tests | `test_*.py`, `fixtures/` | Verify parsing, correlation, export, and API behavior. |
+
+## Operational defaults
+
+| Operation | Default |
+|---|---:|
+| Authentication timeout | 10 seconds |
+| Device-list timeout | 30 seconds |
+| Command-submission timeout | 10 seconds |
+| Commands in each Command Runner request | 5 |
+| Task-poll interval | 1 second |
+| Task-poll limit | 30 attempts |
+| Concurrent device jobs | 2 |
+| Maximum concurrent device jobs | 5 |
+| HTTP retry count | 3 |
+
+Slow mode changes the submission timeout to 20 seconds.
+Slow mode changes the poll interval to 3 seconds.
+Slow mode changes the poll limit to 60 attempts.
+
+## Troubleshooting
+
+### Authentication returns HTTP 401
+
+Confirm the username and password.
+Confirm that the account has Catalyst Center API access.
+Confirm that the configured host is correct.
+Use Menu 5 option `r` to request a new token.
+
+An expired API token does not authenticate the refresh request.
+The refresh request uses the stored username and password.
+
+### A report contains no client IP addresses
+
+Open the latest file in `command_runner_outputs/`.
+Find the output from `show ip device tracking all | include /0/`.
+Confirm that the switch returns IP, MAC, VLAN, and interface data.
+The exact output format can vary between switch software releases.
+
+### Palantir Mode fails during command submission
+
+Confirm that the runtime environment contains commit `580574a` or a later commit.
+That commit adds the five-command batching requirement.
+
+### The topology diagram is missing
+
+Run `dot -V`.
+Install Graphviz when the command is not available.
+
+## Change history
+
+See [CHANGELOG.md](CHANGELOG.md) for the project history.
