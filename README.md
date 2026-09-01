@@ -5,6 +5,10 @@
 CHEAT collects live switch data through Cisco DNA Center or Cisco Catalyst Center.
 It converts that data into Excel reports and draw.io topology diagrams.
 
+<p align="center">
+  <img src="docs/readme/screenshots/network-cutover.png" alt="Network technician connecting switch cables during a network cutover" width="900">
+</p>
+
 Use CHEAT to answer these questions:
 
 - Which switch ports are active, idle, disabled, or disconnected?
@@ -29,6 +33,36 @@ It writes reports and command output to the local computer.
 - **Safe ambiguity handling.** Flag duplicate or uncertain mappings instead of selecting an unverified result.
 - **Scalable collection.** Run jobs across devices concurrently.
 - **Automatic API batching.** Split command sets into groups of five for Catalyst Center Command Runner.
+
+## Product tour
+
+### Start with a credential profile
+
+Select a saved Catalyst Center profile.
+You can also enter credentials for the current session.
+
+![CHEAT credential menu](docs/readme/screenshots/credentials-menu.png)
+
+### Collect the device inventory
+
+CHEAT uses pagination to collect large Catalyst Center inventories.
+It displays each device with its platform and management IP address.
+
+![CHEAT device inventory collection](docs/readme/screenshots/device-inventory.png)
+
+### Filter the switch list
+
+Add inclusion or exclusion filters.
+Select one switch or a range of switches.
+
+![CHEAT switch selection filters](docs/readme/screenshots/switch-filters.png)
+
+### Select a report
+
+Choose a port report, client search, topology action, or Palantir Mode.
+Set session controls before you start the job.
+
+![CHEAT report and command menu](docs/readme/screenshots/commands-menu.png)
 
 ## Main reports
 
