@@ -222,6 +222,22 @@ def test_run_device_commands_unwraps_envelope(tmp_path):
     assert "commandResponses" not in out
 
 
+def test_unwrap_command_output_retains_failure_reason():
+    import json
+    from cheat_core import _unwrap_command_output
+
+    envelope = json.dumps([{"commandResponses": {
+        "SUCCESS": {"show mac address-table": "MAC OUTPUT"},
+        "FAILURE": {"show ip device tracking all": "Command is not supported"},
+    }}])
+    out = _unwrap_command_output(
+        envelope, ["show mac address-table", "show ip device tracking all"]
+    )
+    assert out.startswith("MAC OUTPUT")
+    assert "Command Runner FAILURE: show ip device tracking all" in out
+    assert "Command is not supported" in out
+
+
 class _BatchStub:
     def __init__(self):
         self.submissions = []

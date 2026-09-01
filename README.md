@@ -156,7 +156,7 @@ Palantir Mode sends these data requests:
 - Standard interface inventory commands
 - `show cdp neighbors detail`
 - `show mac address-table`
-- `show ip device tracking all | include /0/`
+- `show ip device tracking all`
 
 Catalyst Center accepts a maximum of five Command Runner commands in one request.
 CHEAT splits larger command sets into sequential batches for each device.
@@ -329,7 +329,7 @@ The refresh request uses the stored username and password.
 ### A report contains no client IP addresses
 
 Open the latest file in `command_runner_outputs/`.
-Find the output from `show ip device tracking all | include /0/`.
+Find the output from `show ip device tracking all`.
 Confirm that the switch returns IP, MAC, VLAN, and interface data.
 The exact output format can vary between switch software releases.
 

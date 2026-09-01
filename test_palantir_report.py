@@ -11,7 +11,7 @@ RAW = {
         " 20     bbbb.bbbb.bbbb    DYNAMIC     Gi1/0/2",
         "show cdp neighbors detail",
         "Total cdp entries displayed : 0",
-        "show ip device tracking all | include /0/",
+        "show ip device tracking all",
         "10.10.10.5     aaaa.aaaa.aaaa  10  GigabitEthernet1/0/1  ACTIVE",
         "10.20.20.5     cccc.cccc.cccc  20  GigabitEthernet1/0/2  INACTIVE",
     ])
@@ -38,6 +38,44 @@ def test_parse_legacy_ip_tracking_filtered_rows():
         ("10.10.10.5", "aaaa.aaaa.aaaa", "10", "Gi1/0/1", "ACTIVE"),
         ("10.20.20.5", "cccc.cccc.cccc", "20", "Gi1/0/2", "INACTIVE"),
     ]
+
+
+def test_parse_legacy_ip_tracking_standalone_port_and_mac_formats():
+    from palantir_report import parse_legacy_ip_tracking
+
+    text = "\n".join([
+        "10.50.1.3 00:11:22:33:44:55 501 GigabitEthernet0/3 30 ACTIVE",
+        "10.50.1.9 00-22-33-44-55-66 501 Gi0/9 INACTIVE",
+        "10.50.1.10 003344556677 501 FastEthernet0/10 REACHABLE",
+    ])
+    rows = parse_legacy_ip_tracking(text)
+    assert [(row.mac, row.interface) for row in rows] == [
+        ("0011.2233.4455", "Gi0/3"),
+        ("0022.3344.5566", "Gi0/9"),
+        ("0033.4455.6677", "Fa0/10"),
+    ]
+
+
+def test_palantir_reports_disabled_tracking_separately():
+    from palantir_report import build_palantir_report
+
+    raw = {"stack-a": RAW["stack-a"].split("10.10.10.5", 1)[0]
+           + "IP Device Tracking = Disabled\n"}
+    report = build_palantir_report(_devices(), raw)
+    assert any("disabled on: stack-a" in note for note in report.notes)
+    assert not any("No legacy" in note for note in report.notes)
+
+
+def test_palantir_reports_command_failure_separately():
+    from palantir_report import build_palantir_report
+
+    raw = {"stack-a": (
+        "[Command Runner FAILURE: show ip device tracking all]\n"
+        "Command is not supported"
+    )}
+    report = build_palantir_report(_devices(), raw)
+    assert any("command failed on: stack-a" in note for note in report.notes)
+    assert not any("No legacy" in note for note in report.notes)
 
 
 def test_palantir_correlates_and_retains_empty_ports():
@@ -91,4 +129,5 @@ def test_menu_5_wires_palantir_mode():
     commands = build_palantir_command_list(False)
     assert commands.count("show cdp neighbors detail") == 1
     assert "show mac address-table" in commands
-    assert "show ip device tracking all | include /0/" in commands
+    assert "show ip device tracking all" in commands
+    assert all("| include" not in command for command in commands)

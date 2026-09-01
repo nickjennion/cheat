@@ -55,19 +55,42 @@ def _command_batches(commands: list, size: int = COMMAND_RUNNER_MAX_COMMANDS) ->
 
 
 def _unwrap_command_output(output_text: str, commands: list) -> str:
-    """Unwrap a Command Runner file response, preserving requested order."""
+    """Unwrap Command Runner output and retain failed-command diagnostics."""
     try:
         response_data = json.loads(output_text)
         if not isinstance(response_data, list) or not response_data:
             return output_text
         responses = response_data[0].get("commandResponses", {})
-        success = responses.get("SUCCESS", {})
-        if not success:
+        if not isinstance(responses, dict) or not responses:
             return output_text
-        # Catalyst normally returns keys in request order, but use the request
-        # explicitly and then retain any unexpected response keys afterward.
-        ordered = [success[command] for command in commands if command in success]
-        ordered.extend(value for command, value in success.items() if command not in commands)
+
+        by_command = {}
+        for status, status_responses in responses.items():
+            if not isinstance(status_responses, dict):
+                continue
+            for command, value in status_responses.items():
+                by_command.setdefault(command, []).append((str(status), value))
+
+        def render(command, status, value):
+            if not isinstance(value, str):
+                value = json.dumps(value, sort_keys=True)
+            if status.upper() == "SUCCESS":
+                return value
+            return f"[Command Runner {status}: {command}]\n{value}"
+
+        ordered = []
+        emitted = set()
+        for command in commands:
+            for status, value in by_command.get(command, []):
+                ordered.append(render(command, status, value))
+                emitted.add(command)
+        for command, command_responses in by_command.items():
+            if command in emitted:
+                continue
+            for status, value in command_responses:
+                ordered.append(render(command, status, value))
+        if not ordered:
+            return output_text
         return "\n\n".join(ordered)
     except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
         return output_text

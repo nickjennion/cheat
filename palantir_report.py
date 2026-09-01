@@ -13,12 +13,27 @@ from interface_parser import InterfaceRecord, shorten_iface
 from mac_by_port import build_mac_by_port_report
 
 
+_MAC_TOKEN = (
+    r"(?:[0-9a-fA-F]{4}\.){2}[0-9a-fA-F]{4}"
+    r"|(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}"
+    r"|(?:[0-9a-fA-F]{2}-){5}[0-9a-fA-F]{2}"
+    r"|[0-9a-fA-F]{12}"
+)
+
 _IPDT_ROW = re.compile(
     r"(?im)^\s*(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+"
-    r"(?P<mac>[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4})\s+"
+    rf"(?P<mac>{_MAC_TOKEN})\s+"
     r"(?P<vlan>\d+)\s+"
     r"(?P<iface>(?:[A-Za-z][A-Za-z-]*)(?:\d+)(?:/\d+)+)"
     r"(?:\s+(?P<tail>.*?))?\s*$"
+)
+
+_IPDT_DISABLED = re.compile(
+    r"(?im)^\s*(?:Global\s+)?IP Device Tracking[^\n=]*=\s*Disabled\s*$"
+)
+_IPDT_COMMAND_FAILURE = re.compile(
+    r"(?im)^\[Command Runner (?!SUCCESS)[^:]+:\s*"
+    r"show ip device tracking all\]\s*$"
 )
 
 
@@ -57,25 +72,35 @@ class PalantirReport:
         return [row for rows in self.rows_by_switch.values() for row in rows]
 
 
+def _normalise_mac(value: str) -> str:
+    """Return a MAC address in lower-case dotted-triplet format."""
+    hexadecimal = re.sub(r"[^0-9a-fA-F]", "", value)
+    if len(hexadecimal) != 12:
+        return value.lower()
+    return ".".join(hexadecimal[i:i + 4] for i in range(0, 12, 4)).lower()
+
+
 def parse_legacy_ip_tracking(text: str) -> list[LegacyIpTrackingEntry]:
-    """Parse filtered legacy IPDT rows.
+    """Parse the full legacy IPDT table.
 
     Supported IOS layouts place IP, MAC, VLAN and interface first.  Any trailing
-    Probe-Timeout/State/Source fields vary by release; the final ACTIVE or
-    INACTIVE token is retained when present.
+    Probe-Timeout/State/Source fields vary by release. Dotted, colon-separated,
+    hyphen-separated, and plain hexadecimal MAC formats are normalized.
     """
     entries = []
     for match in _IPDT_ROW.finditer(text or ""):
         tail = (match.group("tail") or "").split()
         state = next(
             (token.upper() for token in reversed(tail)
-             if token.upper() in {"ACTIVE", "INACTIVE", "REACHABLE", "STALE"}),
+             if token.upper() in {
+                 "ACTIVE", "INACTIVE", "REACHABLE", "STALE", "PENDING"
+             }),
             "",
         )
         interface = shorten_iface(match.group("iface"))
         entries.append(LegacyIpTrackingEntry(
             ip=match.group("ip"),
-            mac=match.group("mac").lower(),
+            mac=_normalise_mac(match.group("mac")),
             vlan=match.group("vlan"),
             interface=interface,
             state=state,
@@ -161,7 +186,25 @@ def build_palantir_report(devices_data: dict, raw_outputs: dict) -> PalantirRepo
         rows_by_switch[host] = host_rows
 
     notes = []
-    missing_tracking = [host for host, entries in tracking_by_host.items() if not entries]
+    failed_tracking = [
+        host for host, entries in tracking_by_host.items()
+        if not entries and _IPDT_COMMAND_FAILURE.search(raw_outputs.get(host, ""))
+    ]
+    failed_set = set(failed_tracking)
+    disabled_tracking = [
+        host for host, entries in tracking_by_host.items()
+        if not entries and host not in failed_set
+        and _IPDT_DISABLED.search(raw_outputs.get(host, ""))
+    ]
+    excluded_from_missing = failed_set | set(disabled_tracking)
+    missing_tracking = [
+        host for host, entries in tracking_by_host.items()
+        if not entries and host not in excluded_from_missing
+    ]
+    if failed_tracking:
+        notes.append("IP device-tracking command failed on: " + ", ".join(failed_tracking))
+    if disabled_tracking:
+        notes.append("IP device tracking is disabled on: " + ", ".join(disabled_tracking))
     if missing_tracking:
         notes.append("No legacy IP device-tracking rows returned by: " + ", ".join(missing_tracking))
     return PalantirReport(
