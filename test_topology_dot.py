@@ -221,17 +221,15 @@ def test_generate_cdp_topology_drawio_no_label_edge_has_no_child_cell():
 
 
 def _pyramid_topo():
-    # dist(4500) — acc-9300 & acc-3560 hang off it (middle); the 3560/9200 that
-    # hang off those (not off a 4500) are desk (bottom); a router with no known
-    # model token defaults to the middle.
+    # Fixed model tiers: 4500 distribution, 9300 edge, 3560/9200 extended.
     nodes = [TopologyNode(n, is_rogue=False) for n in (
-        "core-4500-1", "acc-9300-a", "acc-3560-b", "desk-3560-x",
-        "desk-9200-y", "edge-router-z")]
+        "core-4500-1", "edge-9300-a", "extended-3560-b", "extended-9200-y",
+        "edge-router-z", "b4-sw01-ap01")]
     edges = [
-        TopologyEdge("core-4500-1", "Te1/1", "acc-9300-a", "Gi0/1"),
-        TopologyEdge("core-4500-1", "Te1/2", "acc-3560-b", "Gi0/1"),
-        TopologyEdge("acc-9300-a", "Gi0/2", "desk-3560-x", "Gi0/1"),
-        TopologyEdge("acc-3560-b", "Gi0/2", "desk-9200-y", "Gi0/1"),
+        TopologyEdge("core-4500-1", "Te1/1", "edge-9300-a", "Gi0/1"),
+        TopologyEdge("edge-9300-a", "Gi0/2", "extended-3560-b", "Gi0/1"),
+        TopologyEdge("edge-9300-a", "Gi0/3", "extended-9200-y", "Gi0/1"),
+        TopologyEdge("extended-3560-b", "Gi0/2", "b4-sw01-ap01", "Gi0"),
         TopologyEdge("core-4500-1", "Te1/3", "edge-router-z", "Gi0/0"),
     ]
     return Topology(nodes=nodes, edges=edges)
@@ -239,32 +237,36 @@ def _pyramid_topo():
 
 def test_switch_tier_by_hostname_model():
     from topology_dot import switch_tier
-    assert switch_tier("core-4500-1", near_dist=False) == 0     # 4500 -> top always
-    assert switch_tier("acc-9300-a", near_dist=True) == 1       # access under a 4500
-    assert switch_tier("acc-3560-b", near_dist=True) == 1
-    assert switch_tier("desk-3560-x", near_dist=False) == 2     # access model, no 4500 -> desk
-    assert switch_tier("orphan-9300", near_dist=False) == 2     # 9300 not under 4500 -> desk
-    assert switch_tier("edge-router-z", near_dist=True) == 1    # unknown model -> middle
-    assert switch_tier("mystery-box", near_dist=False) == 1     # unknown, no 4500 -> middle
+    assert switch_tier("core-9500-1") == 0
+    assert switch_tier("core-4500-1") == 0
+    assert switch_tier("edge-3850-a") == 1
+    assert switch_tier("edge-9300-a") == 1
+    assert switch_tier("extended-3560-x") == 2
+    assert switch_tier("extended-9200-y") == 2
+    assert switch_tier("mystery-box") == 1                    # unknown -> edge
+    assert switch_tier("orphan-9300", near_dist=False) == 1   # adjacency is ignored
     assert switch_tier("b4-sw01-ap01", near_dist=False) == 3    # -ap in name -> AP tier
     assert switch_tier("B4-SW01-AP01", near_dist=True) == 3     # case-insensitive
 
 
-def test_pyramid_tiers_uses_adjacency():
+def test_pyramid_tiers_are_independent_of_adjacency():
     from topology_dot import pyramid_tiers, _adjacency
     topo = _pyramid_topo()
     tiers = pyramid_tiers([n.name for n in topo.nodes], _adjacency(topo))
     assert tiers["core-4500-1"] == 0
-    assert tiers["acc-9300-a"] == 1 and tiers["acc-3560-b"] == 1
-    assert tiers["desk-3560-x"] == 2 and tiers["desk-9200-y"] == 2
-    assert tiers["edge-router-z"] == 1                          # unknown -> middle
+    assert tiers["edge-9300-a"] == 1
+    assert tiers["extended-3560-b"] == 2 and tiers["extended-9200-y"] == 2
+    assert tiers["edge-router-z"] == 1
+    assert tiers["b4-sw01-ap01"] == 3
 
 
 def test_to_dot_pyramid_emits_rank_groups_and_soft_edges():
     from topology_dot import to_dot
     topo = _pyramid_topo()
     dot, _ = to_dot(topo, [n.name for n in topo.nodes], "core-4500-1", pyramid=True)
-    assert dot.count("rank=same") == 3               # three tiers present
+    assert dot.count("rank=same") == 4               # all four fixed tiers
+    assert dot.count("tier_anchor_") >= 4            # structural tier anchors
+    assert "ranksep=2.7777777777777777" in dot       # 200 px at 72 px/in
     assert "style=invis" in dot                       # tier-ordering anchor chain
     # every physical link is drawn but non-ranking, so links can't distort tiers
     assert dot.count("constraint=false") == 5         # all five edges
@@ -272,8 +274,8 @@ def test_to_dot_pyramid_emits_rank_groups_and_soft_edges():
 
 
 def test_pyramid_layout_stacks_tiers_top_to_bottom():
-    # End-to-end through the real dot binary: distribution must sit above access,
-    # access above desk (graphviz plain y grows upward, so y_dist > y_acc > y_desk).
+    # End-to-end through real dot: distribution > edge > extended > AP, with at
+    # least a 200 px clear gap between the bounding boxes of adjacent tiers.
     import shutil
     import subprocess
     if not shutil.which("dot"):
@@ -286,10 +288,22 @@ def test_pyramid_layout_stacks_tiers_top_to_bottom():
     plain = subprocess.run(["dot", "-Tplain"], input=dot, capture_output=True,
                            text=True, check=True).stdout
     layout = parse_plain(plain)
-    y = {id_to_name[i]: box.y for i, box in layout.nodes.items()}
-    assert y["core-4500-1"] > y["acc-9300-a"] > y["desk-3560-x"]
-    assert y["acc-9300-a"] == y["acc-3560-b"]         # siblings share the tier row
-    assert y["desk-3560-x"] == y["desk-9200-y"]
+    y = {id_to_name[i]: box.y for i, box in layout.nodes.items() if i in id_to_name}
+    assert y["core-4500-1"] > y["edge-9300-a"] > y["extended-3560-b"] > y["b4-sw01-ap01"]
+    assert y["extended-3560-b"] == y["extended-9200-y"]
+    boxes = {id_to_name[i]: box for i, box in layout.nodes.items() if i in id_to_name}
+    ordered = ["core-4500-1", "edge-9300-a", "extended-3560-b", "b4-sw01-ap01"]
+    for upper, lower in zip(ordered, ordered[1:]):
+        gap_inches = ((boxes[upper].y - boxes[upper].h / 2)
+                      - (boxes[lower].y + boxes[lower].h / 2))
+        assert gap_inches * 72 >= 199.9
+
+    # Rank anchors and their ordering links are Graphviz scaffolding only.
+    # They must not leak into the user-visible draw.io page.
+    from drawio_generator import generate_cdp_topology_drawio
+    xml = generate_cdp_topology_drawio([("Overview", layout, id_to_name)], topo)
+    assert "tier_anchor" not in xml
+    assert xml.count('edge="1"') == len(topo.edges)
 
 
 def test_docs_mention_graphviz_install():

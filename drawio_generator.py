@@ -396,7 +396,11 @@ def generate_cdp_topology_drawio(rendered_pages, topology, icons: str = "stencil
         cid = 2
         id_to_cell = {}
         for gid, box in layout.nodes.items():
-            name = id_to_name.get(gid, gid)
+            # Graphviz-only rank anchors are intentionally not mapped. They
+            # enforce tier spacing but must not become visible draw.io cells.
+            name = id_to_name.get(gid)
+            if name is None:
+                continue
             node = by_name.get(name)
             style = _node_style(node, icons)
             value = node_label(node) if node else name

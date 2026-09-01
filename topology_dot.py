@@ -26,41 +26,47 @@ def node_label(node) -> str:
     return "\n".join(parts)
 
 
-# Pyramid layout: hostname tokens decide the tier (distribution / access /
-# desk / AP). Distribution switches carry a 4500 in the hostname; the access
-# family below them are 9300/9200/3850/3560; APs match -ap in the hostname.
-# See switch_tier for the full rule.
-_DIST_TOKEN = "4500"
-_ACCESS_TOKENS = ("9300", "9200", "3850", "3560")
+# Tiered layout: hostname model tokens decide the tier.  Graphviz measures in
+# inches and draw.io scales at 72 px/in, so this rank separation becomes the
+# requested 200 px clear gap between adjacent tiers in the exported diagram.
+TIER_GAP_PX = 200
+GRAPHVIZ_PX_PER_INCH = 72
+TIER_RANKSEP_IN = TIER_GAP_PX / GRAPHVIZ_PX_PER_INCH
+
+_DISTRIBUTION_TOKENS = ("9500", "4500")
+_EDGE_TOKENS = ("3850", "9300")
+_EXTENDED_TOKENS = ("3560", "9200")
 
 
-def switch_tier(name: str, near_dist: bool) -> int:
-    """Pyramid tier for a hostname: 0=distribution (top), 1=access (middle),
-    2=desk, 3=AP (bottom).
+def switch_tier(name: str, near_dist: bool = False) -> int:
+    """Return the fixed tier for a hostname.
 
-    - hostname contains 4500                    -> 0 (distribution fibre)
-    - hostname contains 9300/9200/3850/3560:
-        directly cabled to a 4500               -> 1 (access)
-        otherwise                               -> 2 (desk)
-    - hostname contains -ap (access point)      -> 3 (AP, bottom)
-    - anything else (incl. most rogue/unscanned
-      nodes, whose model isn't in the hostname) -> 1 (the neutral middle)
+    0 = distribution (9500/4500), 1 = edge (3850/9300),
+    2 = extended node (3560/9200), and 3 = access point.
 
-    `near_dist` is True when the node is directly cabled to a 4500-class switch.
+    Unknown switch models stay in the edge tier.  ``near_dist`` remains in the
+    signature for compatibility with older callers but no longer affects the
+    deterministic model classification.
     """
-    if _DIST_TOKEN in name:
-        return 0
-    if "-ap" in name.lower():
+    lowered = name.lower()
+    if "-ap" in lowered:
         return 3
-    if any(tok in name for tok in _ACCESS_TOKENS):
-        return 1 if near_dist else 2
+    if any(tok in lowered for tok in _DISTRIBUTION_TOKENS):
+        return 0
+    if any(tok in lowered for tok in _EDGE_TOKENS):
+        return 1
+    if any(tok in lowered for tok in _EXTENDED_TOKENS):
+        return 2
     return 1
 
 
-def pyramid_tiers(names, adj) -> dict:
-    """Map each node name to its pyramid tier given the subgraph adjacency."""
-    dist = {n for n in names if _DIST_TOKEN in n}
-    return {n: switch_tier(n, bool(adj[n] & dist)) for n in names}
+def pyramid_tiers(names, adj=None) -> dict:
+    """Map each node name to its fixed model tier.
+
+    ``adj`` is accepted for compatibility; tier assignment is intentionally
+    independent of cabling adjacency.
+    """
+    return {name: switch_tier(name) for name in names}
 
 
 def to_dot(topology, node_names, root_name: str, a3: bool = False,
@@ -72,8 +78,8 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False,
     constraint=false so they are drawn without distorting the ranks. Edge labels
     are intentionally omitted (the draw.io emitter labels edges itself).
 
-    When `pyramid` is set, ranks are pinned to a classic distribution/access/desk
-    three-tier hierarchy by hostname model instead (see switch_tier): every node
+    When `pyramid` is set, ranks are pinned to a distribution/edge/extended/AP
+    four-tier hierarchy by hostname model instead (see switch_tier): every node
     is rank-grouped by tier, an invisible anchor chain orders the tiers top to
     bottom, and all physical links are drawn constraint=false so they can't
     distort those ranks. This trades the free-form BFS layout for a compact
@@ -113,7 +119,7 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False,
     lines = [
         "digraph G {",
         "  rankdir=TB;",
-        f"  graph [splines={spline_mode}, nodesep=0.4, ranksep={1.4 if pyramid else 0.7}];",
+        f"  graph [splines={spline_mode}, nodesep=0.4, ranksep={TIER_RANKSEP_IN if pyramid else 0.7}];",
         "  node [shape=box, style=filled, fontsize=10];",
     ]
     if a3:
@@ -128,20 +134,25 @@ def to_dot(topology, node_names, root_name: str, a3: bool = False,
         lines.append(f'  {id_of[name]} [label="{lbl}", fillcolor="{fill}"];')
 
     if pyramid:
-        # Pin ranks to distribution/access/desk tiers by hostname model. Each
-        # tier is a rank=same group; an invisible chain between one anchor per
-        # present tier orders them top->bottom. Physical links are all drawn
-        # constraint=false so within-tier links don't fight the rank grouping
-        # (they still steer left/right ordering, keeping children under parents).
+        # Pin ranks to distribution/edge/extended/AP tiers by hostname model.
+        # Four synthetic anchors preserve empty tiers and force a full 200 px
+        # gap per tier.  They are deliberately absent from id_to_name, so the
+        # draw.io emitter discards their nodes and ordering edges. Physical
+        # links are non-ranking and cannot pull a device out of its tier.
         tiers = pyramid_tiers(names, adj)
-        present = [t for t in (0, 1, 2, 3) if any(tiers[n] == t for n in names)]
-        for t in present:
+        for t in (0, 1, 2, 3):
+            anchor = f"tier_anchor_{t}"
+            lines.append(
+                f'  {anchor} [label="", shape=point, width=0, height=0, style=invis];'
+            )
             members = sorted(n for n in names if tiers[n] == t)
-            grp = " ".join(id_of[m] for m in members)
+            grp = " ".join([anchor] + [id_of[m] for m in members])
             lines.append(f"  {{ rank=same; {grp}; }}")
-        anchors = [sorted(n for n in names if tiers[n] == t)[0] for t in present]
-        for a, b in zip(anchors, anchors[1:]):
-            lines.append(f"  {id_of[a]} -> {id_of[b]} [style=invis];")
+        for t in range(3):
+            lines.append(
+                f"  tier_anchor_{t} -> tier_anchor_{t + 1} "
+                "[style=invis, weight=100];"
+            )
         for a, b in sub_edges:
             src, dst = (a, b) if tiers[a] <= tiers[b] else (b, a)
             lines.append(f"  {id_of[src]} -> {id_of[dst]} [constraint=false];")

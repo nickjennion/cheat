@@ -406,13 +406,13 @@ def _interface_descriptions(raw_outputs: dict) -> dict:
 
 def generate_cdp_topology(
     raw_outputs: dict, scanned_hostnames, filename_stem: str, icons: str = "stencil",
-    layout: str = "auto",
+    layout: str = "pyramid",
 ) -> tuple[bool, str]:
     """Build and write the multi-page CDP topology .drawio (Graphviz-laid).
 
     icons: "stencil" for Cisco device icons (default) or "plain" for rectangles.
-    layout: "auto" (Graphviz BFS ranking) or "pyramid" (distribution/access/desk
-    three-tier ranks by hostname model — see topology_dot.switch_tier).
+    layout: "auto" (Graphviz BFS ranking) or "pyramid" (distribution/edge/
+    extended/AP ranks by hostname model — see topology_dot.switch_tier).
     """
     from cdp_topology import build_topology
     from topology_dot import build_pages, to_dot, parse_plain

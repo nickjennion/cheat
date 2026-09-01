@@ -443,7 +443,6 @@ DEFAULT_PREFS = {
     "LOG_LEVEL": "info",
     "SPLASH_STYLE": "rich",   # "rich" (gradient/panel) or "classic" (flat splash.py)
     "DEVICE_ICONS": "stencil",  # topology nodes: "stencil" (Cisco icons) or "plain"
-    "TOPOLOGY_LAYOUT": "auto",  # topology ranks: "auto" (Graphviz) or "pyramid" (dist/access/desk)
 }
 
 
@@ -457,8 +456,8 @@ def load_prefs():
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 k, v = line.split("=", 1)
-                if k.strip() == "SPLASH_DESIGN":
-                    continue  # removed legacy co-brand preference
+                if k.strip() in {"SPLASH_DESIGN", "TOPOLOGY_LAYOUT"}:
+                    continue  # removed legacy preferences
                 prefs[k.strip()] = v.strip()
         except Exception as e:
             print(f"  Warning: could not read {PREFS_FILE}: {e}")
@@ -494,11 +493,10 @@ def menu_options():
         print(f"  G) Logging              [{prefs['LOGGING']}]")
         print(f"  H) Splash style         [{prefs['SPLASH_STYLE']}]")
         print(f"  I) Topology icons       [{prefs['DEVICE_ICONS']}]")
-        print(f"  K) Topology layout      [{prefs['TOPOLOGY_LAYOUT']}]  (auto | pyramid: dist/access/desk)")
         print()
         print("  0) Back")
         print()
-        choice = input("  Select [A-K, 0]: ").strip().upper()
+        choice = input("  Select [A-I, 0]: ").strip().upper()
 
         if choice == "0":
             save_prefs(prefs)
@@ -537,8 +535,6 @@ def menu_options():
             prefs["SPLASH_STYLE"] = "classic" if prefs["SPLASH_STYLE"] == "rich" else "rich"
         elif choice == "I":
             prefs["DEVICE_ICONS"] = "plain" if prefs["DEVICE_ICONS"] == "stencil" else "stencil"
-        elif choice == "K":
-            prefs["TOPOLOGY_LAYOUT"] = "pyramid" if prefs["TOPOLOGY_LAYOUT"] == "auto" else "auto"
         else:
             print("\n  Invalid selection.")
             pause()
@@ -1189,7 +1185,7 @@ def _exec_and_report(selected_devices, client, commands, mode, filename, thresho
             _, topo_msg = generate_cdp_topology(
                 topo_outputs, topo_outputs.keys(), stem,
                 icons=_tp.get("DEVICE_ICONS", "stencil"),
-                layout=_tp.get("TOPOLOGY_LAYOUT", "auto"))
+                layout="pyramid")
             print(f"\n  {topo_msg}")
     pause()
 

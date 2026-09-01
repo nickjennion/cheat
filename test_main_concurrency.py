@@ -24,3 +24,12 @@ def test_load_prefs_ignores_legacy_co_brand_setting(tmp_path, monkeypatch):
     prefs = main.load_prefs()
     assert "SPLASH_DESIGN" not in prefs
     assert prefs["SLOW_MODE"] == "on"
+
+
+def test_load_prefs_ignores_legacy_topology_layout(tmp_path, monkeypatch):
+    import main
+    prefs_file = tmp_path / "prefs.env"
+    prefs_file.write_text("TOPOLOGY_LAYOUT=auto\n", encoding="utf-8")
+    monkeypatch.setattr(main, "PREFS_FILE", prefs_file)
+
+    assert "TOPOLOGY_LAYOUT" not in main.load_prefs()
