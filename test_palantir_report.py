@@ -117,7 +117,7 @@ def test_palantir_correlates_and_retains_empty_ports():
 
 
 def test_write_palantir_workbook_has_all_ports_and_per_stack(tmp_path):
-    from excel_generator import PALANTIR_HEADERS, write_palantir_excel
+    from excel_generator import HEADERS, PALANTIR_HEADERS, write_palantir_excel
     from palantir_report import build_palantir_report
 
     devices = _devices()
@@ -127,14 +127,46 @@ def test_write_palantir_workbook_has_all_ports_and_per_stack(tmp_path):
     assert ok
 
     wb = openpyxl.load_workbook(out)
-    assert wb.sheetnames == ["All Ports", "Port Utilisation", "VLAN Inventory", "stack-a"]
+    assert wb.sheetnames == [
+        "All Ports", "All MAC Addresses", "Port Utilisation", "VLAN Inventory", "stack-a"
+    ]
     ws = wb["All Ports"]
-    headers = [ws.cell(row=1, column=col).value for col in range(1, len(PALANTIR_HEADERS) + 1)]
-    assert headers == PALANTIR_HEADERS
-    assert "MAC Address" in headers
-    assert "Manufacturer" in headers
-    assert "Client IP" in headers
-    assert "Client VLAN" in headers
+    headers = [ws.cell(row=1, column=col).value for col in range(1, len(HEADERS) + 1)]
+    assert headers == HEADERS
+    assert ws.max_row == len(devices["stack-a"][0]) + 1
+
+    mac_ws = wb["All MAC Addresses"]
+    mac_headers = [
+        mac_ws.cell(row=1, column=col).value
+        for col in range(1, len(PALANTIR_HEADERS) + 1)
+    ]
+    assert mac_headers == PALANTIR_HEADERS
+    assert "MAC Address" in mac_headers
+    assert "Manufacturer" in mac_headers
+    assert "Client IP" in mac_headers
+    assert "Client VLAN" in mac_headers
+
+
+def test_palantir_all_ports_does_not_expand_for_downstream_macs(tmp_path):
+    from excel_generator import write_palantir_excel
+    from palantir_report import build_palantir_report
+
+    devices = {"core": (list(_devices()["stack-a"][0]), {})}
+    raw = {"core": "\n".join([
+        "show mac address-table",
+        " 10 aaaa.aaaa.aaaa DYNAMIC Gi1/0/1",
+        " 10 bbbb.bbbb.bbbb DYNAMIC Gi1/0/1",
+        " 10 cccc.cccc.cccc DYNAMIC Gi1/0/1",
+    ])}
+    report = build_palantir_report(devices, raw)
+    assert len(report.rows) == 5
+
+    out = tmp_path / "palantir-expanded.xlsx"
+    ok, _ = write_palantir_excel(report, devices, 42, str(out))
+    assert ok
+    wb = openpyxl.load_workbook(out)
+    assert wb["All Ports"].max_row == 4
+    assert wb["All MAC Addresses"].max_row == 6
 
 
 def test_menu_5_wires_palantir_mode():

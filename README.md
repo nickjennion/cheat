@@ -203,6 +203,7 @@ CHEAT still processes different devices concurrently.
 Palantir Mode creates these sheets:
 
 - `All Ports`
+- `All MAC Addresses`
 - `Port Utilisation`
 - `VLAN Inventory`
 - One sheet for each selected stack

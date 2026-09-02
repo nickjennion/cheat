@@ -509,8 +509,15 @@ def write_palantir_excel(report, devices_data: dict, threshold_days: int,
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
 
+        # All Ports is deliberately one row per discovered interface.  The
+        # enriched Palantir rows expand when multiple downstream MACs are
+        # learned behind one port, so they belong on the separate MAC sheet.
+        all_records = [rec for records, _ in devices_data.values() for rec in records]
         ws_all = wb.create_sheet(title="All Ports")
-        write_palantir_sheet(ws_all, report.rows)
+        write_excel_sheet(ws_all, all_records, {})
+
+        ws_macs = wb.create_sheet(title="All MAC Addresses")
+        write_palantir_sheet(ws_macs, report.rows)
 
         ws_util = wb.create_sheet(title="Port Utilisation")
         util_results = _compute_utilisation(devices_data, threshold_days)
