@@ -88,6 +88,16 @@ def test_vlan_token_is_opaque():
     assert entries[0].vlan == "MgtVlan"
 
 
+def test_keeps_wrapped_binding_first_line_without_state_columns():
+    from device_tracking import parse_device_tracking
+    text = "ARP 10.0.0.9 0011.2233.4455 GigabitEthernet1/0/9 99\n"
+    entries, _ = parse_device_tracking(text)
+    assert len(entries) == 1
+    assert entries[0].interface == "GigabitEthernet1/0/9"
+    assert entries[0].vlan == "99"
+    assert entries[0].state == ""
+
+
 def test_detects_an_unsupported_platform():
     from device_tracking import command_unsupported
     assert command_unsupported(UNSUPPORTED) is True

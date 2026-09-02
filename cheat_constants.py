@@ -19,6 +19,8 @@ DNAC_COMMANDS = [
     "show interfaces status",
     "show interface counters",
     "show cdp neighbors detail",
+    "show vlan brief",
+    "show interfaces vlan",
 ]
 
 LINK_STATE_COMMANDS = ["show logging", "show clock"]
@@ -34,14 +36,18 @@ DEVICE_TRACKING_COMMANDS = ["show device-tracking database"]
 # because a device-side ``include /0/`` drops standalone ports such as Gi0/3.
 # Palantir applies the physical-port restriction locally during correlation.
 PALANTIR_IP_TRACKING_COMMAND = "show ip device tracking all"
+PALANTIR_TRACKING_COMMANDS = [
+    "show device-tracking database",
+    PALANTIR_IP_TRACKING_COMMAND,
+    "show ip arp",
+]
 
 
 def build_palantir_command_list(link_state: bool) -> list:
-    """Option 3's inventory commands plus MAC and legacy IP tracking data."""
+    """Inventory plus MAC and modern/legacy IP tracking data."""
     return build_command_list(link_state) + [
         "show mac address-table",
-        PALANTIR_IP_TRACKING_COMMAND,
-    ]
+    ] + PALANTIR_TRACKING_COMMANDS
 
 
 # ============================================================================

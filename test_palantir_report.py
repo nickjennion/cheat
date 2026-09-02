@@ -56,6 +56,22 @@ def test_parse_legacy_ip_tracking_standalone_port_and_mac_formats():
     ]
 
 
+def test_parse_ip_tracking_accepts_modern_wrapped_sisf_rows_and_deduplicates():
+    from palantir_report import parse_ip_tracking
+
+    text = "\n".join([
+        "ARP 10.10.10.5 aaaa.aaaa.aaaa GigabitEthernet1/0/1 10",
+        "10.10.10.5 aaaa.aaaa.aaaa 10 Gi1/0/1 ACTIVE",
+        "L 10.10.10.1 0000.0c9f.f001 Vl10 10 0100 5mn REACHABLE",
+    ])
+    rows = parse_ip_tracking(text)
+    assert rows == [
+        __import__("palantir_report").LegacyIpTrackingEntry(
+            "10.10.10.5", "aaaa.aaaa.aaaa", "10", "Gi1/0/1", "ACTIVE"
+        )
+    ]
+
+
 def test_palantir_reports_disabled_tracking_separately():
     from palantir_report import build_palantir_report
 
@@ -63,7 +79,7 @@ def test_palantir_reports_disabled_tracking_separately():
            + "IP Device Tracking = Disabled\n"}
     report = build_palantir_report(_devices(), raw)
     assert any("disabled on: stack-a" in note for note in report.notes)
-    assert not any("No legacy" in note for note in report.notes)
+    assert not any("No usable" in note for note in report.notes)
 
 
 def test_palantir_reports_command_failure_separately():
@@ -75,7 +91,7 @@ def test_palantir_reports_command_failure_separately():
     )}
     report = build_palantir_report(_devices(), raw)
     assert any("command failed on: stack-a" in note for note in report.notes)
-    assert not any("No legacy" in note for note in report.notes)
+    assert not any("No usable" in note for note in report.notes)
 
 
 def test_palantir_correlates_and_retains_empty_ports():
@@ -111,11 +127,12 @@ def test_write_palantir_workbook_has_all_ports_and_per_stack(tmp_path):
     assert ok
 
     wb = openpyxl.load_workbook(out)
-    assert wb.sheetnames == ["All Ports", "Port Utilisation", "stack-a"]
+    assert wb.sheetnames == ["All Ports", "Port Utilisation", "VLAN Inventory", "stack-a"]
     ws = wb["All Ports"]
     headers = [ws.cell(row=1, column=col).value for col in range(1, len(PALANTIR_HEADERS) + 1)]
     assert headers == PALANTIR_HEADERS
     assert "MAC Address" in headers
+    assert "Manufacturer" in headers
     assert "Client IP" in headers
     assert "Client VLAN" in headers
 
@@ -129,5 +146,8 @@ def test_menu_5_wires_palantir_mode():
     commands = build_palantir_command_list(False)
     assert commands.count("show cdp neighbors detail") == 1
     assert "show mac address-table" in commands
+    assert "show device-tracking database" in commands
     assert "show ip device tracking all" in commands
     assert all("| include" not in command for command in commands)
+    assert "generate_cdp_topology" in src
+    assert 'layout="pyramid"' in src

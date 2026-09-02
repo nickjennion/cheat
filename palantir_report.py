@@ -1,7 +1,7 @@
 """Build the enriched per-port dataset used by Menu 5 Palantir mode.
 
 Palantir combines the normal interface inventory, the full MAC address table,
-CDP neighbour context, and the legacy ``show ip device tracking all`` table.
+CDP neighbour context, and modern plus legacy device-tracking tables.
 One output row represents one client/address on a physical switch port.  Empty
 ports are retained, and multi-client ports expand to multiple rows.
 """
@@ -9,8 +9,10 @@ ports are retained, and multi-client ports expand to multiple rows.
 import re
 from dataclasses import dataclass, field
 
-from interface_parser import InterfaceRecord, shorten_iface
+from interface_parser import InterfaceRecord, is_physical_iface, shorten_iface
 from mac_by_port import build_mac_by_port_report
+from mac_table import parse_mac_address_table
+from device_tracking import LOCAL_CODES, parse_device_tracking
 
 
 _MAC_TOKEN = (
@@ -33,7 +35,11 @@ _IPDT_DISABLED = re.compile(
 )
 _IPDT_COMMAND_FAILURE = re.compile(
     r"(?im)^\[Command Runner (?!SUCCESS)[^:]+:\s*"
-    r"show ip device tracking all\]\s*$"
+    r"(?:show ip device tracking all|show device-tracking database)\]\s*$"
+)
+_ARP_ROW = re.compile(
+    r"(?im)^\s*(?:Internet\s+)?(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+\S+\s+"
+    r"(?P<mac>(?:[0-9a-f]{4}\.){2}[0-9a-f]{4})\s+\S+\s+(?P<iface>\S+)\s*$"
 )
 
 
@@ -108,16 +114,68 @@ def parse_legacy_ip_tracking(text: str) -> list[LegacyIpTrackingEntry]:
     return entries
 
 
+def parse_ip_tracking(text: str) -> list[LegacyIpTrackingEntry]:
+    """Parse and deduplicate modern SISF and legacy IPDT client bindings.
+
+    Modern ``show device-tracking database`` output can wrap after the VLAN
+    column. Legacy platforms instead return ``show ip device tracking all``.
+    Palantir requests both commands and accepts whichever a switch supports.
+    """
+    combined = list(parse_legacy_ip_tracking(text))
+    modern, _non_ipv4 = parse_device_tracking(text or "")
+    for entry in modern:
+        interface = shorten_iface(entry.interface)
+        if entry.code in LOCAL_CODES or "/" not in interface:
+            continue
+        combined.append(LegacyIpTrackingEntry(
+            ip=entry.ip,
+            mac=_normalise_mac(entry.mac),
+            vlan=entry.vlan,
+            interface=interface,
+            state=entry.state.upper(),
+        ))
+
+    deduplicated = {}
+    for entry in combined:
+        key = (entry.ip, entry.mac, entry.vlan, entry.interface)
+        existing = deduplicated.get(key)
+        # Prefer the copy carrying a state when both commands return the row.
+        if existing is None or (not existing.state and entry.state):
+            deduplicated[key] = entry
+    return list(deduplicated.values())
+
+
+def _parse_arp_fallback(text: str) -> list[LegacyIpTrackingEntry]:
+    """Turn IOS ARP entries into IP bindings when IP device tracking is absent."""
+    mac_ports = {}
+    for entry in parse_mac_address_table(text or ""):
+        if is_physical_iface(entry.interface):
+            mac_ports.setdefault(entry.mac, []).append(entry)
+    out = []
+    for match in _ARP_ROW.finditer(text or ""):
+        mac = match.group("mac").lower()
+        for port in mac_ports.get(mac, []):
+            out.append(LegacyIpTrackingEntry(
+                ip=match.group("ip"), mac=mac, vlan=port.vlan,
+                interface=port.interface, state="ARP",
+            ))
+    return out
+
+
 def build_palantir_report(devices_data: dict, raw_outputs: dict) -> PalantirReport:
-    """Correlate interface, MAC/CDP and legacy IPDT data by switch and port."""
+    """Correlate interface, MAC/CDP and device-tracking data by switch and port."""
     mac_report = build_mac_by_port_report(raw_outputs)
     macs_by_port: dict[tuple[str, str], list] = {}
     for row in mac_report.rows:
         macs_by_port.setdefault((row.switch, row.interface), []).append(row)
 
-    tracking_by_host: dict[str, list[LegacyIpTrackingEntry]] = {
-        host: parse_legacy_ip_tracking(text) for host, text in raw_outputs.items()
-    }
+    tracking_by_host: dict[str, list[LegacyIpTrackingEntry]] = {}
+    for host, text in raw_outputs.items():
+        entries = parse_ip_tracking(text)
+        keys = {(e.ip, e.mac, e.vlan, e.interface) for e in entries}
+        entries.extend(e for e in _parse_arp_fallback(text)
+                       if (e.ip, e.mac, e.vlan, e.interface) not in keys)
+        tracking_by_host[host] = entries
     tracking_by_mac: dict[tuple[str, str], list[LegacyIpTrackingEntry]] = {}
     tracking_by_port: dict[tuple[str, str], list[LegacyIpTrackingEntry]] = {}
     for host, entries in tracking_by_host.items():
@@ -206,7 +264,7 @@ def build_palantir_report(devices_data: dict, raw_outputs: dict) -> PalantirRepo
     if disabled_tracking:
         notes.append("IP device tracking is disabled on: " + ", ".join(disabled_tracking))
     if missing_tracking:
-        notes.append("No legacy IP device-tracking rows returned by: " + ", ".join(missing_tracking))
+        notes.append("No usable IP device-tracking rows returned by: " + ", ".join(missing_tracking))
     return PalantirReport(
         rows_by_switch=rows_by_switch,
         client_rows=client_rows,

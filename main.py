@@ -1589,7 +1589,7 @@ def action_palantir_export(selected_devices, client, link_state=False,
                            slow_mode=False, copper_only=False,
                            concurrency=DEFAULT_CONCURRENCY):
     """Menu 5 'x': consolidated port inventory enriched with MAC and client IP."""
-    from cheat_core import run_commands, parse_outputs
+    from cheat_core import run_commands, parse_outputs, generate_cdp_topology
     from excel_generator import write_palantir_excel
     from palantir_report import build_palantir_report
     from port_utilisation import is_copper_port
@@ -1646,11 +1646,20 @@ def action_palantir_export(selected_devices, client, link_state=False,
         print(f"  ⚠ {note}")
 
     unscanned = find_unscanned_switches(outputs, outputs.keys())
+    xlsx_path = _timestamped_excel_path(filename)
     ok, msg = write_palantir_excel(
-        report, devices_data, threshold, _timestamped_excel_path(filename),
+        report, devices_data, threshold, xlsx_path,
         unscanned=unscanned,
+        raw_outputs=outputs,
     )
     print(f"\n  {msg}")
+
+    prefs = load_prefs()
+    _, topology_msg = generate_cdp_topology(
+        outputs, outputs.keys(), Path(filename).stem,
+        icons=prefs.get("DEVICE_ICONS", "stencil"), layout="pyramid",
+    )
+    print(f"\n  {topology_msg}")
     pause()
 
 

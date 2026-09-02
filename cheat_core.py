@@ -331,7 +331,10 @@ def generate_excel(
         unscanned = None
         if raw_outputs is not None:
             unscanned = find_unscanned_switches(raw_outputs, raw_outputs.keys())
-        ok, msg = write_combined_excel(devices_data, threshold, outpath, unscanned=unscanned)
+        ok, msg = write_combined_excel(
+            devices_data, threshold, outpath,
+            unscanned=unscanned, raw_outputs=raw_outputs,
+        )
         results.append((ok, msg))
 
     else:

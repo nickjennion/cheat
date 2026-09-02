@@ -190,7 +190,11 @@ Palantir Mode sends these data requests:
 - Standard interface inventory commands
 - `show cdp neighbors detail`
 - `show mac address-table`
+- `show device-tracking database`
 - `show ip device tracking all`
+- `show ip arp`
+- `show vlan brief`
+- `show interfaces vlan`
 
 Catalyst Center accepts a maximum of five Command Runner commands in one request.
 CHEAT splits larger command sets into sequential batches for each device.
@@ -200,7 +204,10 @@ Palantir Mode creates these sheets:
 
 - `All Ports`
 - `Port Utilisation`
+- `VLAN Inventory`
 - One sheet for each selected stack
+
+Palantir Mode also creates a tiered CDP topology in `drawio_exports/`.
 
 The output can include these fields:
 
@@ -210,6 +217,11 @@ The output can include these fields:
 - Port VLAN and client VLAN
 - MAC address and MAC type
 - Client IP address
+- MAC manufacturer (from the bundled OUI Master Database)
+
+The manufacturer lookup uses the compressed `data/oui-master.tsv.gz` snapshot
+from [OUI-Master-Database](https://github.com/Ringmast4r/OUI-Master-Database).
+Set `CHEAT_OUI_DATABASE` to use a different compatible TSV/TSV.GZ file.
 - Device-tracking state
 - CDP device type and neighbor
 - Traffic counters and last input
@@ -363,7 +375,7 @@ The refresh request uses the stored username and password.
 ### A report contains no client IP addresses
 
 Open the latest file in `command_runner_outputs/`.
-Find the output from `show ip device tracking all`.
+Find the output from `show device-tracking database` or `show ip device tracking all`.
 Confirm that the switch returns IP, MAC, VLAN, and interface data.
 The exact output format can vary between switch software releases.
 

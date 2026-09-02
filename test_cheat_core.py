@@ -315,4 +315,4 @@ def test_dnac_commands_use_cdp_detail():
     from cheat_core import DNAC_COMMANDS
     assert "show cdp neighbors detail" in DNAC_COMMANDS
     assert "show cdp neighbors" not in DNAC_COMMANDS  # brief form replaced
-    assert len(DNAC_COMMANDS) == 5                    # count unchanged
+    assert len(DNAC_COMMANDS) == 7                    # VLAN/SVI inventory commands included

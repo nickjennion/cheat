@@ -16,6 +16,8 @@ from interface_parser import InterfaceRecord, StackMember, uptime_days, site_loc
 from port_utilisation import is_copper_port, write_utilisation_sheet
 from unscanned_switches import find_unscanned_switches, SwitchNeighbour
 from time_utils import parse_duration_days
+from vlan_report import VlanRecord, build_vlan_report
+from oui_lookup import lookup_manufacturer
 
 
 # ============================================================================
@@ -314,11 +316,46 @@ def write_unscanned_switches_block(ws, start_row: int, rows: list) -> None:
     _write_neighbour_table(ws, next_row, UNSCANNED_AP_TITLE, aps)
 
 
+VLAN_HEADERS = [
+    "Switch", "VLAN", "Name", "Description", "Status", "Ports", "Subnet",
+    "Gateway", "SVI State", "Client Count", "Clients",
+]
+VLAN_WIDTHS = [28, 10, 34, 40, 14, 55, 20, 18, 34, 14, 80]
+
+
+def write_vlan_sheet(ws, rows: list[VlanRecord]) -> int:
+    """Write the per-switch VLAN/SVI/client inventory to a worksheet."""
+    header_font, header_fill, header_align, header_border = get_header_styles()
+    data_font, data_align, data_border = get_data_styles()
+    for col, (header, width) in enumerate(zip(VLAN_HEADERS, VLAN_WIDTHS), start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = header_border
+        ws.column_dimensions[get_column_letter(col)].width = width
+    ws.row_dimensions[1].height = 30
+    ws.freeze_panes = "A2"
+    for row_idx, row in enumerate(rows, start=2):
+        values = [row.switch, row.vlan, row.name, row.description, row.status,
+                   row.ports, row.subnet, row.gateway, row.svi_state,
+                   row.client_count, row.clients]
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col, value=value)
+            cell.font = data_font
+            cell.alignment = Alignment(vertical="top", wrap_text=col in {5, 10})
+            cell.border = data_border
+    if rows:
+        ws.auto_filter.ref = ws.dimensions
+    return len(rows)
+
+
 def write_combined_excel(
     devices_data: dict[str, tuple[list[InterfaceRecord], dict[int, StackMember]]],
     threshold_days: int,
     outpath: str,
     unscanned: list | None = None,
+    raw_outputs: dict | None = None,
 ) -> tuple[bool, str]:
     """Write single combined workbook: All Ports -> Port Utilisation -> per-stack tabs.
 
@@ -353,6 +390,9 @@ def write_combined_excel(
 
         if unscanned is not None:
             write_unscanned_switches_block(ws_util, next_row + 1, unscanned)
+
+        ws_vlan = wb.create_sheet(title="VLAN Inventory")
+        write_vlan_sheet(ws_vlan, build_vlan_report(raw_outputs or {}))
 
         # Sheets 3-N: per-stack
         total_records = len(all_records)
@@ -392,13 +432,13 @@ def write_combined_excel(
 PALANTIR_HEADERS = [
     "Switch", "Site", "Location", "Stack Member", "Model", "SW Version",
     "Member Uptime (days)", "Interface", "Description", "State", "Protocol",
-    "Port VLAN", "MAC Address", "Client IP", "Client VLAN", "Tracking State",
+    "Port VLAN", "MAC Address", "Manufacturer", "Client IP", "Client VLAN", "Tracking State",
     "MAC Type", "Device Type", "Neighbour", "Correlation Notes", "Speed",
     "Type", "Counters In (Octets)", "Last Input", "Suspect (Has Had Traffic)",
     "CDP Neighbors",
 ]
 PALANTIR_COL_WIDTHS = [
-    28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 10, 20, 18, 10, 16,
+    28, 10, 12, 13, 18, 12, 20, 12, 36, 14, 10, 10, 20, 24, 18, 10, 16,
     11, 16, 32, 44, 10, 12, 22, 14, 26, 44,
 ]
 
@@ -428,7 +468,8 @@ def write_palantir_sheet(ws, rows: list) -> int:
         values = [
             rec.switch, site, location, rec.stack_member, rec.model, rec.sw_version,
             round(days, 1) if days is not None else "", rec.iface, rec.description,
-            rec.state, rec.protocol, rec.vlan, row.mac, row.client_ip,
+            rec.state, rec.protocol, rec.vlan, row.mac,
+            lookup_manufacturer(row.mac), row.client_ip,
             row.client_vlan, row.tracking_state, row.mac_type, row.device_type,
             row.neighbour, row.notes, rec.speed, rec.if_type, rec.counters_in,
             rec.last_input, rec.suspect, rec.cdp_neighbors,
@@ -459,7 +500,8 @@ def write_palantir_sheet(ws, rows: list) -> int:
 
 
 def write_palantir_excel(report, devices_data: dict, threshold_days: int,
-                         outpath: str, unscanned: list | None = None) -> tuple[bool, str]:
+                         outpath: str, unscanned: list | None = None,
+                         raw_outputs: dict | None = None) -> tuple[bool, str]:
     """Write All Ports + utilisation + one enriched sheet per selected stack."""
     if not report.rows:
         return False, "No Palantir port data to write"
@@ -482,6 +524,11 @@ def write_palantir_excel(report, devices_data: dict, threshold_days: int,
             next_row = 2
         if unscanned is not None:
             write_unscanned_switches_block(ws_util, next_row + 1, unscanned)
+
+        write_vlan_sheet(
+            wb.create_sheet(title="VLAN Inventory"),
+            build_vlan_report(raw_outputs or {}),
+        )
 
         stack_count = 0
         for host, rows in report.rows_by_switch.items():

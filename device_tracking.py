@@ -31,11 +31,14 @@ _RE_ROW = re.compile(
     # numeric VLAN ID (what the report filters on), but parsing it opaquely means
     # an unexpected token still yields a row, so a mismatch shows up as "no
     # bindings in the requested VLANs" instead of an unexplained empty report.
-    r"(?P<vlan>\S+)\s+"
-    r"(?P<prlvl>\S+)\s+"
-    r"(?P<age>\S+)\s+"
-    r"(?P<state>\S+)"
-    # The optional "Time left" tail ("101 s try 0") is matched but not captured.
+    r"(?P<vlan>\S+)"
+    # Some Command Runner terminal widths wrap the remaining columns onto a
+    # second line.  IP/MAC/interface/VLAN are still a valid client binding, so
+    # keep prlvl/age/state optional instead of discarding the whole first line.
+    r"(?:\s+(?P<prlvl>\S+))?"
+    r"(?:\s+(?P<age>\S+))?"
+    r"(?:\s+(?P<state>REACHABLE|STALE|VERIFY|DOWN|INCOMPLETE|PENDING))?"
+    # The optional "Time left" tail is matched but not captured.
     r".*$"
 )
 
@@ -91,9 +94,9 @@ def parse_device_tracking(text: str) -> tuple[list[DeviceTrackingEntry], int]:
             mac=m.group("mac").lower(),
             interface=iface,
             vlan=m.group("vlan"),
-            prlvl=m.group("prlvl"),
-            age=m.group("age"),
-            state=m.group("state"),
+            prlvl=m.group("prlvl") or "",
+            age=m.group("age") or "",
+            state=m.group("state") or "",
             stack_member=member_from_iface(iface),
         ))
     return out, non_ipv4

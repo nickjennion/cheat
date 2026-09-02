@@ -58,14 +58,14 @@ class InterfaceRecord:
 
 RE_IFACE_HEADER = re.compile(
     r'^((?:GigabitEthernet|TenGigabitEthernet|FastEthernet|'
-    r'FortyGigabitEthernet|HundredGigE)\S+)\s+is\s+(\S+(?:\s+\S+)?),\s*'
+    r'FortyGigabitEthernet|HundredGigE|FourHundredGigE)\S+)\s+is\s+(\S+(?:\s+\S+)?),\s*'
     r'line protocol is\s+(\S+)',
     re.IGNORECASE
 )
 RE_DESCRIPTION = re.compile(r'^\s+Description:\s+(.*)', re.IGNORECASE)
 RE_LAST_INPUT = re.compile(r'^\s+Last input\s+(\S+),', re.IGNORECASE)
 RE_STATUS_HEADER = re.compile(r'^Port\s+Name\s+Status\s+Vlan', re.IGNORECASE)
-RE_STATUS_PORT = re.compile(r'^((?:Gi|Te|Fa|Fo|Hu|Po)\d+(?:/\d+){1,3})\s+', re.IGNORECASE)
+RE_STATUS_PORT = re.compile(r'^((?:Gi|Te|Fa|Fo|Fi|Hu|Po)\d+(?:/\d+){1,3})\s+', re.IGNORECASE)
 RE_STATUS_FIND = re.compile(
     r'\b(connected|notconnect|disabled|err-disabled|inactive|sfpAbsent|xcvrAbsent)'
     r'\s+(\S+)'              # vlan
@@ -76,7 +76,7 @@ RE_STATUS_FIND = re.compile(
 )
 RE_COUNTERS_HEADER = re.compile(r'^Port\s+InOctets', re.IGNORECASE)
 RE_COUNTERS_ROW = re.compile(
-    r'^((?:Gi|Te|Fa|Fo|Hu)\d+/\d+/\d+(?:/\d+)?)\s+(\d+)',
+    r'^((?:Gi|Te|Fa|Fo|Fi|Hu)\d+/\d+/\d+(?:/\d+)?)\s+(\d+)',
     re.IGNORECASE
 )
 RE_STACK_TABLE_ROW = re.compile(
