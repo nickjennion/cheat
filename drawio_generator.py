@@ -113,10 +113,16 @@ def _build_tree(sites):
     return id_to_site, children, root_id
 
 
-def _new_root():
+def _new_root(fit_to_page: bool = False):
     root = ET.Element("mxGraphModel")
     root.set("grid", "1"); root.set("gridSize", "10")
     root.set("pageWidth", "1654"); root.set("pageHeight", "1169")
+    if fit_to_page:
+        # Keep generated aggregation pages to one fixed A3 landscape page.
+        # Overview intentionally remains unconstrained because it represents
+        # the whole site and may span multiple pages when printed.
+        root.set("fitPage", "1")
+        root.set("resizePage", "0")
     root.set("math", "0"); root.set("shadow", "0")
     mx_root = ET.SubElement(root, "root")
     ET.SubElement(mx_root, "mxCell", id="0")
@@ -379,10 +385,9 @@ def generate_cdp_topology_drawio(rendered_pages, topology, icons: str = "stencil
 
     doc_root = ET.Element("mxfile", host="CHEAT", version="21.0.0")
     for title, layout, id_to_name in rendered_pages:
-        # Every page uses the A3-landscape page size from _new_root(); the
-        # per-distribution pages are sized to fit, while the whole-site Overview
-        # is intentionally larger than one sheet (draw.io tiles it across pages).
-        root, mx_root = _new_root()
+        # Every page uses A3 landscape. Aggregation pages are constrained to a
+        # single page; the whole-site Overview remains unconstrained.
+        root, mx_root = _new_root(fit_to_page=(title != "Overview"))
         H = layout.height
 
         _add_cell(mx_root, "title", f"CDP Physical Topology — {title}",

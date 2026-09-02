@@ -160,11 +160,38 @@ def test_generate_cdp_topology_drawio_multipage():
     assert "Gi1/0/1 ↔ Gi0/0" in xml               # edge port label from topology
     assert 'as="points"' in xml                   # edge waypoints present
     assert "curved=1" in xml                       # smooth curved edges
+    assert 'pageWidth="1654"' in xml
+    assert 'pageHeight="1169"' in xml
+    assert 'fitPage="1"' not in xml                # Overview is unconstrained
     # the port label rides near the downstream (target) end, not mid-line
     lbl = [c for c in root.iter("mxCell")
            if c.get("value") == "Gi1/0/1 ↔ Gi0/0" and c.get("vertex") == "1"]
     assert lbl and "edgeLabel" in lbl[0].get("style", "")
     assert lbl[0].find("mxGeometry").get("x") == "0.75"
+
+
+def test_generate_cdp_topology_constrains_non_overview_pages_to_one_a3_page():
+    import xml.etree.ElementTree as ET
+    from cdp_topology import Topology, TopologyNode
+    from topology_dot import ParsedLayout, NodeBox
+    from drawio_generator import generate_cdp_topology_drawio
+
+    layout = ParsedLayout(
+        width=20.0, height=20.0,
+        nodes={"n0": NodeBox(10.0, 10.0, 1.0, 1.0)}, edges=[]
+    )
+    topo = Topology(nodes=[TopologyNode("edge", is_rogue=False)], edges=[])
+    xml = generate_cdp_topology_drawio(
+        [("Overview", layout, {"n0": "edge"}),
+         ("edge", layout, {"n0": "edge"})], topo
+    )
+    root = ET.fromstring(xml.split("?>", 1)[1])
+    pages = root.findall("diagram")
+    overview_model = pages[0].find("mxGraphModel")
+    edge_model = pages[1].find("mxGraphModel")
+    assert overview_model.get("fitPage") is None
+    assert edge_model.get("fitPage") == "1"
+    assert edge_model.get("resizePage") == "0"
 
 
 def test_node_style_plain_vs_stencil():
