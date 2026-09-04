@@ -19,6 +19,8 @@ turns it into Excel reports and draw.io topology diagrams.
 
 ## Product tour
 
+Screenshots use simulated data from a mixed Catalyst 3560, 3650, 3850, and 9300 environment.
+
 ### Start with a credential profile
 
 Select a saved profile or enter credentials for the current session.
@@ -42,6 +44,12 @@ Add inclusion or exclusion filters, then select one switch or a range.
 Choose a port report, client search, topology action, or Palantir Mode.
 
 ![CHEAT report and command menu](docs/readme/screenshots/commands-menu.png)
+
+### Review the Palantir Mode output
+
+Palantir Mode combines port state, MAC addresses, client IPs, VLANs, and CDP neighbors in one report.
+
+![CHEAT Palantir Mode report preview](docs/readme/screenshots/palantir-mode.png)
 
 ## Main reports
 
