@@ -2,14 +2,14 @@
 
 **Cisco Homogeneous Environment Awareness Tool**
 
-CHEAT collects live switch data through Cisco DNA Center or Cisco Catalyst Center.
-It converts that data into Excel reports and draw.io topology diagrams.
+CHEAT collects live switch data through Cisco DNA Center or Catalyst Center and
+turns it into Excel reports and draw.io topology diagrams.
 
 <p align="center">
   <img src="docs/readme/screenshots/network-cutover.png" alt="Network technician connecting switch cables during a network cutover" width="900">
 </p>
 
-Use CHEAT to answer these questions:
+Use CHEAT to find:
 
 - Which switch ports are active, idle, disabled, or disconnected?
 - Which media access control (MAC) addresses appear on each port?
@@ -19,48 +19,39 @@ Use CHEAT to answer these questions:
 - Which switches appear in CDP but were not included in the scan?
 - Which access points moved between switches?
 
-CHEAT uses read-only commands for network data collection.
-It writes reports and command output to the local computer.
+Collection uses read-only commands. Reports and raw command output are saved locally.
 
-## Key benefits
+## Features
 
-- **One workflow for many switches.** Select a switch group once and run multiple reports.
-- **Useful Excel output.** Filter, sort, and share the generated workbooks.
-- **Port-level context.** Combine interface state, description, VLAN, counters, MAC, IP, and CDP data.
-- **Stack-aware reports.** Create one combined sheet and one sheet for each switch stack.
-- **Coverage checks.** Find Cisco switches that CDP detects but the selected scan does not include.
-- **Topology export.** Create multi-page draw.io diagrams from live CDP data.
-- **Safe ambiguity handling.** Flag duplicate or uncertain mappings instead of selecting an unverified result.
-- **Scalable collection.** Run jobs across devices concurrently.
-- **Automatic API batching.** Split command sets into groups of five for Catalyst Center Command Runner.
+- Select a switch group once and run multiple reports.
+- Combine interface, VLAN, counters, MAC, IP, and CDP data at port level.
+- Produce stack-aware Excel workbooks, CSV exports, and draw.io topologies.
+- Flag missing, duplicate, or uncertain correlations instead of guessing.
+- Run jobs concurrently; batch Catalyst Center Command Runner requests in groups of five.
 
 ## Product tour
 
 ### Start with a credential profile
 
-Select a saved Catalyst Center profile.
-You can also enter credentials for the current session.
+Select a saved profile or enter credentials for the current session.
 
 ![CHEAT credential menu](docs/readme/screenshots/credentials-menu.png)
 
 ### Collect the device inventory
 
-CHEAT uses pagination to collect large Catalyst Center inventories.
-It displays each device with its platform and management IP address.
+CHEAT paginates large inventories and shows each device's platform and management IP.
 
 ![CHEAT device inventory collection](docs/readme/screenshots/device-inventory.png)
 
 ### Filter the switch list
 
-Add inclusion or exclusion filters.
-Select one switch or a range of switches.
+Add inclusion or exclusion filters, then select one switch or a range.
 
 ![CHEAT switch selection filters](docs/readme/screenshots/switch-filters.png)
 
 ### Select a report
 
 Choose a port report, client search, topology action, or Palantir Mode.
-Set session controls before you start the job.
 
 ![CHEAT report and command menu](docs/readme/screenshots/commands-menu.png)
 
@@ -68,22 +59,20 @@ Set session controls before you start the job.
 
 | Report | Menu 5 option | Result |
 |---|---:|---|
-| Per-device port report | `1` | Create one Excel file for each device. |
-| Multi-sheet port report | `2` | Create one Excel file with one sheet for each device. |
-| Consolidated port report | `3` | Create `All Ports`, `Port Utilisation`, and per-device sheets. |
-| AV MAC and port report | `m` | Map selected VLAN MAC addresses to likely physical access ports. |
-| Full MAC report | `e` | List all MAC entries by port, including child-switch uplinks. |
+| Per-device port report | `1` | One Excel file per device. |
+| Multi-sheet port report | `2` | One Excel file with a sheet per device. |
+| Consolidated port report | `3` | `All Ports`, `Port Utilisation`, and per-device sheets. |
+| AV MAC and port report | `m` | Map selected VLAN MAC addresses to likely access ports. |
+| Full MAC report | `e` | List MAC entries by port, including child-switch uplinks. |
 | IP and MAC report | `d` | List device-tracking bindings for selected VLANs. |
-| Palantir Mode | `x` | Combine port, MAC, client IP, VLAN, and CDP data in one workbook. |
+| Palantir Mode | `x` | Combine port, MAC, IP, VLAN, and CDP data. |
 
-Palantir Mode keeps empty physical ports in the report.
-It creates a separate row for each client address.
-It flags missing correlations and VLAN mismatches.
+Palantir Mode keeps empty physical ports, gives each client address its own row,
+and flags missing correlations and VLAN mismatches.
 
 ## Other functions
 
-- Search Catalyst Center Assurance for a MAC address.
-- Search Catalyst Center Assurance for an IP address.
+- Search Catalyst Center Assurance by MAC or IP address.
 - Monitor access point movement.
 - Export Cisco Identity Services Engine (ISE) endpoints.
 - Export CDP topology to draw.io.
@@ -141,8 +130,7 @@ It flags missing correlations and VLAN mismatches.
 
 ## Credential setup
 
-CHEAT can request credentials at run time.
-CHEAT can also read credentials from `dnac.env` or `dnac2.env`.
+CHEAT can prompt for credentials or read them from `dnac.env` or `dnac2.env`.
 
 Copy the sample file to create the first profile:
 
@@ -196,11 +184,10 @@ Palantir Mode sends these data requests:
 - `show vlan brief`
 - `show interfaces vlan`
 
-Catalyst Center accepts a maximum of five Command Runner commands in one request.
-CHEAT splits larger command sets into sequential batches for each device.
-CHEAT still processes different devices concurrently.
+Catalyst Center accepts five Command Runner commands per request. CHEAT splits
+larger command sets into sequential batches while processing different devices concurrently.
 
-Palantir Mode creates these sheets:
+Palantir Mode creates:
 
 - `All Ports`
 - `All MAC Addresses`
@@ -208,7 +195,7 @@ Palantir Mode creates these sheets:
 - `VLAN Inventory`
 - One sheet for each selected stack
 
-Palantir Mode also creates a tiered CDP topology in `drawio_exports/`.
+It also creates a tiered CDP topology in `drawio_exports/`.
 
 The output can include these fields:
 
@@ -220,16 +207,16 @@ The output can include these fields:
 - Client IP address
 - MAC manufacturer (from the bundled OUI Master Database)
 
-The manufacturer lookup uses the compressed `data/oui-master.tsv.gz` snapshot
-from [OUI-Master-Database](https://github.com/Ringmast4r/OUI-Master-Database).
-Set `CHEAT_OUI_DATABASE` to use a different compatible TSV/TSV.GZ file.
+Manufacturer lookup uses the compressed `data/oui-master.tsv.gz` snapshot from
+[OUI-Master-Database](https://github.com/Ringmast4r/OUI-Master-Database). Set
+`CHEAT_OUI_DATABASE` to use another compatible TSV/TSV.GZ file.
 - Device-tracking state
 - CDP device type and neighbor
 - Traffic counters and last input
 - Correlation notes
 
-The client IP fields depend on the switch device-tracking output.
-CHEAT reports switches that return no recognized device-tracking rows.
+Client IP fields depend on switch device-tracking output; switches with no
+recognized rows are reported.
 
 ## Session controls
 
@@ -243,7 +230,7 @@ Menu 5 provides these session controls:
 | Concurrency | `c` | Select one to five concurrent device jobs. |
 | Token refresh | `r` | Request a new Catalyst Center token. |
 
-These controls do not persist after the program exits.
+Controls apply to the current session only.
 
 ## Generated files
 
@@ -294,17 +281,16 @@ Windows:
 winget install Graphviz.Graphviz
 ```
 
-Add the Graphviz `bin` directory to `PATH` when the installer does not add it.
-CHEAT skips the CDP diagram when it cannot find `dot`.
-Other reports continue normally.
+Add Graphviz's `bin` directory to `PATH` if needed. CHEAT skips the CDP diagram
+when `dot` is unavailable; other reports continue.
 
 ## Security notes
 
-- CHEAT sends credentials only to the configured Catalyst Center or ISE host.
-- CHEAT sends the Catalyst Center token in the `X-Auth-Token` header.
-- CHEAT uses read-only network commands.
-- CHEAT stores raw command output on the local computer.
-- CHEAT disables Transport Layer Security certificate verification by default.
+- Credentials are sent only to the configured Catalyst Center or ISE host.
+- The Catalyst Center token uses the `X-Auth-Token` header.
+- Raw command output is stored locally.
+- Network commands are read-only.
+- TLS certificate verification is disabled by default.
 
 > [!WARNING]
 > Disabled certificate verification can expose the connection to interception.
@@ -365,30 +351,24 @@ Slow mode changes the poll limit to 60 attempts.
 
 ### Authentication returns HTTP 401
 
-Confirm the username and password.
-Confirm that the account has Catalyst Center API access.
-Confirm that the configured host is correct.
-Use Menu 5 option `r` to request a new token.
+Check the credentials, host, and Catalyst Center API access. Use Menu 5 option
+`r` to request a new token.
 
-An expired API token does not authenticate the refresh request.
-The refresh request uses the stored username and password.
+The refresh request uses the stored username and password, not the expired token.
 
 ### A report contains no client IP addresses
 
-Open the latest file in `command_runner_outputs/`.
-Find the output from `show device-tracking database` or `show ip device tracking all`.
-Confirm that the switch returns IP, MAC, VLAN, and interface data.
-The exact output format can vary between switch software releases.
+Check the latest file in `command_runner_outputs/` for output from `show device-tracking database`
+or `show ip device tracking all`. The switch must
+return IP, MAC, VLAN, and interface data; formats vary by software release.
 
 ### Palantir Mode fails during command submission
 
-Confirm that the runtime environment contains commit `580574a` or a later commit.
-That commit adds the five-command batching requirement.
+Use commit `580574a` or later, which adds five-command batching.
 
 ### The topology diagram is missing
 
-Run `dot -V`.
-Install Graphviz when the command is not available.
+Run `dot -V` and install Graphviz if the command is unavailable.
 
 ## Change history
 
