@@ -225,7 +225,7 @@ def test_parse_output_no_logging_leaves_blank():
 _CDP_DETAIL_COL = "\n".join([
     "show cdp neighbors detail",
     "-------------------------",
-    "Device ID: dist-4500xv.net.hu.edu",
+    "Device ID: dist-4500xv.edu.au",
     "Entry address(es):",
     "  IP address: 10.20.1.5",
     "Platform: cisco WS-C4500X-32,  Capabilities: Router Switch IGMP",
@@ -247,7 +247,7 @@ def test_parse_cdp_neighbors_enriched_cell():
     cell = parse_cdp_neighbors(_CDP_DETAIL_COL)["Gi1/0/1"]
     # both neighbours on the same local interface, comma-joined, with mgmt IP
     # and the CDP platform in brackets so phone models are identifiable.
-    assert "dist-4500xv.net.hu.edu [WS-C4500X-32] (Te2/1/24) 10.99.99.9" in cell
+    assert "dist-4500xv.edu.au [WS-C4500X-32] (Te2/1/24) 10.99.99.9" in cell
     assert "SEP00ecab [IP Phone 6901] (Port 1) 10.20.9.5" in cell
     assert cell.count(",") == 1                              # exactly two joined
 

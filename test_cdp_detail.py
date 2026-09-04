@@ -1,7 +1,7 @@
 SWITCH_AND_PHONE = "\n".join([
     "show cdp neighbors detail",
     "-------------------------",
-    "Device ID: x-dist-4500xv.net.hu.edu",
+    "Device ID: x-dist-4500xv.edu.au",
     "Entry address(es):",
     "  IP address: 10.20.1.5",
     "Platform: cisco WS-C4500X-32,  Capabilities: Router Switch IGMP ",
@@ -38,7 +38,7 @@ SWITCH_AND_PHONE = "\n".join([
 def test_parse_cdp_detail_switch_prefers_management_ip():
     from cdp_detail import parse_cdp_detail
     by = {n.device: n for n in parse_cdp_detail(SWITCH_AND_PHONE)}
-    s = by["x-dist-4500xv.net.hu.edu"]
+    s = by["x-dist-4500xv.edu.au"]
     assert s.mgmt_ip == "10.99.99.9"          # Management, not Entry (10.20.1.5)
     assert s.platform == "WS-C4500X-32"        # cisco prefix stripped
     assert s.capabilities.split() == ["Router", "Switch", "IGMP"]

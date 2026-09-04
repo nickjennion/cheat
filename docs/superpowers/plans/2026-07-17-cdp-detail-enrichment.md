@@ -45,7 +45,7 @@ Create `test_cdp_detail.py` (fixtures are redacted versions of two real captures
 SWITCH_AND_PHONE = "\n".join([
     "show cdp neighbors detail",
     "-------------------------",
-    "Device ID: x-dist-4500xv.net.hu.edu",
+    "Device ID: x-dist-4500xv.edu.au",
     "Entry address(es):",
     "  IP address: 10.20.1.5",
     "Platform: cisco WS-C4500X-32,  Capabilities: Router Switch IGMP ",
@@ -82,7 +82,7 @@ SWITCH_AND_PHONE = "\n".join([
 def test_parse_cdp_detail_switch_prefers_management_ip():
     from cdp_detail import parse_cdp_detail
     by = {n.device: n for n in parse_cdp_detail(SWITCH_AND_PHONE)}
-    s = by["x-dist-4500xv.net.hu.edu"]
+    s = by["x-dist-4500xv.edu.au"]
     assert s.mgmt_ip == "10.99.99.9"          # Management, not Entry (10.20.1.5)
     assert s.platform == "WS-C4500X-32"        # cisco prefix stripped
     assert s.capabilities.split() == ["Router", "Switch", "IGMP"]
@@ -467,7 +467,7 @@ Append to `test_interface_parser.py`:
 _CDP_DETAIL_COL = "\n".join([
     "show cdp neighbors detail",
     "-------------------------",
-    "Device ID: dist-4500xv.net.hu.edu",
+    "Device ID: dist-4500xv.edu.au",
     "Entry address(es):",
     "  IP address: 10.20.1.5",
     "Platform: cisco WS-C4500X-32,  Capabilities: Router Switch IGMP",
@@ -488,7 +488,7 @@ def test_parse_cdp_neighbors_enriched_cell():
     from interface_parser import parse_cdp_neighbors
     cell = parse_cdp_neighbors(_CDP_DETAIL_COL)["Gi1/0/1"]
     # both neighbours on the same local interface, comma-joined, with mgmt IP.
-    assert "dist-4500xv.net.hu.edu (Te2/1/24) 10.99.99.9" in cell
+    assert "dist-4500xv.edu.au (Te2/1/24) 10.99.99.9" in cell
     assert "SEP00ecab (Port 1) 10.20.9.5" in cell           # phone included
     assert cell.count(",") == 1                              # exactly two joined
 ```
