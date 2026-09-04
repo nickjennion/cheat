@@ -9,18 +9,6 @@ turns it into Excel reports and draw.io topology diagrams.
   <img src="docs/readme/screenshots/network-cutover.png" alt="Network technician connecting switch cables during a network cutover" width="900">
 </p>
 
-Use CHEAT to find:
-
-- Which switch ports are active, idle, disabled, or disconnected?
-- Which media access control (MAC) addresses appear on each port?
-- Which client Internet Protocol (IP) addresses map to those MAC addresses?
-- Which virtual local area networks (VLANs) contain the clients?
-- Which Cisco Discovery Protocol (CDP) neighbors connect to each port?
-- Which switches appear in CDP but were not included in the scan?
-- Which access points moved between switches?
-
-Collection uses read-only commands. Reports and raw command output are saved locally.
-
 ## Features
 
 - Select a switch group once and run multiple reports.
